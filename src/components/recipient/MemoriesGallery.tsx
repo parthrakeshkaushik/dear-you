@@ -1,17 +1,18 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Calendar, X, ZoomIn } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Calendar, ZoomIn } from 'lucide-react';
 import { MemoryItem } from '@/types/gift';
 import { formatDate } from '@/lib/utils';
+import { PhotoViewerModal } from './PhotoViewerModal';
 
 interface MemoriesGalleryProps {
   memories?: MemoryItem[];
 }
 
 export function MemoriesGallery({ memories = [] }: MemoriesGalleryProps) {
-  const [selectedImage, setSelectedImage] = useState<MemoryItem | null>(null);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
 
   if (!memories || memories.length === 0) return null;
 
@@ -40,30 +41,28 @@ export function MemoriesGallery({ memories = [] }: MemoriesGalleryProps) {
         {/* Gallery Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {memories.map((item, index) => {
-            // Subtle alternating tilt for organic scrapbook feel
-            const tilt = index % 3 === 0 ? '-rotate-1' : index % 3 === 1 ? 'rotate-1' : 'rotate-0';
-
             return (
               <motion.div
                 key={item.id || index}
+                layoutId={`gallery-item-${item.id}`}
                 initial={{ opacity: 0, y: 25 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+                transition={{ duration: 0.6, delay: index * 0.08 }}
                 whileHover={{ y: -6, transition: { duration: 0.2 } }}
-                onClick={() => setSelectedImage(item)}
-                className={`group cursor-pointer p-4 rounded-2xl bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-md hover:shadow-xl transition-all ${tilt}`}
+                onClick={() => setSelectedPhotoIndex(index)}
+                className="group cursor-pointer p-4 rounded-2xl bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-md hover:shadow-xl transition-all"
               >
                 {/* Photo container */}
                 <div className="relative aspect-[4/3] w-full rounded-xl overflow-hidden bg-black/10">
                   <img
-                    src={item.image_path || 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800&auto=format&fit=crop&q=80'}
+                    src={item.image_path}
                     alt={item.caption || 'Memory photograph'}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                    <ZoomIn className="w-6 h-6" />
+                    <ZoomIn className="w-6 h-6 drop-shadow-sm" />
                   </div>
                 </div>
 
@@ -85,53 +84,14 @@ export function MemoriesGallery({ memories = [] }: MemoriesGalleryProps) {
         </div>
       </div>
 
-      {/* Lightbox Modal */}
-      <AnimatePresence>
-        {selectedImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSelectedImage(null)}
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-8"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative max-w-3xl w-full bg-[var(--theme-surface)] rounded-2xl overflow-hidden border border-[var(--theme-border)] shadow-2xl flex flex-col"
-            >
-              <button
-                onClick={() => setSelectedImage(null)}
-                className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
-                aria-label="Close modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="relative max-h-[70vh] flex items-center justify-center bg-black/40">
-                <img
-                  src={selectedImage.image_path}
-                  alt={selectedImage.caption}
-                  className="max-h-[70vh] w-auto object-contain"
-                />
-              </div>
-
-              <div className="p-5 sm:p-6 bg-[var(--theme-surface)]">
-                {selectedImage.memory_date && (
-                  <p className="text-xs text-[var(--theme-secondary)] mb-1 font-medium">
-                    {formatDate(selectedImage.memory_date)}
-                  </p>
-                )}
-                <p className="font-handwriting text-xl sm:text-2xl text-[var(--theme-text)]">
-                  {selectedImage.caption}
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Shared Interactive Full-Screen Photo Viewer */}
+      <PhotoViewerModal
+        isOpen={selectedPhotoIndex !== null}
+        photos={memories}
+        currentIndex={selectedPhotoIndex ?? 0}
+        onClose={() => setSelectedPhotoIndex(null)}
+        onNavigate={(newIdx) => setSelectedPhotoIndex(newIdx)}
+      />
     </section>
   );
 }

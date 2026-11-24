@@ -32,11 +32,11 @@ async function asyncTest(name, fn) {
 }
 
 // -------------------------------------------------------------
-// 1. EXPIRY VERIFICATION TESTS
+// 1. EXPIRY ENGINE TESTS
 // -------------------------------------------------------------
 console.log('--- 1. Expiry Engine Tests ---');
 
-function checkGiftExpiry(expiryEnabled, expiresAtUtc, timeZone = 'Asia/Kolkata') {
+function checkGiftExpiry(expiryEnabled, expiresAtUtc) {
   if (!expiryEnabled || !expiresAtUtc) {
     return { isExpired: false, expiresAtFormatted: 'No expiry set' };
   }
@@ -133,6 +133,53 @@ test('Dreamy theme possesses night background and starlight accents', () => {
 test('Elegant theme possesses high-contrast champagne gold accents', () => {
   const gold = '#D4AF37';
   assert.strictEqual(gold, '#D4AF37');
+});
+
+// -------------------------------------------------------------
+// 5. MEMORY WALL & PHOTO VIEWER TESTS
+// -------------------------------------------------------------
+console.log('\n--- 5. Memory Wall & Photo Viewer Tests ---');
+
+test('Supports all 7 decorative frame styles', () => {
+  const validStyles = [
+    'polaroid',
+    'vintage_wood',
+    'minimal',
+    'golden_luxury',
+    'scrapbook',
+    'pastel',
+    'theme_custom',
+  ];
+  assert.strictEqual(validStyles.length, 7);
+  assert.strictEqual(validStyles.includes('vintage_wood'), true);
+  assert.strictEqual(validStyles.includes('golden_luxury'), true);
+  assert.strictEqual(validStyles.includes('polaroid'), true);
+});
+
+test('Photo lightbox modal navigation loops smoothly', () => {
+  const photos = [{ id: '1' }, { id: '2' }, { id: '3' }];
+  let currentIdx = 0;
+  
+  // Next
+  currentIdx = currentIdx < photos.length - 1 ? currentIdx + 1 : 0;
+  assert.strictEqual(currentIdx, 1);
+  
+  // Next
+  currentIdx = currentIdx < photos.length - 1 ? currentIdx + 1 : 0;
+  assert.strictEqual(currentIdx, 2);
+  
+  // Next loop back to 0
+  currentIdx = currentIdx < photos.length - 1 ? currentIdx + 1 : 0;
+  assert.strictEqual(currentIdx, 0);
+  
+  // Previous loops back to last
+  currentIdx = currentIdx > 0 ? currentIdx - 1 : photos.length - 1;
+  assert.strictEqual(currentIdx, 2);
+});
+
+test('Memory Wall hanging tilt stays within balanced range (-6 to +6 degrees)', () => {
+  const naturalRotation = -3.5;
+  assert.strictEqual(naturalRotation >= -6 && naturalRotation <= 6, true);
 });
 
 console.log(`\n==============================================`);

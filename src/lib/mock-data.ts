@@ -24,14 +24,15 @@ export const MOCK_GIFTS: Record<string, Gift> = {
     sections: [
       { id: '1', section_type: 'gift_box', display_order: 1, enabled: true },
       { id: '2', section_type: 'celebration', display_order: 2, enabled: true },
-      { id: '3', section_type: 'memories', display_order: 3, enabled: true },
-      { id: '4', section_type: 'timeline', display_order: 4, enabled: true },
-      { id: '5', section_type: 'quiz', display_order: 5, enabled: true },
-      { id: '6', section_type: 'scratch_card', display_order: 6, enabled: true },
-      { id: '7', section_type: 'secret_messages', display_order: 7, enabled: true },
-      { id: '8', section_type: 'future_wishes', display_order: 8, enabled: true },
-      { id: '9', section_type: 'letters', display_order: 9, enabled: true },
-      { id: '10', section_type: 'closing', display_order: 10, enabled: true },
+      { id: '3', section_type: 'memory_wall', display_order: 3, enabled: true },
+      { id: '4', section_type: 'memories', display_order: 4, enabled: true },
+      { id: '5', section_type: 'timeline', display_order: 5, enabled: true },
+      { id: '6', section_type: 'quiz', display_order: 6, enabled: true },
+      { id: '7', section_type: 'scratch_card', display_order: 7, enabled: true },
+      { id: '8', section_type: 'secret_messages', display_order: 8, enabled: true },
+      { id: '9', section_type: 'future_wishes', display_order: 9, enabled: true },
+      { id: '10', section_type: 'letters', display_order: 10, enabled: true },
+      { id: '11', section_type: 'closing', display_order: 11, enabled: true },
     ],
     memories: [
       {
@@ -40,6 +41,9 @@ export const MOCK_GIFTS: Record<string, Gift> = {
         caption: 'The impromptu rooftop coffee where we talked until the city lights came on.',
         memory_date: '2024-03-14',
         display_order: 1,
+        frame_style: 'polaroid',
+        frame_size: 'medium',
+        rotation: -3,
       },
       {
         id: 'm2',
@@ -47,6 +51,9 @@ export const MOCK_GIFTS: Record<string, Gift> = {
         caption: 'That unforgettable weekend road trip in the monsoon rain.',
         memory_date: '2024-07-22',
         display_order: 2,
+        frame_style: 'vintage_wood',
+        frame_size: 'large',
+        rotation: 2.5,
       },
       {
         id: 'm3',
@@ -54,6 +61,9 @@ export const MOCK_GIFTS: Record<string, Gift> = {
         caption: 'Laughing so hard we couldn’t breathe during game night.',
         memory_date: '2025-01-05',
         display_order: 3,
+        frame_style: 'golden_luxury',
+        frame_size: 'medium',
+        rotation: -2,
       },
     ],
     timeline_entries: [

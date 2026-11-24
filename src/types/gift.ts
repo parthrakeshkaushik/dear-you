@@ -14,6 +14,7 @@ export type SectionType =
   | 'welcome'
   | 'gift_box'
   | 'celebration'
+  | 'memory_wall'
   | 'memories'
   | 'timeline'
   | 'quiz'
@@ -24,6 +25,17 @@ export type SectionType =
   | 'music'
   | 'closing';
 
+export type FrameStyle =
+  | 'polaroid'
+  | 'vintage_wood'
+  | 'minimal'
+  | 'golden_luxury'
+  | 'scrapbook'
+  | 'pastel'
+  | 'theme_custom';
+
+export type FrameSize = 'small' | 'medium' | 'large';
+
 export interface MemoryItem {
   id: string;
   gift_id?: string;
@@ -31,6 +43,20 @@ export interface MemoryItem {
   caption: string;
   memory_date?: string;
   display_order: number;
+  frame_style?: FrameStyle;
+  frame_size?: FrameSize;
+  rotation?: number; // in degrees, e.g. -5 to 5
+  position_x?: number; // relative coordinate for manual wall layout
+  position_y?: number;
+}
+
+export type WallLayoutMode = 'auto' | 'manual' | 'both';
+
+export interface MemoryWallConfig {
+  layout_mode: WallLayoutMode;
+  wall_spacing?: 'compact' | 'comfortable' | 'spacious';
+  enable_hanging_effect?: boolean;
+  wall_background?: string;
 }
 
 export interface TimelineEntry {
@@ -130,6 +156,9 @@ export interface Gift {
   scratch_card_hidden_text?: string;
   gift_box_message?: string;
   closing_message?: string;
+  
+  // Memory Wall & Gallery configs
+  memory_wall_config?: MemoryWallConfig;
   
   // Relational details
   sections?: GiftSection[];

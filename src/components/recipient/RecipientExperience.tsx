@@ -7,6 +7,7 @@ import { PasswordGate } from './PasswordGate';
 import { WelcomeScreen } from './WelcomeScreen';
 import { GiftReveal } from './GiftReveal';
 import { CelebrationSection } from './CelebrationSection';
+import { MemoryWall } from './MemoryWall';
 import { MemoriesGallery } from './MemoriesGallery';
 import { TimelineSection } from './TimelineSection';
 import { QuizSection } from './QuizSection';
@@ -47,6 +48,7 @@ export function RecipientExperience({
       return [
         'gift_box',
         'celebration',
+        'memory_wall',
         'memories',
         'timeline',
         'quiz',
@@ -184,6 +186,13 @@ export function RecipientExperience({
                     wishes={gift.wishes}
                     cakeEnabled={true}
                   />
+                </div>
+              );
+
+            case 'memory_wall':
+              return (
+                <div key="memory_wall" id="memory_wall">
+                  <MemoryWall memories={gift.memories} wallConfig={gift.memory_wall_config} />
                 </div>
               );
 
