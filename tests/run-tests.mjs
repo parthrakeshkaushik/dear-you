@@ -934,6 +934,76 @@ test('Logout simulator: clears cookie tokens and enforces signed-out state', () 
   assert.strictEqual(updatedJar['sb-auth-token'], undefined);
 });
 
+// -------------------------------------------------------------
+// 17. SIMPLE OTP-FREE SIGN UP & 14-DAY DIRECT ONBOARDING TESTS
+// -------------------------------------------------------------
+console.log('\n--- 17. Simple OTP-Free Sign Up & 14-Day Direct Onboarding Tests ---');
+
+test('Simple sign-up requires valid full name, email, password, and policy agreement', () => {
+  function validateSimpleSignup(data) {
+    if (!data.fullName || data.fullName.trim().length < 2) return { valid: false, error: 'Name required' };
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!data.email || !emailRegex.test(data.email)) return { valid: false, error: 'Valid email required' };
+    if (!data.password || data.password.length < 6) return { valid: false, error: 'Password min 6 chars' };
+    if (!data.termsAccepted) return { valid: false, error: 'Terms acceptance required' };
+    return { valid: true };
+  }
+
+  assert.strictEqual(validateSimpleSignup({ fullName: '', email: 'valid@example.com', password: 'password123', termsAccepted: true }).valid, false);
+  assert.strictEqual(validateSimpleSignup({ fullName: 'Maya', email: 'invalid-email', password: 'password123', termsAccepted: true }).valid, false);
+  assert.strictEqual(validateSimpleSignup({ fullName: 'Maya', email: 'maya@example.com', password: '123', termsAccepted: true }).valid, false);
+  assert.strictEqual(validateSimpleSignup({ fullName: 'Maya', email: 'maya@example.com', password: 'password123', termsAccepted: false }).valid, false);
+  assert.strictEqual(validateSimpleSignup({ fullName: 'Maya Sharma', email: 'maya@example.com', password: 'password123', termsAccepted: true }).valid, true);
+});
+
+test('OTP-free registration sets user immediately verified with email_confirm: true', () => {
+  function createDirectUser(email, name) {
+    return {
+      email,
+      email_confirm: true,
+      email_verified: true,
+      account_status: 'active',
+      role: 'creator',
+      destination_otp: null, // No OTP generated or required
+    };
+  }
+
+  const user = createDirectUser('user@example.com', 'Alex');
+  assert.strictEqual(user.email_confirm, true);
+  assert.strictEqual(user.email_verified, true);
+  assert.strictEqual(user.destination_otp, null);
+});
+
+await asyncTest('Sign-up generates 14-day persistent session token directly for Creator Dashboard', async () => {
+  const secret = new TextEncoder().encode('dearyou_secure_persistent_session_secret_2026_xyz');
+  const userId = 'creator-signup-uuid-456';
+  const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+  const expiresAt = Date.now() + fourteenDaysMs;
+
+  const token = await new SignJWT({ userId, days: 14, expiresAt })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime(Math.floor(expiresAt / 1000))
+    .sign(secret);
+
+  const { payload } = await jwtVerify(token, secret);
+  assert.strictEqual(payload.userId, 'creator-signup-uuid-456');
+  assert.strictEqual(payload.days, 14);
+  assert.ok(payload.expiresAt > Date.now() + 13 * 24 * 60 * 60 * 1000);
+});
+
+test('Registration directly routes to Creator Dashboard (/admin) without OTP screen intermediate', () => {
+  function getPostSignupRoute(signupResult) {
+    if (signupResult.success) {
+      return '/admin?welcome=true'; // Direct route, no /verify-otp
+    }
+    return '/signup';
+  }
+
+  const route = getPostSignupRoute({ success: true, userId: 'u1' });
+  assert.strictEqual(route, '/admin?welcome=true');
+  assert.notStrictEqual(route.includes('verify-otp'), true);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

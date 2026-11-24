@@ -169,11 +169,11 @@ function VerifyEmailContent() {
 
         <div className="mt-3">
           <Link
-            href={`/verify-otp?method=email&identifier=${encodeURIComponent(email)}`}
+            href="/login"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-platform-violet hover:underline"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Have a 6-digit verification code? Enter code here</span>
+            <span>Ready to continue? Return to Sign In</span>
           </Link>
         </div>
 

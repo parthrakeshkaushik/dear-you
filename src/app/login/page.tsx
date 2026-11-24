@@ -8,44 +8,29 @@ import {
   Gift,
   Lock,
   Mail,
-  Smartphone,
   User,
   ArrowRight,
   Sparkles,
   AlertCircle,
   CheckCircle,
-  ShieldCheck,
-  ChevronDown,
-  Clock,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
-import {
-  SUPPORTED_COUNTRY_CODES,
-  normalizePhoneNumber,
-  isValidE164Phone,
-  getPhoneBridgeEmail,
-} from '@/lib/security/phone-utils';
-import CaptchaWidget from '@/components/auth/CaptchaWidget';
-import { SessionDurationDays, DEFAULT_SESSION_DAYS } from '@/lib/auth/persistent-session';
+import { SessionDurationDays } from '@/lib/auth/persistent-session';
 
 function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [isSignUp, setIsSignUp] = useState(false);
-  const [authMethod, setAuthMethod] = useState<'email' | 'mobile'>('email');
 
   // Form Fields
   const [email, setEmail] = useState('');
-  const [countryCode, setCountryCode] = useState('+91');
-  const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [agreedToPolicies, setAgreedToPolicies] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
-  // Persistent Login & Remember Me State
+  // Persistent Login & Remember Me State (Default: 14 days)
   const [rememberMe, setRememberMe] = useState(true);
   const [rememberDuration, setRememberDuration] = useState<SessionDurationDays>(14);
 
@@ -65,6 +50,11 @@ function AuthPageContent() {
     if (loggedOut) {
       setSuccessMessage('You have been logged out successfully.');
       return;
+    }
+
+    const mode = searchParams?.get('mode');
+    if (mode === 'signup') {
+      setIsSignUp(true);
     }
 
     // Auto-restore check: If user already has an active, valid session, avoid showing login screen
@@ -98,17 +88,27 @@ function AuthPageContent() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+
     // ==========================================
-    // 1. SIGN UP SUBMISSION
+    // 1. SIMPLE SIGN UP FLOW (NO OTP)
     // ==========================================
     if (isSignUp) {
-      if (!agreedToPolicies) {
-        setErrorMessage('You must agree to the Terms and Conditions and Privacy Policy to register.');
+      if (!displayName.trim()) {
+        setErrorMessage('Please enter your full name.');
         return;
       }
 
-      if (!captchaToken) {
-        setErrorMessage('Please complete the security verification (CAPTCHA) check.');
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+        setErrorMessage('Please enter a valid email address.');
+        return;
+      }
+
+      if (isDisposableEmail(cleanEmail)) {
+        setErrorMessage(
+          'Disposable or temporary email addresses are not permitted. Please use your genuine email.'
+        );
         return;
       }
 
@@ -117,25 +117,9 @@ function AuthPageContent() {
         return;
       }
 
-      if (authMethod === 'email') {
-        const cleanEmail = email.trim().toLowerCase();
-        if (!cleanEmail || !cleanEmail.includes('@')) {
-          setErrorMessage('Please enter a valid email address.');
-          return;
-        }
-
-        if (isDisposableEmail(cleanEmail)) {
-          setErrorMessage(
-            'Disposable or temporary email addresses are not permitted. Please use your genuine email address.'
-          );
-          return;
-        }
-      } else {
-        const e164 = normalizePhoneNumber(countryCode, mobileNumber);
-        if (!isValidE164Phone(e164)) {
-          setErrorMessage('Please enter a valid mobile number with correct digits.');
-          return;
-        }
+      if (!agreedToPolicies) {
+        setErrorMessage('Please check the box to agree to the Terms and Conditions and Privacy Policy.');
+        return;
       }
 
       setIsLoading(true);
@@ -145,35 +129,55 @@ function AuthPageContent() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            registration_method: authMethod,
-            full_name: displayName,
-            email: email.trim().toLowerCase(),
-            country_code: countryCode,
-            mobile_number: mobileNumber.trim(),
+            full_name: displayName.trim(),
+            email: cleanEmail,
             password,
-            terms_accepted: agreedToPolicies,
-            captcha_token: captchaToken,
+            terms_accepted: true,
           }),
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-          setErrorMessage(data.error || 'Registration failed. Please check your information.');
+          setErrorMessage(data.error || 'Registration failed. Please try again.');
           setIsLoading(false);
           return;
         }
 
-        setSuccessMessage('Account registered! Redirecting to OTP verification...');
+        setSuccessMessage('Account created! Signing you in...');
+
+        // Establish 14-day persistent Supabase client session
+        const maxAge14DaysSeconds = 14 * 24 * 60 * 60;
+        const supabase = createClient(maxAge14DaysSeconds);
+
+        const { data: authData, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+        if (signInErr) {
+          console.warn('Post-signup signin note:', signInErr.message);
+        }
+
+        const finalUserId = authData?.user?.id || data.userId;
+        if (finalUserId) {
+          try {
+            await fetch('/api/auth/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: finalUserId,
+                rememberDays: 14,
+              }),
+            });
+          } catch (sessErr) {
+            console.warn('Session persistence establishment note:', sessErr);
+          }
+        }
+
         setTimeout(() => {
-          const params = new URLSearchParams({
-            method: data.registration_method,
-            identifier: data.raw_identifier,
-            destination: data.destination,
-            rememberDays: (rememberMe ? rememberDuration : 1).toString(),
-          });
-          router.push(`/verify-otp?${params.toString()}`);
-        }, 800);
+          router.push('/admin?welcome=true');
+        }, 500);
       } catch {
         setErrorMessage('Network error during registration. Please try again.');
         setIsLoading(false);
@@ -182,8 +186,13 @@ function AuthPageContent() {
     }
 
     // ==========================================
-    // 2. SIGN IN SUBMISSION
+    // 2. SIGN IN FLOW (PERSISTENT 14 DAYS)
     // ==========================================
+    if (!cleanEmail) {
+      setErrorMessage('Please enter your email address.');
+      return;
+    }
+
     if (!password) {
       setErrorMessage('Please enter your password.');
       return;
@@ -193,130 +202,79 @@ function AuthPageContent() {
 
     try {
       const isDeveloperAccount =
-        authMethod === 'email' &&
-        (email.toLowerCase().includes('dev') ||
-          email.toLowerCase().includes('owner') ||
-          email.toLowerCase() === 'developer1@dearyou.com' ||
-          email.toLowerCase() === 'developer2@dearyou.com');
+        cleanEmail.includes('dev') ||
+        cleanEmail.includes('owner') ||
+        cleanEmail === 'developer1@dearyou.com' ||
+        cleanEmail === 'developer2@dearyou.com';
 
       const effectiveDays = rememberMe ? rememberDuration : 1;
       const maxAgeSeconds = effectiveDays * 24 * 60 * 60;
       const supabase = createClient(maxAgeSeconds);
 
-      if (authMethod === 'email') {
-        const cleanEmail = email.trim().toLowerCase();
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
+      let { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
 
-        if (error) {
-          if (
-            error.message.toLowerCase().includes('confirm') ||
-            error.message.toLowerCase().includes('not confirmed')
-          ) {
-            router.push(`/verify-otp?method=email&identifier=${encodeURIComponent(cleanEmail)}`);
-            return;
-          }
-          if (error.message.toLowerCase().includes('invalid login credentials')) {
-            setErrorMessage('Invalid email address or password. Please check your credentials.');
-          } else {
-            setErrorMessage(error.message);
-          }
-          setIsLoading(false);
-          return;
+      // Handle accounts that were created unconfirmed during past OTP testing
+      if (
+        error &&
+        (error.message.toLowerCase().includes('confirm') ||
+          error.message.toLowerCase().includes('not confirmed'))
+      ) {
+        try {
+          await fetch('/api/auth/auto-confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanEmail }),
+          });
+
+          // Retry sign-in now that account is auto-confirmed
+          const retry = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
+          data = retry.data;
+          error = retry.error;
+        } catch {
+          // Fall through to error handler
         }
+      }
 
-        // Check if unconfirmed
-        if (data?.user && !data.user.email_confirmed_at && !isDeveloperAccount) {
-          router.push(`/verify-otp?method=email&identifier=${encodeURIComponent(cleanEmail)}`);
-          return;
-        }
-
-        // Establish secure persistent session on the server
-        if (data?.user?.id) {
-          try {
-            await fetch('/api/auth/session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: data.user.id,
-                rememberDays: effectiveDays,
-              }),
-            });
-          } catch (sessErr) {
-            console.warn('Session cookie establishment note:', sessErr);
-          }
-        }
-
-        if (isDeveloperAccount) {
-          router.push('/developer');
+      if (error) {
+        if (error.message.toLowerCase().includes('invalid login credentials')) {
+          setErrorMessage('Invalid email address or password. Please check your credentials.');
         } else {
-          router.push('/admin');
+          setErrorMessage(error.message);
         }
+        setIsLoading(false);
+        return;
+      }
+
+      // Establish secure 14-day persistent session on the server
+      if (data?.user?.id) {
+        try {
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: data.user.id,
+              rememberDays: effectiveDays,
+            }),
+          });
+        } catch (sessErr) {
+          console.warn('Session cookie establishment note:', sessErr);
+        }
+      }
+
+      if (isDeveloperAccount) {
+        router.push('/developer');
       } else {
-        // Mobile Sign In
-        const e164Phone = normalizePhoneNumber(countryCode, mobileNumber);
-        if (!isValidE164Phone(e164Phone)) {
-          setErrorMessage('Please enter a valid mobile number with correct digits.');
-          setIsLoading(false);
-          return;
-        }
-
-        const bridgeEmail = getPhoneBridgeEmail(e164Phone);
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: bridgeEmail,
-          password,
-        });
-
-        if (error) {
-          if (
-            error.message.toLowerCase().includes('confirm') ||
-            error.message.toLowerCase().includes('not confirmed')
-          ) {
-            router.push(`/verify-otp?method=mobile&identifier=${encodeURIComponent(e164Phone)}`);
-            return;
-          }
-          if (error.message.toLowerCase().includes('invalid login credentials')) {
-            setErrorMessage('Invalid mobile number or password. Please check your credentials.');
-          } else {
-            setErrorMessage(error.message);
-          }
-          setIsLoading(false);
-          return;
-        }
-
-        // Check if phone is unconfirmed
-        if (
-          data?.user &&
-          !data.user.email_confirmed_at &&
-          !data.user.user_metadata?.phone_verified
-        ) {
-          router.push(`/verify-otp?method=mobile&identifier=${encodeURIComponent(e164Phone)}`);
-          return;
-        }
-
-        // Establish secure persistent session on the server
-        if (data?.user?.id) {
-          try {
-            await fetch('/api/auth/session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: data.user.id,
-                rememberDays: effectiveDays,
-              }),
-            });
-          } catch (sessErr) {
-            console.warn('Session cookie establishment note:', sessErr);
-          }
-        }
-
         router.push('/admin');
       }
     } catch {
       // Local dev fallback
-      if (email.toLowerCase().includes('dev') || email.toLowerCase().includes('owner')) {
+      if (cleanEmail.includes('dev') || cleanEmail.includes('owner')) {
         router.push('/developer');
       } else {
         router.push('/admin');
@@ -349,7 +307,7 @@ function AuthPageContent() {
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.4 }}
           className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative overflow-hidden"
         >
           {/* Brand Icon */}
@@ -364,8 +322,9 @@ function AuthPageContent() {
               onClick={() => {
                 setIsSignUp(false);
                 setErrorMessage(null);
+                setSuccessMessage(null);
               }}
-              className={`px-4 py-1.5 rounded-full transition-all font-medium ${
+              className={`px-4 py-1.5 rounded-full transition-all font-medium cursor-pointer ${
                 !isSignUp
                   ? 'bg-white shadow-xs text-platform-dark font-semibold'
                   : 'text-platform-muted hover:text-platform-dark'
@@ -378,8 +337,9 @@ function AuthPageContent() {
               onClick={() => {
                 setIsSignUp(true);
                 setErrorMessage(null);
+                setSuccessMessage(null);
               }}
-              className={`px-4 py-1.5 rounded-full transition-all font-medium ${
+              className={`px-4 py-1.5 rounded-full transition-all font-medium cursor-pointer ${
                 isSignUp
                   ? 'bg-white shadow-xs text-platform-dark font-semibold'
                   : 'text-platform-muted hover:text-platform-dark'
@@ -425,40 +385,6 @@ function AuthPageContent() {
             )}
           </AnimatePresence>
 
-          {/* Authentication Method Selector (Email vs Mobile) */}
-          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-stone-100 border border-black/5 mb-5 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMethod('email');
-                setErrorMessage(null);
-              }}
-              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all cursor-pointer ${
-                authMethod === 'email'
-                  ? 'bg-white text-platform-dark shadow-xs font-semibold'
-                  : 'text-platform-muted hover:text-platform-dark'
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5" />
-              <span>Email</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMethod('mobile');
-                setErrorMessage(null);
-              }}
-              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all cursor-pointer ${
-                authMethod === 'mobile'
-                  ? 'bg-white text-platform-dark shadow-xs font-semibold'
-                  : 'text-platform-muted hover:text-platform-dark'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Mobile Number</span>
-            </button>
-          </div>
-
           {/* Authentication Form */}
           <form onSubmit={handleSubmit} className="space-y-4 text-left">
             {/* Display Name (Signup Only) */}
@@ -471,82 +397,40 @@ function AuthPageContent() {
                   <input
                     type="text"
                     value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
+                    onChange={(e) => {
+                      setDisplayName(e.target.value);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
                     placeholder="e.g. Maya Sharma"
                     required={isSignUp}
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                   />
                   <User className="w-4 h-4 text-platform-muted absolute left-3" />
                 </div>
               </div>
             )}
 
-            {/* Option A: Email Field */}
-            {authMethod === 'email' && (
-              <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1">
-                  Email Address
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    required
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
-                  />
-                  <Mail className="w-4 h-4 text-platform-muted absolute left-3" />
-                </div>
-                {isSignUp && (
-                  <p className="text-[10px] text-stone-600 mt-1 pl-1">
-                    Disposable or burner emails are blocked for account safety.
-                  </p>
-                )}
+            {/* Email Address */}
+            <div>
+              <label className="block text-xs font-semibold text-platform-dark mb-1">
+                Email Address
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  required
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                />
+                <Mail className="w-4 h-4 text-platform-muted absolute left-3" />
               </div>
-            )}
-
-            {/* Option B: Mobile Number with Country Code */}
-            {authMethod === 'mobile' && (
-              <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1">
-                  Mobile Number
-                </label>
-                <div className="flex gap-2">
-                  {/* Country Code Dropdown */}
-                  <div className="relative w-28 shrink-0">
-                    <select
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      className="w-full appearance-none pl-2.5 pr-6 py-2 rounded-xl border border-black/10 text-xs sm:text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet cursor-pointer"
-                    >
-                      {SUPPORTED_COUNTRY_CODES.map((country) => (
-                        <option key={country.code} value={country.dialCode}>
-                          {country.flag} {country.dialCode}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 text-stone-400 absolute right-2 top-3 pointer-events-none" />
-                  </div>
-
-                  {/* Phone Number Input */}
-                  <div className="relative flex-1 flex items-center">
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={mobileNumber}
-                      onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
-                      placeholder="98765 43210"
-                      required
-                      className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
-                    />
-                    <Smartphone className="w-4 h-4 text-platform-muted absolute left-3" />
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Password Field */}
             <div>
@@ -557,18 +441,22 @@ function AuthPageContent() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  placeholder={isSignUp ? 'At least 6 characters' : '••••••••••••'}
                   autoComplete={isSignUp ? 'new-password' : 'current-password'}
                   required
-                  className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  minLength={isSignUp ? 6 : undefined}
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
                 <Lock className="w-4 h-4 text-platform-muted absolute left-3" />
               </div>
               {!isSignUp && (
                 <div className="flex justify-end mt-1.5">
                   <Link
-                    href={`/forgot-password?method=${authMethod}`}
+                    href="/forgot-password?method=email"
                     className="text-[11px] text-platform-violet hover:underline font-medium"
                   >
                     Forgot password?
@@ -667,25 +555,8 @@ function AuthPageContent() {
                     .
                   </label>
                 </div>
-              </div>
-            )}
-
-            {/* Cloudflare Turnstile / CAPTCHA Bot Protection (SignUp Only) */}
-            {isSignUp && (
-              <div className="pt-1">
-                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
-                  Security Verification
-                </label>
-                <CaptchaWidget
-                  onVerify={(token) => {
-                    setCaptchaToken(token);
-                    if (errorMessage?.includes('CAPTCHA')) setErrorMessage(null);
-                  }}
-                  onError={(err) => setErrorMessage(err)}
-                />
-                <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-stone-600 pl-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-platform-violet" />
-                  <span>Cloudflare bot and automated abuse protection</span>
+                <div className="text-[11px] text-stone-500 font-light mt-2 pl-1 flex items-center gap-1.5">
+                  <span>✓ Stays signed in for 14 days on this device</span>
                 </div>
               </div>
             )}
@@ -693,18 +564,14 @@ function AuthPageContent() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading || (isSignUp && (!agreedToPolicies || !captchaToken))}
+              disabled={isLoading || (isSignUp && !agreedToPolicies)}
               className="w-full mt-4 py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>
-                    {isSignUp
-                      ? `Send ${authMethod === 'email' ? 'Email' : 'Mobile'} OTP`
-                      : 'Sign In'}
-                  </span>
+                  <span>{isSignUp ? 'Sign Up' : 'Sign In'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
