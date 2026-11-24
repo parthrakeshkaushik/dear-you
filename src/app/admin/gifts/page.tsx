@@ -15,16 +15,49 @@ import {
   Clock,
   Sparkles,
   Check,
+  RotateCcw,
+  Calendar,
+  AlertCircle,
+  Download,
+  Filter,
+  X,
 } from 'lucide-react';
 import { MOCK_GIFTS } from '@/lib/mock-data';
 import { THEME_PRESETS } from '@/config/themes';
 import { formatDate, formatDateTimeZone } from '@/lib/utils';
 import { Gift as GiftType } from '@/types/gift';
 
+type FilterTab = 'all' | 'published' | 'draft' | 'expired' | 'paused';
+
 export default function AdminGiftsManagementPage() {
   const [gifts, setGifts] = useState<GiftType[]>(Object.values(MOCK_GIFTS));
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Modal States
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [republishGift, setRepublishGift] = useState<GiftType | null>(null);
+  const [duplicateGift, setDuplicateGift] = useState<GiftType | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Republish Form State
+  const [republishExpiryEnabled, setRepublishExpiryEnabled] = useState(false);
+  const [republishExpiresAt, setRepublishExpiresAt] = useState('');
+  const [republishHeading, setRepublishHeading] = useState('');
+  const [republishMessage, setRepublishMessage] = useState('');
+
+  // Duplicate Form State
+  const [duplicateTitle, setDuplicateTitle] = useState('');
+  const [duplicateRecipient, setDuplicateRecipient] = useState('');
+  const [duplicateSlug, setDuplicateSlug] = useState('');
+  const [duplicateExpiryEnabled, setDuplicateExpiryEnabled] = useState(false);
+  const [duplicateExpiresAt, setDuplicateExpiresAt] = useState('');
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   const handleCopyUrl = (slug: string) => {
     const url = `${window.location.origin}/g/${slug}`;
@@ -33,26 +66,114 @@ export default function AdminGiftsManagementPage() {
     setTimeout(() => setCopiedSlug(null), 2500);
   };
 
-  const handleDuplicate = (gift: GiftType) => {
-    const duplicated: GiftType = {
-      ...gift,
-      id: `copy-${Date.now()}`,
-      slug: `${gift.slug}-copy-${Math.floor(Math.random() * 1000)}`,
-      title: `${gift.title} (Copy)`,
-      status: 'draft',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setGifts([duplicated, ...gifts]);
+  const checkIsExpired = (gift: GiftType) => {
+    if (!gift.expiry_enabled || !gift.expires_at) return false;
+    return Date.now() > new Date(gift.expires_at).getTime();
+  };
+
+  // Open Republish Modal
+  const openRepublishModal = (gift: GiftType) => {
+    setRepublishGift(gift);
+    setRepublishExpiryEnabled(false);
+    // Default preset: +30 days if they want expiry
+    const futureDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    setRepublishExpiresAt(futureDate.toISOString().slice(0, 16));
+    setRepublishHeading(gift.expiry_heading || '');
+    setRepublishMessage(gift.expiry_message || '');
+  };
+
+  // Confirm Republish
+  const handleConfirmRepublish = async () => {
+    if (!republishGift) return;
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch(`/api/gifts/${republishGift.slug}/republish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expiry_enabled: republishExpiryEnabled,
+          expires_at: republishExpiryEnabled ? new Date(republishExpiresAt).toISOString() : null,
+          expiry_heading: republishHeading,
+          expiry_message: republishMessage,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification('error', data.error || 'Failed to republish card.');
+      } else {
+        // Update local state
+        setGifts(
+          gifts.map((g) => (g.id === republishGift.id ? data.gift : g))
+        );
+        showNotification(
+          'success',
+          `"${republishGift.title}" has been republished! It is now live at /g/${republishGift.slug}`
+        );
+        setRepublishGift(null);
+      }
+    } catch {
+      showNotification('error', 'Network error while republishing gift.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Open Duplicate Modal
+  const openDuplicateModal = (gift: GiftType) => {
+    setDuplicateGift(gift);
+    setDuplicateTitle(`${gift.title} (Copy)`);
+    setDuplicateRecipient(gift.recipient_name);
+    setDuplicateSlug(`${gift.slug}-copy-${Math.floor(100 + Math.random() * 900)}`);
+    setDuplicateExpiryEnabled(false);
+    setDuplicateExpiresAt('');
+  };
+
+  // Confirm Duplicate
+  const handleConfirmDuplicate = async () => {
+    if (!duplicateGift) return;
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch(`/api/gifts/${duplicateGift.slug}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          new_title: duplicateTitle,
+          new_recipient_name: duplicateRecipient,
+          new_slug: duplicateSlug,
+          expiry_enabled: duplicateExpiryEnabled,
+          expires_at: duplicateExpiryEnabled && duplicateExpiresAt ? new Date(duplicateExpiresAt).toISOString() : null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification('error', data.error || 'Failed to duplicate card.');
+      } else {
+        setGifts([data.duplicatedGift, ...gifts]);
+        showNotification(
+          'success',
+          `Duplicated as "${data.duplicatedGift.title}". A new independent draft has been created.`
+        );
+        setDuplicateGift(null);
+      }
+    } catch {
+      showNotification('error', 'Network error while duplicating gift.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleTogglePublish = (id: string) => {
     setGifts(
       gifts.map((g) => {
         if (g.id === id) {
+          const nextStatus = g.status === 'published' ? 'draft' : 'published';
           return {
             ...g,
-            status: g.status === 'published' ? 'draft' : 'published',
+            status: nextStatus,
             updated_at: new Date().toISOString(),
           };
         }
@@ -64,7 +185,22 @@ export default function AdminGiftsManagementPage() {
   const handleDelete = (id: string) => {
     setGifts(gifts.filter((g) => g.id !== id));
     setDeleteConfirmId(null);
+    showNotification('success', 'Gift record deleted.');
   };
+
+  // Filter gifts by Tab
+  const filteredGifts = gifts.filter((gift) => {
+    const isExpired = checkIsExpired(gift);
+    if (activeTab === 'expired') return isExpired;
+    if (activeTab === 'published') return gift.status === 'published' && !isExpired && gift.moderation_status !== 'paused';
+    if (activeTab === 'draft') return gift.status === 'draft';
+    if (activeTab === 'paused') return gift.moderation_status === 'paused';
+    return true;
+  });
+
+  const expiredCount = gifts.filter(checkIsExpired).length;
+  const publishedCount = gifts.filter((g) => g.status === 'published' && !checkIsExpired(g)).length;
+  const draftCount = gifts.filter((g) => g.status === 'draft').length;
 
   return (
     <div className="space-y-6">
@@ -75,7 +211,7 @@ export default function AdminGiftsManagementPage() {
             Manage Digital Gifts
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-platform-muted">
-            All personalized gifts created under your account. Publish, preview, duplicate, or edit.
+            All personalized gifts created under your account. Publish, preview, republish expired cards, or duplicate.
           </p>
         </div>
 
@@ -88,23 +224,89 @@ export default function AdminGiftsManagementPage() {
         </Link>
       </div>
 
+      {/* Notification Toast */}
+      {notification && (
+        <div
+          className={`p-4 rounded-2xl text-xs font-medium flex items-center justify-between gap-2 shadow-sm transition-all ${
+            notification.type === 'success'
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+              : 'bg-rose-50 border border-rose-200 text-rose-800'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {notification.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{notification.message}</span>
+          </div>
+          <button onClick={() => setNotification(null)} className="p-1 text-stone-400 hover:text-stone-700">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Status Filter Tabs */}
+      <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/5 border border-black/5 overflow-x-auto text-xs w-full sm:w-fit">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`px-3.5 py-1.5 rounded-xl font-medium transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'all'
+              ? 'bg-white text-platform-dark shadow-xs font-semibold'
+              : 'text-platform-muted hover:text-platform-dark'
+          }`}
+        >
+          All Gifts ({gifts.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('published')}
+          className={`px-3.5 py-1.5 rounded-xl font-medium transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'published'
+              ? 'bg-white text-emerald-800 shadow-xs font-semibold'
+              : 'text-platform-muted hover:text-platform-dark'
+          }`}
+        >
+          Active / Published ({publishedCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('expired')}
+          className={`px-3.5 py-1.5 rounded-xl font-medium transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'expired'
+              ? 'bg-white text-rose-800 shadow-xs font-semibold'
+              : 'text-platform-muted hover:text-platform-dark'
+          }`}
+        >
+          Expired ({expiredCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('draft')}
+          className={`px-3.5 py-1.5 rounded-xl font-medium transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'draft'
+              ? 'bg-white text-platform-dark shadow-xs font-semibold'
+              : 'text-platform-muted hover:text-platform-dark'
+          }`}
+        >
+          Drafts ({draftCount})
+        </button>
+      </div>
+
       {/* Gifts List */}
       <div className="space-y-4">
-        {gifts.map((gift) => {
+        {filteredGifts.map((gift) => {
           const themeDef =
             gift.selected_theme !== 'custom'
               ? THEME_PRESETS[gift.selected_theme]
               : null;
 
-          const isExpired =
-            gift.expiry_enabled && gift.expires_at
-              ? Date.now() > new Date(gift.expires_at).getTime()
-              : false;
+          const isExpired = checkIsExpired(gift);
 
           return (
             <div
               key={gift.id}
-              className="p-5 sm:p-6 rounded-2xl bg-white border border-black/5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-sm transition-shadow"
+              className={`p-5 sm:p-6 rounded-2xl bg-white border transition-all flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-sm ${
+                isExpired ? 'border-rose-200/80 bg-rose-50/15' : 'border-black/5 shadow-xs'
+              }`}
             >
               {/* Left Details */}
               <div className="space-y-2 max-w-xl">
@@ -113,21 +315,43 @@ export default function AdminGiftsManagementPage() {
                     {gift.event_type}
                   </span>
 
+                  {/* Status Badges */}
                   <span
                     className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
                       isExpired
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold'
+                        : gift.moderation_status === 'paused'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
                         : gift.status === 'published'
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        : 'bg-stone-100 text-stone-700 border border-stone-200'
                     }`}
                   >
-                    {isExpired ? 'EXPIRED' : gift.status.toUpperCase()}
+                    {isExpired
+                      ? 'EXPIRED'
+                      : gift.moderation_status === 'paused'
+                      ? 'PAUSED'
+                      : gift.status.toUpperCase()}
                   </span>
 
                   <span className="text-xs text-platform-muted">
                     Theme: <strong className="text-platform-dark font-medium">{themeDef?.name || 'Custom'}</strong>
                   </span>
+
+                  {/* Download count if recipient downloaded */}
+                  {gift.download_count && gift.download_count > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      <Download className="w-3 h-3" />
+                      <span>{gift.download_count} offline saves</span>
+                    </span>
+                  ) : null}
+
+                  {/* Provenance badge if copied */}
+                  {gift.source_gift_id && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
+                      Duplicated Copy
+                    </span>
+                  )}
                 </div>
 
                 <h3 className="font-serif text-lg sm:text-xl font-medium text-platform-dark">
@@ -141,9 +365,12 @@ export default function AdminGiftsManagementPage() {
                   {gift.expiry_enabled && gift.expires_at && (
                     <>
                       <span>•</span>
-                      <span className="flex items-center gap-1 text-amber-700 font-medium">
+                      <span className={`flex items-center gap-1 font-medium ${isExpired ? 'text-rose-700' : 'text-amber-700'}`}>
                         <Clock className="w-3 h-3" />
-                        <span>Expires: {formatDateTimeZone(gift.expires_at, gift.expiry_timezone)}</span>
+                        <span>
+                          {isExpired ? 'Expired on: ' : 'Expires: '}
+                          {formatDateTimeZone(gift.expires_at, gift.expiry_timezone)}
+                        </span>
                       </span>
                     </>
                   )}
@@ -152,7 +379,29 @@ export default function AdminGiftsManagementPage() {
 
               {/* Right Action Buttons */}
               <div className="flex items-center flex-wrap gap-2 pt-4 md:pt-0 border-t md:border-t-0 border-black/5">
-                {/* Copy Link */}
+                {/* 1. REPUBLISH OPTION (Prominently surfaced for Expired cards) */}
+                {isExpired && (
+                  <button
+                    onClick={() => openRepublishModal(gift)}
+                    className="px-3.5 py-2 rounded-xl bg-platform-violet text-white text-xs font-semibold hover:bg-platform-violet/90 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-98"
+                    title="Republish Expired Gift"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Republish Card</span>
+                  </button>
+                )}
+
+                {/* 2. DUPLICATE / COPY CARD OPTION */}
+                <button
+                  onClick={() => openDuplicateModal(gift)}
+                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                  title="Duplicate as New Independent Card"
+                >
+                  <Copy className="w-4 h-4 text-platform-muted" />
+                  <span className="hidden sm:inline">Duplicate</span>
+                </button>
+
+                {/* 3. COPY LINK */}
                 <button
                   onClick={() => handleCopyUrl(gift.slug)}
                   className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
@@ -165,55 +414,48 @@ export default function AdminGiftsManagementPage() {
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4 text-platform-muted" />
+                      <ExternalLink className="w-4 h-4 text-platform-muted" />
                       <span className="hidden sm:inline">Copy Link</span>
                     </>
                   )}
                 </button>
 
-                {/* Preview */}
+                {/* 4. PREVIEW */}
                 <Link
                   href={`/g/${gift.slug}/preview`}
                   target="_blank"
                   className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium"
-                  title="Admin Preview (Unlocked)"
+                  title="Creator Preview"
                 >
                   <Eye className="w-4 h-4 text-platform-muted" />
                   <span className="hidden sm:inline">Preview</span>
                 </Link>
 
-                {/* Edit */}
+                {/* 5. EDIT CARD */}
                 <Link
                   href={`/admin/create?edit=${gift.id}`}
                   className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium"
-                  title="Edit Gift"
+                  title="Edit Card"
                 >
                   <Edit3 className="w-4 h-4 text-platform-muted" />
                   <span className="hidden sm:inline">Edit</span>
                 </Link>
 
-                {/* Toggle Publish */}
-                <button
-                  onClick={() => handleTogglePublish(gift.id)}
-                  className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                    gift.status === 'published'
-                      ? 'bg-amber-100/70 text-amber-900 hover:bg-amber-200'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  }`}
-                >
-                  {gift.status === 'published' ? 'Unpublish' : 'Publish'}
-                </button>
+                {/* 6. PUBLISH / UNPUBLISH TOGGLE (Only for non-expired cards) */}
+                {!isExpired && (
+                  <button
+                    onClick={() => handleTogglePublish(gift.id)}
+                    className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                      gift.status === 'published'
+                        ? 'bg-amber-100/70 text-amber-900 hover:bg-amber-200'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }`}
+                  >
+                    {gift.status === 'published' ? 'Unpublish' : 'Publish'}
+                  </button>
+                )}
 
-                {/* Duplicate */}
-                <button
-                  onClick={() => handleDuplicate(gift)}
-                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-muted hover:text-platform-dark transition-colors cursor-pointer"
-                  title="Duplicate Gift"
-                >
-                  <Sparkles className="w-4 h-4" />
-                </button>
-
-                {/* Delete */}
+                {/* 7. DELETE */}
                 <button
                   onClick={() => setDeleteConfirmId(gift.id)}
                   className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
@@ -225,7 +467,268 @@ export default function AdminGiftsManagementPage() {
             </div>
           );
         })}
+
+        {filteredGifts.length === 0 && (
+          <div className="p-12 text-center rounded-2xl bg-white border border-black/5 text-platform-muted text-xs">
+            No gifts found in "{activeTab}" view.
+          </div>
+        )}
       </div>
+
+      {/* ============================================================== */}
+      {/* REPUBLISH MODAL                                                */}
+      {/* ============================================================== */}
+      {republishGift && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-black/10 space-y-5 text-left">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-platform-violet flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider font-semibold text-platform-violet">
+                    Reactivate Card
+                  </span>
+                  <h3 className="font-serif text-xl text-platform-dark font-normal">
+                    Republish Expired Gift
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setRepublishGift(null)}
+                className="p-1.5 rounded-full hover:bg-black/5 text-stone-400 hover:text-stone-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-100 text-xs text-purple-900 leading-relaxed">
+              <p className="font-semibold mb-0.5">Original URL and Content Preserved:</p>
+              <p>
+                Republishing will make <strong>{republishGift.title}</strong> live again at{' '}
+                <code className="font-mono text-purple-950">/g/{republishGift.slug}</code>.
+                All original photos, letters, memories, and custom styling remain 100% intact.
+              </p>
+            </div>
+
+            {/* Expiry Configuration */}
+            <div className="space-y-3 pt-1">
+              <label className="block text-xs font-semibold text-platform-dark">
+                Configure New Expiry Settings
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRepublishExpiryEnabled(false)}
+                  className={`py-2 px-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    !republishExpiryEnabled
+                      ? 'border-platform-violet bg-purple-50 text-purple-900 font-semibold'
+                      : 'border-black/10 bg-white text-stone-600 hover:bg-black/5'
+                  }`}
+                >
+                  No Expiry (Never Expires)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRepublishExpiryEnabled(true)}
+                  className={`py-2 px-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    republishExpiryEnabled
+                      ? 'border-platform-violet bg-purple-50 text-purple-900 font-semibold'
+                      : 'border-black/10 bg-white text-stone-600 hover:bg-black/5'
+                  }`}
+                >
+                  Set New Expiry Date
+                </button>
+              </div>
+
+              {republishExpiryEnabled && (
+                <div className="space-y-2.5 pt-2">
+                  {/* Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] text-stone-500 font-mono">Quick Presets:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                        setRepublishExpiresAt(d.toISOString().slice(0, 16));
+                      }}
+                      className="px-2 py-1 rounded-lg bg-black/5 hover:bg-black/10 text-[11px] font-mono"
+                    >
+                      +7 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                        setRepublishExpiresAt(d.toISOString().slice(0, 16));
+                      }}
+                      className="px-2 py-1 rounded-lg bg-black/5 hover:bg-black/10 text-[11px] font-mono"
+                    >
+                      +30 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+                        setRepublishExpiresAt(d.toISOString().slice(0, 16));
+                      }}
+                      className="px-2 py-1 rounded-lg bg-black/5 hover:bg-black/10 text-[11px] font-mono"
+                    >
+                      +1 Year
+                    </button>
+                  </div>
+
+                  <input
+                    type="datetime-local"
+                    value={republishExpiresAt}
+                    onChange={(e) => setRepublishExpiresAt(e.target.value)}
+                    required={republishExpiryEnabled}
+                    className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-4 border-t border-black/5 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setRepublishGift(null)}
+                className="px-4 py-2 rounded-xl border border-black/10 text-xs text-platform-muted hover:text-platform-dark hover:bg-black/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRepublish}
+                disabled={isSubmitting || (republishExpiryEnabled && !republishExpiresAt)}
+                className="px-5 py-2.5 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isSubmitting ? (
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Confirm & Republish</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* DUPLICATE / COPY MODAL                                         */}
+      {/* ============================================================== */}
+      {duplicateGift && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-black/10 space-y-5 text-left">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-platform-violet flex items-center justify-center">
+                  <Copy className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider font-semibold text-platform-violet">
+                    Create Independent Duplicate
+                  </span>
+                  <h3 className="font-serif text-xl text-platform-dark font-normal">
+                    Duplicate Card
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setDuplicateGift(null)}
+                className="p-1.5 rounded-full hover:bg-black/5 text-stone-400 hover:text-stone-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-platform-muted leading-relaxed font-light">
+              This will create a completely new, independent gift in <strong>Draft</strong> status copying all themes, photos, letters, memories, and settings.
+              Editing or deleting this duplicate will never affect the source card.
+            </p>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  New Card Title
+                </label>
+                <input
+                  type="text"
+                  value={duplicateTitle}
+                  onChange={(e) => setDuplicateTitle(e.target.value)}
+                  required
+                  placeholder="Card Title"
+                  className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Recipient Name
+                </label>
+                <input
+                  type="text"
+                  value={duplicateRecipient}
+                  onChange={(e) => setDuplicateRecipient(e.target.value)}
+                  required
+                  placeholder="Recipient Name"
+                  className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Unique URL Slug
+                </label>
+                <div className="flex items-center">
+                  <span className="px-3 py-2 rounded-l-xl border border-r-0 border-black/10 bg-black/5 text-xs text-stone-500 font-mono">
+                    /g/
+                  </span>
+                  <input
+                    type="text"
+                    value={duplicateSlug}
+                    onChange={(e) => setDuplicateSlug(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-r-xl border border-black/10 text-xs sm:text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-4 border-t border-black/5 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDuplicateGift(null)}
+                className="px-4 py-2 rounded-xl border border-black/10 text-xs text-platform-muted hover:text-platform-dark hover:bg-black/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDuplicate}
+                disabled={isSubmitting || !duplicateTitle || !duplicateRecipient}
+                className="px-5 py-2.5 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isSubmitting ? (
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Create Duplicate & Edit</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (

@@ -19,6 +19,8 @@ import { ClosingSection } from './ClosingSection';
 import { ExpiryScreen } from './ExpiryScreen';
 import { MusicPlayerBar } from './MusicPlayerBar';
 import { SectionNavigation } from './SectionNavigation';
+import { DownloadKeepsakeModal } from './DownloadKeepsakeModal';
+import { Download } from 'lucide-react';
 
 interface RecipientExperienceProps {
   gift: Gift;
@@ -33,6 +35,7 @@ export function RecipientExperience({
 }: RecipientExperienceProps) {
   const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
   const [hasStartedExperience, setHasStartedExperience] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
   // Audio state
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -237,6 +240,16 @@ export function RecipientExperience({
       {/* Side Section Navigation Dots */}
       <SectionNavigation sections={navItems} />
 
+      {/* Floating Save Card Button */}
+      <button
+        onClick={() => setIsDownloadModalOpen(true)}
+        className="fixed top-4 right-4 z-40 px-3.5 py-2 rounded-full bg-[var(--theme-surface)]/90 backdrop-blur-md border border-[var(--theme-border)] text-xs font-medium text-[var(--theme-text)] shadow-xs hover:shadow-md hover:border-[var(--theme-primary)] transition-all flex items-center gap-1.5 cursor-pointer"
+        title="Download / Save Offline Keepsake"
+      >
+        <Download className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
+        <span className="hidden sm:inline">Save Card</span>
+      </button>
+
       <main className="w-full">
         {/* Welcome Section with "Start Your Journey" */}
         <div id="welcome">
@@ -348,6 +361,7 @@ export function RecipientExperience({
                   <ClosingSection
                     recipientName={gift.recipient_name}
                     closingMessage={gift.closing_message}
+                    onDownloadKeepsake={() => setIsDownloadModalOpen(true)}
                     onReplay={() => {
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
@@ -360,6 +374,13 @@ export function RecipientExperience({
           }
         })}
       </main>
+
+      {/* Recipient Keepsake Download Modal */}
+      <DownloadKeepsakeModal
+        gift={gift}
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+      />
     </ThemeContainer>
   );
 }

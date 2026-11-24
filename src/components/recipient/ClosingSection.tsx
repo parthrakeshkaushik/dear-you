@@ -2,18 +2,20 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowUp, Heart } from 'lucide-react';
+import { Sparkles, ArrowUp, Heart, Download } from 'lucide-react';
 
 interface ClosingSectionProps {
   recipientName: string;
   closingMessage?: string;
   onReplay?: () => void;
+  onDownloadKeepsake?: () => void;
 }
 
 export function ClosingSection({
   recipientName,
   closingMessage = 'Thank you for stepping into this little sanctuary created for you. May today and all your tomorrows be filled with gentle warmth, great courage, and boundless laughter.',
   onReplay,
+  onDownloadKeepsake,
 }: ClosingSectionProps) {
   const handleScrollToTop = () => {
     if (onReplay) {
@@ -48,14 +50,24 @@ export function ClosingSection({
           "{closingMessage}"
         </p>
 
-        {/* Replay / Scroll to Top Button */}
-        <div className="mt-10">
+        {/* Action Buttons: Download Keepsake & Replay */}
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+          {onDownloadKeepsake && (
+            <button
+              onClick={onDownloadKeepsake}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--theme-primary)] text-white text-xs font-medium hover:opacity-90 transition-all cursor-pointer shadow-md active:scale-98"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Save & Download Keepsake</span>
+            </button>
+          )}
+
           <button
             onClick={handleScrollToTop}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[var(--theme-border)] text-xs font-medium text-[var(--theme-text)] hover:bg-[var(--theme-surface)] hover:border-[var(--theme-primary)] transition-all cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[var(--theme-border)] text-xs font-medium text-[var(--theme-text)] hover:bg-[var(--theme-surface)] hover:border-[var(--theme-primary)] transition-all cursor-pointer shadow-xs active:scale-98"
           >
             <ArrowUp className="w-3.5 h-3.5" />
-            <span>Replay Experience from Beginning</span>
+            <span>Replay Experience</span>
           </button>
         </div>
 

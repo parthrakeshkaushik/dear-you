@@ -180,6 +180,12 @@ export interface Gift {
   wishes?: GiftWish[];
   secret_messages?: SecretMessage[];
   
+  // Download & Provenance Tracking
+  download_count?: number;
+  last_downloaded_at?: string;
+  republished_at?: string;
+  source_gift_id?: string;
+
   published_at?: string | null;
   created_at: string;
   updated_at: string;

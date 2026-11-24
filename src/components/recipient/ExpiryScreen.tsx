@@ -69,6 +69,14 @@ export function ExpiryScreen({
             'The little world created for you has now come to a close. But some moments and connections are too special to be limited by time. Thank you for being part of this little journey.'}
         </p>
 
+        {/* Offline Keepsake Notice */}
+        <div className="mt-6 p-3.5 rounded-2xl bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 text-xs text-[var(--theme-text)] font-light leading-relaxed flex items-center gap-2.5 text-left">
+          <Sparkles className="w-4 h-4 text-[var(--theme-primary)] shrink-0" />
+          <span>
+            If you previously downloaded an offline keepsake package of this card, that saved copy can still be opened and enjoyed anytime on your device.
+          </span>
+        </div>
+
         {/* Closing subtle note */}
         <div className="mt-10 pt-6 border-t border-[var(--theme-border)] w-full flex items-center justify-center gap-1.5 text-xs text-[var(--theme-muted)]/80">
           <Heart className="w-3.5 h-3.5 text-[var(--theme-primary)] fill-current" />

@@ -42,6 +42,8 @@ export type AuditActionType =
   | 'gift_unpaused'
   | 'gift_unpublished'
   | 'gift_republished'
+  | 'gift_duplicated'
+  | 'gift_downloaded'
   | 'gift_deleted'
   | 'gift_restored'
   | 'gift_expiry_extended'

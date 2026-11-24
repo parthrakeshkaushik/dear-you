@@ -572,6 +572,204 @@ test('Unverified mobile creator correctly reflects Pending status', () => {
   assert.strictEqual(row.emailStatus, 'Not Provided');
 });
 
+// -------------------------------------------------------------
+// 13. REPUBLISHING & DUPLICATION ENGINE TESTS
+// -------------------------------------------------------------
+console.log('\n--- 13. Republishing & Duplication Engine Tests ---');
+
+function republishGiftEngine(gift, newExpiryConfig) {
+  return {
+    ...gift,
+    status: 'published',
+    moderation_status: 'active',
+    expiry_enabled: Boolean(newExpiryConfig.expiry_enabled),
+    expires_at: newExpiryConfig.expiry_enabled ? newExpiryConfig.expires_at : null,
+    republished_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function duplicateGiftEngine(sourceGift, overrides = {}) {
+  const newId = `gift-copy-${Date.now()}`;
+  const newSlug = overrides.new_slug || `${sourceGift.slug}-copy-999`;
+
+  // Clone memories with independent IDs
+  const clonedMemories = (sourceGift.memories || []).map((m, idx) => ({
+    ...m,
+    id: `mem-copy-${idx}-${Date.now()}`,
+    gift_id: newId,
+  }));
+
+  return {
+    ...sourceGift,
+    id: newId,
+    slug: newSlug,
+    title: overrides.new_title || `${sourceGift.title} (Copy)`,
+    recipient_name: overrides.new_recipient_name || sourceGift.recipient_name,
+    status: 'draft',
+    moderation_status: 'active',
+    source_gift_id: sourceGift.id,
+    download_count: 0,
+    last_downloaded_at: undefined,
+    republished_at: undefined,
+    expiry_enabled: Boolean(overrides.expiry_enabled),
+    expires_at: overrides.expiry_enabled ? overrides.expires_at : null,
+    memories: clonedMemories,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+test('Republishing an expired card restores active status without losing original ID or slug', () => {
+  const expiredGift = {
+    id: 'orig-123',
+    slug: 'ananya-gift',
+    title: 'A Little Universe for Ananya',
+    recipient_name: 'Ananya',
+    status: 'published',
+    expiry_enabled: true,
+    expires_at: '2020-01-01T00:00:00Z', // Past date -> expired
+    memories: [{ id: 'm1', caption: 'Sunset rooftop' }],
+  };
+
+  const futureExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const republished = republishGiftEngine(expiredGift, {
+    expiry_enabled: true,
+    expires_at: futureExpiry,
+  });
+
+  assert.strictEqual(republished.id, 'orig-123'); // Original ID preserved
+  assert.strictEqual(republished.slug, 'ananya-gift'); // Original slug preserved
+  assert.strictEqual(republished.status, 'published');
+  assert.strictEqual(republished.memories.length, 1);
+  assert.strictEqual(republished.memories[0].caption, 'Sunset rooftop');
+  assert.strictEqual(checkGiftExpiry(republished.expiry_enabled, republished.expires_at).isExpired, false);
+  assert.strictEqual(typeof republished.republished_at, 'string');
+});
+
+test('Republishing can choose No Expiry (Never Expires)', () => {
+  const expiredGift = {
+    id: 'orig-456',
+    slug: 'rohan-scrapbook',
+    status: 'published',
+    expiry_enabled: true,
+    expires_at: '2020-01-01T00:00:00Z',
+  };
+
+  const republished = republishGiftEngine(expiredGift, { expiry_enabled: false });
+  assert.strictEqual(republished.expiry_enabled, false);
+  assert.strictEqual(republished.expires_at, null);
+  assert.strictEqual(checkGiftExpiry(republished.expiry_enabled, republished.expires_at).isExpired, false);
+});
+
+test('Duplicating creates an independent draft card with unique ID and slug', () => {
+  const original = {
+    id: 'orig-gift-001',
+    slug: 'original-slug',
+    title: 'Original Surprise',
+    recipient_name: 'Maya',
+    status: 'published',
+    download_count: 5,
+    memories: [{ id: 'm1', caption: 'Photo 1' }],
+  };
+
+  const duplicate = duplicateGiftEngine(original, {
+    new_title: 'Duplicated Surprise for Maya',
+    new_slug: 'original-slug-copy-123',
+  });
+
+  assert.notStrictEqual(duplicate.id, original.id);
+  assert.strictEqual(duplicate.slug, 'original-slug-copy-123');
+  assert.strictEqual(duplicate.status, 'draft');
+  assert.strictEqual(duplicate.source_gift_id, original.id);
+  assert.strictEqual(duplicate.download_count, 0); // Analytics reset
+  assert.strictEqual(duplicate.memories.length, 1);
+  assert.notStrictEqual(duplicate.memories[0].id, original.memories[0].id); // Independent memory ID
+});
+
+test('Modifying or deleting duplicate never affects original source card', () => {
+  const original = { id: 'orig-1', title: 'Eternal Bond', memories: [{ id: 'm1' }] };
+  const duplicate = duplicateGiftEngine(original, { new_title: 'Updated Copy' });
+
+  // Modify duplicate
+  duplicate.title = 'Completely Changed Title';
+  duplicate.memories = [];
+
+  assert.strictEqual(original.title, 'Eternal Bond');
+  assert.strictEqual(original.memories.length, 1);
+});
+
+// -------------------------------------------------------------
+// 14. OFFLINE KEEPSAKE & DOWNLOAD RESTRICTIONS
+// -------------------------------------------------------------
+console.log('\n--- 14. Offline Keepsake & Download Restrictions ---');
+
+function evaluateDownloadAccess(gift, isPasswordAuthenticated) {
+  if (!gift || gift.moderation_status === 'deleted' || gift.deleted_at) {
+    return { status: 404, allowed: false, error: 'Gift not found' };
+  }
+
+  if (gift.moderation_status === 'paused' || gift.moderation_status === 'unpublished') {
+    return { status: 423, allowed: false, error: 'Gift unavailable' };
+  }
+
+  // Server-side expiry restriction: Expired cards cannot be downloaded online after expiration
+  const expiry = checkGiftExpiry(gift.expiry_enabled, gift.expires_at);
+  if (expiry.isExpired) {
+    return {
+      status: 410,
+      allowed: false,
+      error: 'This online gift has expired and cannot be downloaded online. Previously downloaded packages remain usable.',
+    };
+  }
+
+  if (gift.password_hash && !isPasswordAuthenticated) {
+    return { status: 401, allowed: false, error: 'Password required' };
+  }
+
+  return { status: 200, allowed: true };
+}
+
+test('Active published gift allows recipient download when authenticated', () => {
+  const activeGift = {
+    id: 'g-active',
+    status: 'published',
+    moderation_status: 'active',
+    expiry_enabled: false,
+    password_hash: 'somehash',
+  };
+  const res = evaluateDownloadAccess(activeGift, true);
+  assert.strictEqual(res.allowed, true);
+  assert.strictEqual(res.status, 200);
+});
+
+test('Password-protected gift blocks unauthenticated download attempts', () => {
+  const activeGift = {
+    id: 'g-active',
+    status: 'published',
+    moderation_status: 'active',
+    expiry_enabled: false,
+    password_hash: 'somehash',
+  };
+  const res = evaluateDownloadAccess(activeGift, false);
+  assert.strictEqual(res.allowed, false);
+  assert.strictEqual(res.status, 401);
+});
+
+test('Expired gift immediately blocks online download attempts with HTTP 410', () => {
+  const expiredGift = {
+    id: 'g-expired',
+    status: 'published',
+    moderation_status: 'active',
+    expiry_enabled: true,
+    expires_at: '2020-01-01T00:00:00Z',
+  };
+  const res = evaluateDownloadAccess(expiredGift, true);
+  assert.strictEqual(res.allowed, false);
+  assert.strictEqual(res.status, 410);
+  assert.strictEqual(res.error.includes('expired'), true);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);
