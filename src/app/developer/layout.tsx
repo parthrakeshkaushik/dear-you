@@ -18,6 +18,7 @@ import {
   Terminal,
   ChevronRight,
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface DeveloperLayoutProps {
   children: React.ReactNode;
@@ -37,8 +38,22 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
     { href: '/developer/settings', label: 'Developer Settings', icon: Settings },
   ];
 
-  const handleSignOut = () => {
-    router.push('/login');
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = async (global = false) => {
+    setIsSigningOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore
+    }
+    try {
+      await fetch(`/api/auth/logout${global ? '?global=true' : ''}`, { method: 'POST' });
+    } catch {
+      // Ignore
+    }
+    router.push('/login?logged_out=true');
   };
 
   return (
@@ -130,7 +145,7 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-6 border-t border-white/10 space-y-2">
+        <div className="pt-6 border-t border-white/10 space-y-1.5">
           <Link
             href="/admin"
             className="flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-stone-400 hover:text-white hover:bg-white/5 transition-colors"
@@ -142,11 +157,21 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
           </Link>
 
           <button
-            onClick={handleSignOut}
-            className="w-full flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10 transition-colors text-left cursor-pointer"
+            onClick={() => handleSignOut(false)}
+            disabled={isSigningOut}
+            className="w-full flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10 transition-colors text-left cursor-pointer disabled:opacity-50"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Developer Sign Out</span>
+            <span>{isSigningOut ? 'Signing Out...' : 'Developer Sign Out'}</span>
+          </button>
+
+          <button
+            onClick={() => handleSignOut(true)}
+            disabled={isSigningOut}
+            className="w-full flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[10px] text-stone-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors text-left cursor-pointer font-mono"
+            title="Revokes all active sessions across desktop and mobile devices"
+          >
+            <span>Log out from all devices</span>
           </button>
         </div>
       </aside>

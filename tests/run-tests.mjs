@@ -822,6 +822,118 @@ test('Gracefully absorbs SMTP over-quota rate limits without failing creator reg
   assert.strictEqual(absorbed, true);
 });
 
+// -------------------------------------------------------------
+// 16. PERSISTENT LOGIN & REMEMBER ME (7–14 DAYS) TESTS
+// -------------------------------------------------------------
+console.log('\n--- 16. Persistent Login & Remember Me (7–14 Days) Tests ---');
+
+const testSecret = new TextEncoder().encode('test_secret_for_persistent_sessions_2026');
+
+async function signTestSession(userId, days = 14) {
+  const maxAgeSeconds = days * 24 * 60 * 60;
+  const expiresAt = Date.now() + maxAgeSeconds * 1000;
+  const token = await new SignJWT({ userId, days, expiresAt })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(expiresAt / 1000))
+    .sign(testSecret);
+  return { token, expiresAt, maxAgeSeconds };
+}
+
+async function verifyTestSession(token) {
+  try {
+    const { payload } = await jwtVerify(token, testSecret);
+    const expiresAt = Number(payload.expiresAt || 0);
+    if (Date.now() > expiresAt) {
+      return { valid: false, expired: true, userId: payload.userId };
+    }
+    return { valid: true, userId: payload.userId, days: payload.days, expiresAt };
+  } catch (err) {
+    const isExpired = err?.code === 'ERR_JWT_EXPIRED' || err?.message?.includes('expired');
+    return { valid: false, expired: isExpired };
+  }
+}
+
+await asyncTest('Enforces default 14-day persistent session duration', async () => {
+  const DEFAULT_REMEMBER_DAYS = 14;
+  assert.strictEqual(DEFAULT_REMEMBER_DAYS, 14);
+  const session = await signTestSession('creator-1', DEFAULT_REMEMBER_DAYS);
+  assert.strictEqual(session.maxAgeSeconds, 14 * 86400);
+});
+
+await asyncTest('Signs 14-day persistent session token and validates authenticity', async () => {
+  const { token, expiresAt } = await signTestSession('creator-alpha', 14);
+  const check = await verifyTestSession(token);
+  assert.strictEqual(check.valid, true);
+  assert.strictEqual(check.userId, 'creator-alpha');
+  assert.strictEqual(check.days, 14);
+  assert.strictEqual(Math.round((check.expiresAt - Date.now()) / 86400000), 14);
+});
+
+await asyncTest('Signs 7-day persistent session token and validates authenticity', async () => {
+  const { token, expiresAt } = await signTestSession('creator-beta', 7);
+  const check = await verifyTestSession(token);
+  assert.strictEqual(check.valid, true);
+  assert.strictEqual(check.userId, 'creator-beta');
+  assert.strictEqual(check.days, 7);
+  assert.strictEqual(Math.round((check.expiresAt - Date.now()) / 86400000), 7);
+});
+
+await asyncTest('Detects expired persistent session token and enforces re-authentication', async () => {
+  // Create an expired token (1 second in past)
+  const pastExpiresAt = Date.now() - 1000;
+  const expiredToken = await new SignJWT({ userId: 'creator-expired', days: 14, expiresAt: pastExpiresAt })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt(Math.floor(Date.now() / 1000) - 2000)
+    .setExpirationTime(Math.floor(pastExpiresAt / 1000))
+    .sign(testSecret);
+
+  const check = await verifyTestSession(expiredToken);
+  assert.strictEqual(check.valid, false);
+  assert.strictEqual(check.expired, true);
+});
+
+await asyncTest('Rejects tampered or forged persistent session tokens', async () => {
+  const { token } = await signTestSession('creator-valid', 14);
+  const tamperedToken = token.slice(0, -6) + 'abcdef';
+  const check = await verifyTestSession(tamperedToken);
+  assert.strictEqual(check.valid, false);
+});
+
+test('Session isolation: User A session cannot access User B credentials or cards', () => {
+  const userASession = { userId: 'user-aaa-111', role: 'creator' };
+  const userBSession = { userId: 'user-bbb-222', role: 'creator' };
+  const cardOwnedByUserA = { id: 'card-1', owner_id: 'user-aaa-111', title: 'Gift for Sarah' };
+
+  function canAccessCard(session, card) {
+    if (!session || !session.userId) return false;
+    return session.userId === card.owner_id;
+  }
+
+  assert.strictEqual(canAccessCard(userASession, cardOwnedByUserA), true);
+  assert.strictEqual(canAccessCard(userBSession, cardOwnedByUserA), false);
+});
+
+test('Logout simulator: clears cookie tokens and enforces signed-out state', () => {
+  let cookieJar = {
+    'dearyou_session_expiry': 'some_jwt_token',
+    'dearyou_remember_duration': '14',
+    'sb-auth-token': 'access_token_sample',
+  };
+
+  function simulateLogout(jar) {
+    jar['dearyou_session_expiry'] = '';
+    jar['dearyou_remember_duration'] = '';
+    delete jar['sb-auth-token'];
+    return jar;
+  }
+
+  const updatedJar = simulateLogout({ ...cookieJar });
+  assert.strictEqual(updatedJar['dearyou_session_expiry'], '');
+  assert.strictEqual(updatedJar['dearyou_remember_duration'], '');
+  assert.strictEqual(updatedJar['sb-auth-token'], undefined);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

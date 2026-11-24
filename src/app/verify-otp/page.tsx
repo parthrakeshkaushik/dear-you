@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { maskEmail, maskPhoneNumber } from '@/lib/security/phone-utils';
+import { createClient } from '@/lib/supabase/client';
 
 function VerifyOtpContent() {
   const router = useRouter();
@@ -137,6 +138,17 @@ function VerifyOtpContent() {
       if (!res.ok) {
         setErrorMessage(data.error || 'Verification failed. Please check the code.');
       } else {
+        if (data.token_hash) {
+          try {
+            const supabase = createClient();
+            await supabase.auth.verifyOtp({
+              token_hash: data.token_hash,
+              type: 'magiclink',
+            });
+          } catch (authErr) {
+            console.warn('Browser session activation note:', authErr);
+          }
+        }
         setSuccessMessage('Code verified successfully! Launching your Creator Studio...');
         setTimeout(() => {
           router.push(data.redirect || '/admin?verified=true');

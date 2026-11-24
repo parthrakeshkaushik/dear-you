@@ -10,13 +10,32 @@ import {
   Globe,
   CheckCircle2,
   AlertTriangle,
+  Clock,
+  LogOut,
+  Smartphone,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AdminSettingsPage() {
+  const router = useRouter();
   const [platformName, setPlatformName] = useState('Dear You');
   const [tagline, setTagline] = useState('Every person deserves a little something special.');
   const [defaultTimezone, setDefaultTimezone] = useState('Asia/Kolkata');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async (global = false) => {
+    setIsLoggingOut(true);
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {}
+    try {
+      await fetch(`/api/auth/logout${global ? '?global=true' : ''}`, { method: 'POST' });
+    } catch {}
+    router.push('/login?logged_out=true');
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +139,44 @@ export default function AdminSettingsPage() {
                 Configured
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Persistent Login & Session Management */}
+        <div className="p-6 rounded-3xl bg-white border border-black/5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 text-platform-dark font-semibold text-sm">
+              <Clock className="w-5 h-5 text-platform-violet" />
+              <span>Persistent Login & Session Security</span>
+            </div>
+            <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+              14-Day Default Policy
+            </span>
+          </div>
+
+          <p className="text-xs text-platform-muted leading-relaxed">
+            Authenticated sessions persist across browser restarts for 7 or 14 days based on creator selection.
+            Session duration is cryptographically signed and enforced server-side via HttpOnly cookies without exposing tokens.
+          </p>
+
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => handleLogout(false)}
+              disabled={isLoggingOut}
+              className="px-4 py-2 rounded-xl border border-black/10 bg-white hover:bg-black/5 text-xs font-semibold text-platform-dark transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out from this Device</span>
+            </button>
+
+            <button
+              onClick={() => handleLogout(true)}
+              disabled={isLoggingOut}
+              className="px-4 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-xs font-semibold text-rose-700 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+              <span>Log Out from All Devices</span>
+            </button>
           </div>
         </div>
 

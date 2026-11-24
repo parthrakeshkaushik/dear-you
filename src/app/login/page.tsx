@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,6 +16,7 @@ import {
   CheckCircle,
   ShieldCheck,
   ChevronDown,
+  Clock,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
@@ -26,9 +27,12 @@ import {
   getPhoneBridgeEmail,
 } from '@/lib/security/phone-utils';
 import CaptchaWidget from '@/components/auth/CaptchaWidget';
+import { SessionDurationDays, DEFAULT_SESSION_DAYS } from '@/lib/auth/persistent-session';
 
-export default function AuthPage() {
+function AuthPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [authMethod, setAuthMethod] = useState<'email' | 'mobile'>('email');
 
@@ -41,9 +45,53 @@ export default function AuthPage() {
   const [agreedToPolicies, setAgreedToPolicies] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
+  // Persistent Login & Remember Me State
+  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberDuration, setRememberDuration] = useState<SessionDurationDays>(14);
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Check URL parameters and restore existing active sessions on mount
+  useEffect(() => {
+    const expired = searchParams?.get('expired') === 'true';
+    if (expired) {
+      setErrorMessage('Your session has expired. Please sign in again.');
+      return;
+    }
+
+    const loggedOut = searchParams?.get('logged_out') === 'true';
+    if (loggedOut) {
+      setSuccessMessage('You have been logged out successfully.');
+      return;
+    }
+
+    // Auto-restore check: If user already has an active, valid session, avoid showing login screen
+    async function checkExistingSession() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          const sessRes = await fetch('/api/auth/session');
+          const sessData = await sessRes.json();
+          if (sessData.authenticated) {
+            const isDev =
+              session.user.email?.includes('dev') ||
+              session.user.email?.includes('owner');
+            router.replace(isDev ? '/developer' : '/admin');
+          }
+        }
+      } catch {
+        // Fallback to presenting login form
+      }
+    }
+
+    checkExistingSession();
+  }, [searchParams, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +170,7 @@ export default function AuthPage() {
             method: data.registration_method,
             identifier: data.raw_identifier,
             destination: data.destination,
+            rememberDays: (rememberMe ? rememberDuration : 1).toString(),
           });
           router.push(`/verify-otp?${params.toString()}`);
         }, 800);
@@ -150,7 +199,9 @@ export default function AuthPage() {
           email.toLowerCase() === 'developer1@dearyou.com' ||
           email.toLowerCase() === 'developer2@dearyou.com');
 
-      const supabase = createClient();
+      const effectiveDays = rememberMe ? rememberDuration : 1;
+      const maxAgeSeconds = effectiveDays * 24 * 60 * 60;
+      const supabase = createClient(maxAgeSeconds);
 
       if (authMethod === 'email') {
         const cleanEmail = email.trim().toLowerCase();
@@ -180,6 +231,22 @@ export default function AuthPage() {
         if (data?.user && !data.user.email_confirmed_at && !isDeveloperAccount) {
           router.push(`/verify-otp?method=email&identifier=${encodeURIComponent(cleanEmail)}`);
           return;
+        }
+
+        // Establish secure persistent session on the server
+        if (data?.user?.id) {
+          try {
+            await fetch('/api/auth/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: data.user.id,
+                rememberDays: effectiveDays,
+              }),
+            });
+          } catch (sessErr) {
+            console.warn('Session cookie establishment note:', sessErr);
+          }
         }
 
         if (isDeveloperAccount) {
@@ -227,6 +294,22 @@ export default function AuthPage() {
         ) {
           router.push(`/verify-otp?method=mobile&identifier=${encodeURIComponent(e164Phone)}`);
           return;
+        }
+
+        // Establish secure persistent session on the server
+        if (data?.user?.id) {
+          try {
+            await fetch('/api/auth/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: data.user.id,
+                rememberDays: effectiveDays,
+              }),
+            });
+          } catch (sessErr) {
+            console.warn('Session cookie establishment note:', sessErr);
+          }
         }
 
         router.push('/admin');
@@ -282,9 +365,9 @@ export default function AuthPage() {
                 setIsSignUp(false);
                 setErrorMessage(null);
               }}
-              className={`px-4 py-1.5 rounded-full font-medium transition-all cursor-pointer ${
+              className={`px-4 py-1.5 rounded-full transition-all font-medium ${
                 !isSignUp
-                  ? 'bg-white text-platform-dark shadow-xs'
+                  ? 'bg-white shadow-xs text-platform-dark font-semibold'
                   : 'text-platform-muted hover:text-platform-dark'
               }`}
             >
@@ -296,41 +379,68 @@ export default function AuthPage() {
                 setIsSignUp(true);
                 setErrorMessage(null);
               }}
-              className={`px-4 py-1.5 rounded-full font-medium transition-all cursor-pointer ${
+              className={`px-4 py-1.5 rounded-full transition-all font-medium ${
                 isSignUp
-                  ? 'bg-white text-platform-dark shadow-xs'
+                  ? 'bg-white shadow-xs text-platform-dark font-semibold'
                   : 'text-platform-muted hover:text-platform-dark'
               }`}
             >
-              Create Account
+              Sign Up
             </button>
           </div>
 
-          <h1 className="font-serif text-2xl sm:text-3xl font-normal text-[#1A1625]">
+          <h2 className="font-serif text-2xl font-normal text-platform-dark mb-1">
             {isSignUp ? 'Join Dear You' : 'Welcome Back'}
-          </h1>
-          <p className="mt-1 text-xs text-platform-muted max-w-xs mx-auto">
+          </h2>
+          <p className="text-xs text-platform-muted mb-6">
             {isSignUp
-              ? 'Choose your preferred verification method to get started.'
-              : 'Sign in to access your Creator or Developer Console.'}
+              ? 'Create heartfelt personalized surprise gifts that last forever.'
+              : 'Sign in to access your digital gifts, memory walls and creator studio.'}
           </p>
 
-          {/* Registration / Login Method Selector */}
-          <div className="mt-5 p-1 rounded-2xl bg-stone-100/80 border border-stone-200/70 grid grid-cols-2 gap-1 text-xs font-medium">
+          {/* Error / Success Notifications */}
+          <AnimatePresence>
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 text-left"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{errorMessage}</span>
+              </motion.div>
+            )}
+
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 text-left"
+              >
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{successMessage}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Authentication Method Selector (Email vs Mobile) */}
+          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-stone-100 border border-black/5 mb-5 text-xs font-medium">
             <button
               type="button"
               onClick={() => {
                 setAuthMethod('email');
                 setErrorMessage(null);
               }}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all cursor-pointer ${
                 authMethod === 'email'
                   ? 'bg-white text-platform-dark shadow-xs font-semibold'
-                  : 'text-stone-500 hover:text-stone-800'
+                  : 'text-platform-muted hover:text-platform-dark'
               }`}
             >
               <Mail className="w-3.5 h-3.5" />
-              <span>Continue with Email</span>
+              <span>Email</span>
             </button>
             <button
               type="button"
@@ -338,23 +448,24 @@ export default function AuthPage() {
                 setAuthMethod('mobile');
                 setErrorMessage(null);
               }}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-all cursor-pointer ${
                 authMethod === 'mobile'
                   ? 'bg-white text-platform-dark shadow-xs font-semibold'
-                  : 'text-stone-500 hover:text-stone-800'
+                  : 'text-platform-muted hover:text-platform-dark'
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span>Continue with Mobile</span>
+              <span>Mobile Number</span>
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-5 space-y-3.5 text-left">
+          {/* Authentication Form */}
+          <form onSubmit={handleSubmit} className="space-y-4 text-left">
             {/* Display Name (Signup Only) */}
             {isSignUp && (
               <div>
                 <label className="block text-xs font-semibold text-platform-dark mb-1">
-                  Full Name / Display Name
+                  Full Name
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -362,7 +473,7 @@ export default function AuthPage() {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="e.g. Maya Sharma"
-                    required
+                    required={isSignUp}
                     className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                   />
                   <User className="w-4 h-4 text-platform-muted absolute left-3" />
@@ -370,7 +481,7 @@ export default function AuthPage() {
               </div>
             )}
 
-            {/* Email Identifier Field */}
+            {/* Option A: Email Field */}
             {authMethod === 'email' && (
               <div>
                 <label className="block text-xs font-semibold text-platform-dark mb-1">
@@ -381,17 +492,22 @@ export default function AuthPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
+                    placeholder="you@example.com"
                     autoComplete="email"
                     required
                     className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                   />
                   <Mail className="w-4 h-4 text-platform-muted absolute left-3" />
                 </div>
+                {isSignUp && (
+                  <p className="text-[10px] text-stone-600 mt-1 pl-1">
+                    Disposable or burner emails are blocked for account safety.
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Mobile Identifier Field */}
+            {/* Option B: Mobile Number with Country Code */}
             {authMethod === 'mobile' && (
               <div>
                 <label className="block text-xs font-semibold text-platform-dark mb-1">
@@ -403,11 +519,11 @@ export default function AuthPage() {
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className="w-full appearance-none pl-2.5 pr-6 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-platform-violet/40 cursor-pointer"
+                      className="w-full appearance-none pl-2.5 pr-6 py-2 rounded-xl border border-black/10 text-xs sm:text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet cursor-pointer"
                     >
-                      {SUPPORTED_COUNTRY_CODES.map((c) => (
-                        <option key={c.code} value={c.dialCode}>
-                          {c.flag} {c.dialCode}
+                      {SUPPORTED_COUNTRY_CODES.map((country) => (
+                        <option key={country.code} value={country.dialCode}>
+                          {country.flag} {country.dialCode}
                         </option>
                       ))}
                     </select>
@@ -461,6 +577,58 @@ export default function AuthPage() {
               )}
             </div>
 
+            {/* Remember Me Option (Sign In Only) */}
+            {!isSignUp && (
+              <div className="p-3.5 rounded-2xl bg-stone-50/80 border border-black/5 text-left space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="rememberMeCheckbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded text-platform-violet border-black/20 focus:ring-platform-violet/40 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-platform-dark">
+                      Remember me for {rememberDuration} days
+                    </span>
+                  </label>
+
+                  {rememberMe && (
+                    <div className="inline-flex items-center bg-black/5 p-0.5 rounded-lg text-[10px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setRememberDuration(7)}
+                        className={`px-2 py-0.5 rounded-md transition-all ${
+                          rememberDuration === 7
+                            ? 'bg-white shadow-xs font-semibold text-platform-dark'
+                            : 'text-stone-500 hover:text-stone-800'
+                        }`}
+                      >
+                        7 days
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRememberDuration(14)}
+                        className={`px-2 py-0.5 rounded-md transition-all ${
+                          rememberDuration === 14
+                            ? 'bg-white shadow-xs font-semibold text-platform-dark'
+                            : 'text-stone-500 hover:text-stone-800'
+                        }`}
+                      >
+                        14 days
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-stone-500 font-light pl-6">
+                  {rememberMe
+                    ? `Stay signed in for ${rememberDuration} days on this device.`
+                    : 'Session will end when you close your browser.'}
+                </p>
+              </div>
+            )}
+
             {/* Terms and Conditions Checkbox (SignUp Only) */}
             {isSignUp && (
               <div className="pt-1">
@@ -502,49 +670,31 @@ export default function AuthPage() {
               </div>
             )}
 
-            {/* CAPTCHA Bot Protection Widget */}
+            {/* Cloudflare Turnstile / CAPTCHA Bot Protection (SignUp Only) */}
             {isSignUp && (
-              <CaptchaWidget
-                onVerify={(token) => {
-                  setCaptchaToken(token);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                onExpire={() => setCaptchaToken(null)}
-              />
+              <div className="pt-1">
+                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                  Security Verification
+                </label>
+                <CaptchaWidget
+                  onVerify={(token) => {
+                    setCaptchaToken(token);
+                    if (errorMessage?.includes('CAPTCHA')) setErrorMessage(null);
+                  }}
+                  onError={(err) => setErrorMessage(err)}
+                />
+                <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-stone-600 pl-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-platform-violet" />
+                  <span>Cloudflare bot and automated abuse protection</span>
+                </div>
+              </div>
             )}
 
-            {/* Messages */}
-            <AnimatePresence>
-              {errorMessage && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs"
-                >
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{errorMessage}</span>
-                </motion.div>
-              )}
-
-              {successMessage && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs"
-                >
-                  <CheckCircle className="w-4 h-4 shrink-0" />
-                  <span>{successMessage}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Submit Action */}
+            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading || (isSignUp && (!agreedToPolicies || !captchaToken))}
-              className="w-full inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-medium hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              className="w-full mt-4 py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -582,5 +732,13 @@ export default function AuthPage() {
         <Link href="/privacy" className="hover:underline">Privacy</Link>
       </footer>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5]" />}>
+      <AuthPageContent />
+    </Suspense>
   );
 }

@@ -3,11 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
 import { getPhoneBridgeEmail } from '@/lib/security/phone-utils';
 import { isOtpCodeValid, safeUpsertAdminUser, safeLogOtp } from '@/lib/security/otp-store';
+import { signSessionExpiryToken, setSessionCookies, DEFAULT_SESSION_DAYS } from '@/lib/auth/persistent-session';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { method, identifier, token } = body;
+    const { method, identifier, token, rememberDays = DEFAULT_SESSION_DAYS } = body;
 
     const cleanToken = token?.toString()?.trim();
     const cleanId = identifier?.trim();
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = matchedUser?.id;
+    let hashedToken: string | null = null;
 
     if (userId) {
       // Mark confirmed in Supabase Auth
@@ -125,13 +127,37 @@ export async function POST(request: NextRequest) {
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
         verified_at: new Date().toISOString(),
       });
+
+      // Generate a magiclink session token for immediate client authentication
+      try {
+        const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: targetEmail,
+        });
+        hashedToken = linkData?.properties?.hashed_token || null;
+      } catch (linkErr) {
+        console.warn('Session link generation note:', linkErr);
+      }
     }
 
-    return NextResponse.json({
+    const validatedDays = rememberDays === 7 ? 7 : 14;
+    const response = NextResponse.json({
       success: true,
       message: 'Account successfully verified! Welcome to Dear You.',
       redirect: '/admin?verified=true',
+      token_hash: hashedToken,
+      userId,
     });
+
+    if (userId) {
+      const { token: sessionToken, maxAgeSeconds } = await signSessionExpiryToken(
+        userId,
+        validatedDays
+      );
+      setSessionCookies(response, sessionToken, validatedDays, maxAgeSeconds);
+    }
+
+    return response;
   } catch (error: any) {
     console.error('OTP verification API error:', error);
     return NextResponse.json(
