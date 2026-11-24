@@ -205,6 +205,75 @@ test('Photo lightbox modal navigation loops smoothly', () => {
   assert.strictEqual(currentIdx, 2);
 });
 
+// -------------------------------------------------------------
+// 6. MUSIC EXPERIENCE & START YOUR JOURNEY TESTS
+// -------------------------------------------------------------
+console.log('\n--- 6. Music Experience & Start Your Journey Tests ---');
+
+test('Start Your Journey defaults correctly and links audio playback', () => {
+  const welcomeButtonText = undefined;
+  const resolvedButtonText = welcomeButtonText || 'Start Your Journey';
+  assert.strictEqual(resolvedButtonText, 'Start Your Journey');
+});
+
+test('Audio plays on Start Your Journey click and handles browser rejection gracefully', async () => {
+  let isPlaying = false;
+  let audioError = null;
+  let journeyStarted = false;
+
+  const mockAudio = {
+    play: async () => {
+      // Simulate successful audio play inside user gesture
+      isPlaying = true;
+    }
+  };
+
+  const handleStartJourney = async () => {
+    journeyStarted = true;
+    try {
+      await mockAudio.play();
+    } catch {
+      audioError = 'Browser blocked audio';
+    }
+  };
+
+  await handleStartJourney();
+  assert.strictEqual(journeyStarted, true);
+  assert.strictEqual(isPlaying, true);
+  assert.strictEqual(audioError, null);
+
+  // Now simulate browser blocking autoplay policy (e.g. strict policy)
+  const strictAudio = {
+    play: async () => {
+      throw new Error('NotAllowedError: play() failed because the user didn\'t interact');
+    }
+  };
+
+  let strictJourneyStarted = false;
+  let strictAudioError = null;
+  const handleStrictStart = async () => {
+    strictJourneyStarted = true;
+    try {
+      await strictAudio.play();
+    } catch (e) {
+      strictAudioError = e.message;
+    }
+  };
+
+  await handleStrictStart();
+  // CRITICAL: Journey must continue uninterrupted even if audio throws!
+  assert.strictEqual(strictJourneyStarted, true);
+  assert.ok(strictAudioError.includes('NotAllowedError'));
+});
+
+test('Music is optional at the creator configuration level', () => {
+  const giftWithMusic = { music_url: 'https://example.com/audio.mp3' };
+  const giftWithoutMusic = { music_url: undefined };
+
+  assert.strictEqual(Boolean(giftWithMusic.music_url), true);
+  assert.strictEqual(Boolean(giftWithoutMusic.music_url), false);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

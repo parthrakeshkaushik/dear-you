@@ -1,176 +1,89 @@
-# Dear You — Mobile-First Digital Gifting Platform
+# Dear You
 
-> *"Every person deserves a little something special."*
+**One platform. Unlimited gifts. Every gift tells a different story.**
 
-**Dear You** is a production-ready, mobile-first personalized digital gifting platform. Designed for birthdays, anniversaries, friendship milestones, and appreciation celebrations, Dear You allows creators to design, theme, password-protect, manage, and deliver unforgettable digital experiences through unique URLs.
-
----
-
-## 🌟 Key Features
-
-### 1. Two Separate, Harmonious Experiences
-- **Creator / Administrator Suite (`/admin/*`)**: Private dashboard to create, manage, preview, duplicate, archive, and publish digital gifts. Includes a guided 10-step wizard.
-- **Recipient Experience (`/g/[slug]`)**: Immersive, emotional micro-site gated by gift-specific passwords, responsive from 360px mobile to 4K displays.
-
-### 2. Independent Per-Gift Theme Engine
-Every gift has its own aesthetic universe defined via CSS design tokens:
-1. **Dreamy & Magical:** Lavender, starlight, moon, glowing aura (`#0D0B18`, `#9D85C5`).
-2. **Elegant & Premium:** High-contrast champagne gold, black, warm ivory (`#0C0A09`, `#D4AF37`).
-3. **Memories & Scrapbook:** Polaroid tilts, kraft paper, sepia tones, handwritten typography (`#F7F3EB`, `#8C6551`).
-4. **Celebration & Birthday:** Festive confetti, birthday cake candles, vibrant coral & gold (`#FFFAF5`, `#FF4D6D`).
-5. **Soft Pastel:** Blush pink, peach mist, gentle rounded cards (`#FFF6F7`, `#E07A5F`).
-6. **Minimal & Modern:** Clean typography, generous whitespace, slate monochrome (`#F8F9FA`, `#111827`).
-7. **Custom Theme:** Administrator configured primary, secondary, background, accent colors, and typography.
-
-### 3. Ten Interactive Feature Modules
-- 🎁 **Virtual Gift Box:** Tap-to-unwrap 3D animated box with ribbon untie and confetti burst.
-- 🎂 **Virtual Birthday Cake:** Animated cake with flickering candle flames blowable via touch or button, triggering celebratory particle bursts.
-- 📷 **Memories Gallery:** Responsive grid/masonry with organic tilt and fullscreen lightbox modal.
-- ⏳ **Memory Timeline:** Chronological story milestones with dates, narratives, and images.
-- ❓ **Memory / Friendship Quiz:** Interactive trivia challenge with real-time feedback and score calculation.
-- ✨ **Golden Scratch Card:** HTML5 Canvas surface scratchable via touch or mouse with an accessible instant reveal button.
-- 🔒 **Secret Messages:** Tap-to-unseal confidential notes and quiet appreciations.
-- ⭐ **Future Wishes Carousel:** Step-by-step blessing cards for the journey ahead.
-- 💌 **Personal Letter:** Rich typography letterhead with cursive signatures and multi-paragraph layout.
-- 🎵 **Music Player Bar:** Floating audio bar with playback and volume controls (no forced autoplay).
-
-### 4. First-Class Expiry Experience
-- Server-enforced UTC timestamp verification (defaulting to `Asia/Kolkata` display).
-- Once expired, sensitive content (letters, gallery, secrets) is **strictly redacted** and not served over APIs.
-- The recipient sees a graceful, theme-matching farewell closing screen with custom administrator notes.
-- Administrator can extend, republish, or edit expired gifts at any time.
-
-### 5. Live Creator Preview & Memory Wall
-- **Live Creator Preview System (`/admin/create`)**: Two-panel split-screen studio on desktop (42% form editor / 58% live synchronized recipient preview) and persistent drawer on mobile with viewport simulation (desktop, tablet, mobile) and instant reactivity.
-- **Memory Wall (`/g/[slug]`)**: Interactive hanging photo wall with 7 custom decorative frame styles (Polaroid, Vintage Wood, Modern Minimal, Golden Luxury, Pastel Elegance, Scrapbook Craft, Theme Custom), realistic physics-inspired sway, pushpins, and shared-element lightbox viewer (`PhotoViewerModal`) with keyboard, swipe, and scroll restoration.
-
-### 6. Developer Dashboard & Owner Console (`/developer/*`)
-- **Role-Based Access Control**: Strict multi-tier separation between Developers, Gift Creators, and Recipients.
-- **Platform Analytics**: Aggregate user growth, category distribution, theme adoption, retention funnels, and device breakdown.
-- **Audit-Logged Content Inspection**: Legally compliant, un-truncated gift content and photograph inspection under explicit user consent.
-- **Developer Audit Trail**: Immutable log of developer inspection and user management actions.
+Dear You is a personalised digital gifting platform created to transform heartfelt moments into lasting, interactive online experiences. Designed for birthdays, anniversaries, milestone celebrations, and quiet tokens of gratitude, Dear You allows creators to craft, design, password-protect, and share bespoke digital surprises that feel deeply personal and emotionally resonant.
 
 ---
 
-## 🛡️ Security Architecture
+## About the Project
 
-1. **Authentication:** Supabase Auth for administrators. No public self-registration.
-2. **Password Gating:** Recipient passwords hashed using **Bcrypt** with 10 salt rounds. Never stored or returned in plaintext.
-3. **Session Management:** HMAC-SHA256 signed `HttpOnly`, `Secure`, `SameSite=Lax` cookies issued upon password verification.
-4. **Brute-Force Rate Limiting:** Sliding window limiter (maximum 5 attempts per 15-minute window per IP/slug).
-5. **Database Row Level Security (RLS):** Strict owner isolation for admin actions; public reads restricted to published metadata.
+Traditional greetings—whether paper cards or fleeting text messages—often struggle to capture the full depth of personal relationships. Dear You reimagines digital celebration by turning wishes, memories, and personal stories into an immersive visual sanctuary.
+
+Every gift created on Dear You is an independent micro-world. Creators can weave together heartfelt written letters, interactive virtual gift boxes, candle-blowing celebrations, curated photo memories, milestone timelines, and ambient music. The platform bridges distance with thoughtful interactivity, ensuring that every recipient experiences something created specifically for them.
 
 ---
 
-## 📁 Project Architecture
+## Key Features
 
-```
-src/
-├── app/
-│   ├── page.tsx                      # Minimal platform landing page
-│   ├── login/                        # Admin authentication portal
-│   ├── admin/                        # Admin Suite
-│   │   ├── page.tsx                  # Dashboard overview & metrics
-│   │   ├── gifts/page.tsx            # Gift management table & actions
-│   │   ├── create/page.tsx           # Guided 10-step gift builder
-│   │   ├── themes/page.tsx           # Theme design tokens explorer
-│   │   └── settings/page.tsx         # Platform preferences & security status
-│   ├── g/[slug]/                     # Recipient experience route
-│   │   ├── page.tsx                  # Public password-gated view
-│   │   └── preview/page.tsx          # Admin preview mode (unlocked)
-│   └── api/                          # Serverless Route Handlers
-│       └── gifts/[slug]/
-│           ├── verify-password/      # Password check & JWT session cookie
-│           └── content/              # Protected content delivery
-├── components/
-│   └── recipient/                    # Reusable recipient experience components
-├── config/
-│   └── themes.ts                     # Theme presets & CSS variable generator
-├── lib/
-│   ├── auth/                         # Bcrypt & JWT session helpers
-│   ├── expiry/                       # Server-side UTC expiry validator
-│   ├── security/                     # Rate limiting sliding window
-│   ├── supabase/                     # Supabase client & server instances
-│   └── mock-data.ts                  # Sandbox demonstration data
-├── types/                            # Strict TypeScript definitions
-└── styles/
-    └── globals.css                   # Custom styles, fonts, and scrollbars
-```
+- **Personalised Digital Gifts**: Independent gifts uniquely configured with their own narrative flow, interactive modules, access controls, and visual atmosphere.
+- **Multiple Visual Themes**: Seven distinct aesthetic presets—*Dreamy & Starlight*, *Champagne & Gold*, *Scrapbook & Kraft*, *Celebration & Birthday*, *Soft Pastel*, *Minimal & Modern*, and custom creator-defined palettes.
+- **Interactive Gift Reveal**: Tap-to-unwrap 3D animated virtual gift box with ribbon untie physics and celebratory confetti bursts.
+- **Live Creator Preview**: Real-time split-screen studio workspace on desktop (42% form editor / 58% live synchronized preview) and a persistent mobile drawer allowing instant visualization across desktop, tablet, and mobile viewports.
+- **Integrated Background Music**: Background melodies that begin naturally when the recipient taps **"Start Your Journey"**, respecting browser audio policies with persistent, elegant playback controls.
+- **Memory Wall with Decorative Frames**: Hanging photo wall with physics-inspired gentle sway, realistic pushpins, and seven frame styles (*Polaroid*, *Vintage Wood*, *Modern Minimal*, *Golden Luxury*, *Pastel Elegance*, *Scrapbook Craft*, and *Theme Custom*).
+- **Interactive Memories Gallery & Lightbox**: Responsive photo gallery paired with an accessible, full-screen lightbox modal featuring smooth swipe and keyboard navigation that restores the viewer's exact scroll and frame position.
+- **Chronological Memory Timeline**: Storytelling milestone cards complete with dates, captions, and photographs.
+- **Candle-Blowing Cake Celebration**: Animated virtual birthday cake with flickering candles that can be blown out with a tap, releasing particle bursts.
+- **Interactive Friendship Quiz**: Multi-question trivia challenge with instant answer feedback and celebratory score summaries.
+- **Golden Scratch Card**: Interactive HTML5 scratch canvas with an accessible instant-reveal option.
+- **Secret Messages & Future Wishes**: Tap-to-unseal private notes and a step-by-step blessing card carousel.
+- **Heartfelt Letters**: Rich typography letterhead with cursive signatures and elegant layouts.
+- **Password-Protected Gifts**: Recipient access secured with Bcrypt password hashing, sliding-window rate limiting, and encrypted session cookies.
+- **Gift Expiry & Graceful Closing**: Server-enforced expiration with automated redaction of private content and a warm farewell closing screen.
+- **Dedicated Creator and Developer Consoles**: Separate dashboards for gift creators and authorized platform developers with role-based access control, analytics, and audit logging.
+- **Mobile-First Responsiveness**: Designed and tested across screen viewports from 360px smartphones up to large 4K displays.
 
 ---
 
-## 🚀 Getting Started
+## How Dear You Works
 
-### 1. Prerequisites
-- Node.js 18+ (tested on Node v24.19.0)
-- npm or pnpm
-
-### 2. Installation
-```bash
-git clone <repo-url>
-cd "DEAR YOU"
-npm install
-```
-
-### 3. Environment Variables
-Copy `.env.example` to `.env.local`:
-```bash
-cp .env.example .env.local
-```
-
-Configure your credentials:
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-RECIPIENT_JWT_SECRET=your-random-32-character-secret-key-for-recipient-session
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-### 4. Database Setup (Supabase)
-Run the SQL migrations in order in your Supabase SQL Editor:
-1. `supabase/migrations/20261124000000_create_dear_you_schema.sql` (Core tables, RLS policies, storage bucket)
-2. `supabase/migrations/20261124000001_memory_wall_enhancements.sql` (Frame styles, memory wall configs)
-3. `supabase/migrations/20261124000002_developer_console_and_audit_logs.sql` (RBAC, audit logs, policy acceptance, platform activity)
-
-### 5. Running the Application
-```bash
-# Start development server
-npm run dev
-
-# Run automated test suite
-node tests/run-tests.mjs
-
-# Build for production
-npm run build
-```
+1. **Create & Personalise**: A creator signs into the Creator Studio and designs a new gift—selecting an aesthetic theme, writing personal letters, and choosing interactive modules.
+2. **Add Memories & Media**: The creator uploads meaningful photographs, configures decorative frame styles on the Memory Wall, and selects an ambient soundtrack.
+3. **Live Preview**: The creator inspects how the gift will look and feel on desktop, tablet, and mobile devices in real time.
+4. **Publish & Share**: The creator sets an optional password and expiry date, publishes the gift, and receives a unique, private URL.
+5. **The Recipient Experience**: The recipient opens their special link, enters the secret passphrase, and taps **"Start Your Journey"** to begin their personalized digital experience.
 
 ---
 
-## 🧪 Testing Summary
+## Technology Stack
 
-Dear You includes an automated testing suite verifying:
-- ✅ **Expiry Logic:** Expiry boundaries, indefinite gifts, past dates.
-- ✅ **Bcrypt Security:** Hash generation, correct password match, incorrect password rejection.
-- ✅ **JWT Verification:** Signed session cookie validation.
-- ✅ **Rate Limiting:** Threshold enforcement and blocking on 6th failed attempt.
-- ✅ **Theme Tokens:** Palette consistency and CSS variable generators.
-
-Run tests anytime with:
-```bash
-node tests/run-tests.mjs
-```
-
----
-
-## 🚢 Deployment (Vercel)
-
-1. Push your repository to GitHub.
-2. Import project into [Vercel](https://vercel.com).
-3. Set Environment Variables matching `.env.example`.
-4. Deploy! Next.js App Router will optimize all routes and edge handlers automatically.
+- **Framework**: [Next.js](https://nextjs.org) (App Router, Server Components & Route Handlers)
+- **Frontend Library**: [React 18](https://react.dev)
+- **Language**: [TypeScript](https://www.typescriptlang.org) (Strict type verification)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com) with custom design tokens
+- **Animations**: [Framer Motion](https://www.framer.com/motion) & [Canvas Confetti](https://www.npmjs.com/package/canvas-confetti)
+- **Icons**: [Lucide React](https://lucide.dev)
+- **Database & Authentication**: [Supabase](https://supabase.com) (PostgreSQL with Row Level Security & Supabase Auth)
+- **Media Storage**: Supabase Storage (Private storage buckets with authenticated access policies)
+- **Security & Cryptography**: [Bcrypt.js](https://www.npmjs.com/package/bcryptjs) & [Jose](https://github.com/panva/jose) (HMAC-SHA256 session tokens)
+- **Deployment & Hosting**: [Vercel](https://vercel.com)
 
 ---
 
-## 📄 License
-Crafted with thought and care. Distributed under the MIT License.
+## Design Philosophy
+
+- **Mobile-First by Design**: Built from the ground up to ensure seamless, thumb-friendly interaction on mobile devices before scaling gracefully to desktop screens.
+- **Emotional Storytelling**: Interfaces designed with warmth, delicate typography, warm ivory and soft violet tones, and restrained animations that feel human and meaningful.
+- **Autonomous Gift Aesthetics**: The administrative platform maintains a minimal, unobtrusive identity, allowing each individual gift to inhabit its own bespoke visual universe.
+- **Performance & Accessibility**: Respect for reduced motion, responsive image optimization, high-contrast readability, and keyboard navigation.
+
+---
+
+## Project Vision
+
+Dear You aims to be the definitive platform for thoughtful digital celebration. As communication increasingly moves into brief, ephemeral channels, Dear You provides a dedicated canvas for intentionality—a place where people can preserve memories, express heartfelt appreciation, and create digital gifts that recipients will revisit and treasure for years to come.
+
+---
+
+## Project Status
+
+- **Status**: Production-ready (v1.0)
+- **Current Capabilities**: Core gifting engine, Live Creator Preview, Memory Wall, 10 interactive modules, integrated music experience, Developer Console, and Supabase integration are active and deployed.
+- **Development**: Actively maintained and continuously enhanced based on user feedback and real-world gifting stories.
+
+---
+
+## Acknowledgement
+
+Dear You is dedicated to everyone who believes that words matter, memories are worth keeping, and every person deserves a little something special.

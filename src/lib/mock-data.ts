@@ -188,7 +188,7 @@ export const MOCK_GIFTS: Record<string, Gift> = {
     expiry_timezone: 'Asia/Kolkata',
     welcome_heading: 'A starry little sanctuary, just for you.',
     welcome_message: 'Someone who treasures every smile of yours put together these memories, whispers, and wishes.',
-    welcome_button_text: 'Open Your Surprise',
+    welcome_button_text: 'Start Your Journey',
     gift_box_message: 'May this year unfold like a gentle dawn, brimming with soft surprises, hearty laughter, and dreams taking flight.',
     scratch_card_hidden_text: 'You have this rare, quiet magic of making everyone around you feel valued and at home. Never stop being you!',
     closing_message: 'No matter how fast the world moves, know that you have friends who celebrate you endlessly. Happy Birthday!',

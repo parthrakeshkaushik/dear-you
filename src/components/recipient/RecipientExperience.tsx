@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Gift, SectionType } from '@/types/gift';
 import { ThemeContainer } from './ThemeContainer';
 import { PasswordGate } from './PasswordGate';
@@ -34,6 +34,12 @@ export function RecipientExperience({
   const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
   const [hasStartedExperience, setHasStartedExperience] = useState(false);
 
+  // Audio state
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+
   // Check Expiry
   const isExpired = useMemo(() => {
     if (!gift.expiry_enabled || !gift.expires_at) return false;
@@ -65,6 +71,74 @@ export function RecipientExperience({
       .sort((a, b) => a.display_order - b.display_order)
       .map((s) => s.section_type);
   }, [gift.sections]);
+
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+    };
+  }, []);
+
+  // Play / Pause toggle
+  const handleTogglePlay = useCallback(() => {
+    if (!audioRef.current || !gift.music_url) return;
+    if (isAudioPlaying) {
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+    } else {
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsAudioPlaying(true);
+          setAudioError(null);
+        })
+        .catch((err) => {
+          console.warn('Audio play request prevented:', err);
+          setIsAudioPlaying(false);
+          setAudioError('Audio blocked by browser. Tap to listen.');
+        });
+    }
+  }, [isAudioPlaying, gift.music_url]);
+
+  // Mute / Unmute toggle
+  const handleToggleMute = useCallback(() => {
+    if (!audioRef.current) return;
+    const nextMuted = !isAudioMuted;
+    audioRef.current.muted = nextMuted;
+    setIsAudioMuted(nextMuted);
+  }, [isAudioMuted]);
+
+  // Unified "Start Your Journey" Interaction
+  // Directly starts background music from the user's primary click/tap gesture!
+  const handleStartJourney = useCallback(() => {
+    setHasStartedExperience(true);
+
+    // 1. Initiate music playback synchronously in this click handler
+    if (gift.music_url && audioRef.current) {
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsAudioPlaying(true);
+          setAudioError(null);
+        })
+        .catch((err) => {
+          console.warn('Audio playback could not start automatically:', err);
+          setIsAudioPlaying(false);
+          // Non-blocking: record error so persistent control shows friendly retry prompt
+          setAudioError('Browser paused audio. Tap to listen.');
+        });
+    }
+
+    // 2. Smoothly transition to the first gift section
+    const targetSectionId = enabledSections[0] || 'gift_box';
+    const firstSec = document.getElementById(targetSectionId);
+    if (firstSec) {
+      firstSec.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [gift.music_url, enabledSections]);
 
   // Handle password verification with server endpoint
   const handleVerifyPassword = async (password: string) => {
@@ -134,11 +208,29 @@ export function RecipientExperience({
 
   return (
     <ThemeContainer themeId={gift.selected_theme} customConfig={gift.theme_config}>
-      {/* Background Music Player (if music is enabled or provided) */}
+      {/* Background HTML5 Audio Element (Continuous playback, never unmounts across sections) */}
+      {gift.music_url && (
+        <audio
+          ref={audioRef}
+          src={gift.music_url}
+          loop
+          preload="auto"
+          onPlay={() => setIsAudioPlaying(true)}
+          onPause={() => setIsAudioPlaying(false)}
+          onEnded={() => setIsAudioPlaying(false)}
+        />
+      )}
+
+      {/* Persistent Floating Music Control (Appears and reflects playback across the journey) */}
       {gift.music_url && (
         <MusicPlayerBar
-          audioUrl={gift.music_url}
-          trackTitle={gift.music_title || 'Gentle Melody'}
+          isPlaying={isAudioPlaying}
+          isMuted={isAudioMuted}
+          trackTitle={gift.music_title || 'Gentle Moments'}
+          audioError={audioError}
+          hasStartedJourney={hasStartedExperience}
+          onTogglePlay={handleTogglePlay}
+          onToggleMute={handleToggleMute}
         />
       )}
 
@@ -146,7 +238,7 @@ export function RecipientExperience({
       <SectionNavigation sections={navItems} />
 
       <main className="w-full">
-        {/* Welcome Section */}
+        {/* Welcome Section with "Start Your Journey" */}
         <div id="welcome">
           <WelcomeScreen
             recipientName={gift.recipient_name}
@@ -154,13 +246,9 @@ export function RecipientExperience({
             message={gift.welcome_message}
             buttonText={gift.welcome_button_text}
             coverImage={gift.cover_image}
-            onProceed={() => {
-              setHasStartedExperience(true);
-              const firstSec = document.getElementById(enabledSections[0] || 'celebration');
-              if (firstSec) {
-                firstSec.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
+            hasMusic={Boolean(gift.music_url)}
+            musicTitle={gift.music_title}
+            onProceed={handleStartJourney}
           />
         </div>
 

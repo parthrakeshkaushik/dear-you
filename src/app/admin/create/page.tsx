@@ -85,7 +85,7 @@ export default function GiftBuilderPage() {
   // Step 3: Welcome Screen
   const [welcomeHeading, setWelcomeHeading] = useState('A starry sanctuary, crafted with love.');
   const [welcomeMessage, setWelcomeMessage] = useState('Take a breath, relax, and step into this moment prepared for you.');
-  const [welcomeButtonText, setWelcomeButtonText] = useState('Open Your Surprise');
+  const [welcomeButtonText, setWelcomeButtonText] = useState('Start Your Journey');
 
   // Step 4: Personal Content
   const [giftBoxMessage, setGiftBoxMessage] = useState('May this year bring gentle days, deep laughter, and wishes fulfilled.');
