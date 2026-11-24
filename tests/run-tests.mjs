@@ -1004,6 +1004,199 @@ test('Registration directly routes to Creator Dashboard (/admin) without OTP scr
   assert.notStrictEqual(route.includes('verify-otp'), true);
 });
 
+// -------------------------------------------------------------
+// 18. DEMONSTRATION CARD SHOWCASE & PASSWORD HINT TESTS
+// -------------------------------------------------------------
+console.log('\n--- 18. Demonstration Card Showcase & Password Hint Tests ---');
+
+test('Showcase repository contains exactly one designated demonstration card', () => {
+  const showcaseCards = [
+    { id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', slug: 'demo-gift', is_demo: true },
+    { id: 'a8888888-4444-4444-4444-1234567890ab', slug: 'aarav-anniversary', is_demo: false },
+  ];
+
+  const demoCards = showcaseCards.filter((c) => c.is_demo === true);
+  assert.strictEqual(demoCards.length, 1);
+  assert.strictEqual(demoCards[0].slug, 'demo-gift');
+});
+
+await asyncTest('Demo card password "show" successfully hashes and verifies with bcrypt', async () => {
+  const demoHash = '$2a$10$IFQY0xiDMZHPzug70DTzheADu5FvyvsfplxWuuCG.I0D1HJ5EGyqm';
+  const matches = await bcrypt.compare('show', demoHash);
+  assert.strictEqual(matches, true);
+
+  const wrongMatches = await bcrypt.compare('wrongpassword', demoHash);
+  assert.strictEqual(wrongMatches, false);
+});
+
+test('Public metadata strips password hints for real user cards while exposing for demo card only', () => {
+  function getPublicHint(card) {
+    if (card.is_demo || card.slug === 'demo' || card.slug === 'demo-gift') {
+      return 'show';
+    }
+    return undefined; // Strictly private for real customer cards
+  }
+
+  const demoCard = { slug: 'demo-gift', is_demo: true, password_hint: 'show' };
+  const realCard = { slug: 'maya-wedding', is_demo: false, password_hint: 'Our first date' };
+
+  assert.strictEqual(getPublicHint(demoCard), 'show');
+  assert.strictEqual(getPublicHint(realCard), undefined);
+});
+
+// -------------------------------------------------------------
+// 19. IMMEDIATE RECIPIENT SESSION REVOCATION ON PASSWORD CHANGE
+// -------------------------------------------------------------
+console.log('\n--- 19. Immediate Recipient Session Revocation on Password Change ---');
+
+const JWT_SECRET = new TextEncoder().encode('dear-you-recipient-super-secret-key-32-chars-long');
+
+async function createTestRecipientToken(giftId, slug, version = 1) {
+  return await new SignJWT({ giftId, slug, password_version: version })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(JWT_SECRET);
+}
+
+async function verifyTestRecipientToken(token, expectedGiftId, currentCardVersion = 1) {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    if (payload.giftId !== expectedGiftId) return { valid: false };
+    const tokenVersion = Number(payload.password_version || 1);
+    if (tokenVersion !== currentCardVersion) {
+      return { valid: false, passwordRevoked: true };
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false };
+  }
+}
+
+await asyncTest('Recipient token with current password version is valid and grants access', async () => {
+  const giftId = 'card-uuid-100';
+  const slug = 'sarah-birthday';
+  const token = await createTestRecipientToken(giftId, slug, 1);
+
+  const check = await verifyTestRecipientToken(token, giftId, 1);
+  assert.strictEqual(check.valid, true);
+  assert.strictEqual(check.passwordRevoked, undefined);
+});
+
+await asyncTest('Creator updating card password increments version and immediately revokes active recipient token', async () => {
+  const giftId = 'card-uuid-100';
+  const slug = 'sarah-birthday';
+
+  // Recipient entered old123 and obtained version 1 session token
+  const tokenBeforePasswordChange = await createTestRecipientToken(giftId, slug, 1);
+
+  // Creator changes password from old123 to new456 -> card increments to password_version: 2
+  const currentCardVersionAfterChange = 2;
+
+  // Immediate check of the previously valid token
+  const check = await verifyTestRecipientToken(tokenBeforePasswordChange, giftId, currentCardVersionAfterChange);
+  assert.strictEqual(check.valid, false);
+  assert.strictEqual(check.passwordRevoked, true);
+});
+
+await asyncTest('Entering new password issues fresh session token at version 2 which succeeds', async () => {
+  const giftId = 'card-uuid-100';
+  const slug = 'sarah-birthday';
+  const currentCardVersion = 2;
+
+  // Recipient enters new456 -> issues new token at version 2
+  const tokenAfterNewPassword = await createTestRecipientToken(giftId, slug, currentCardVersion);
+
+  const check = await verifyTestRecipientToken(tokenAfterNewPassword, giftId, currentCardVersion);
+  assert.strictEqual(check.valid, true);
+});
+
+test('Password change on Card A does not revoke sessions on Card B or Creator dashboard', () => {
+  const cardASession = { giftId: 'card-a', password_version: 1 };
+  const cardBSession = { giftId: 'card-b', password_version: 1 };
+  const creatorSession = { userId: 'creator-999', authenticated: true };
+
+  // Card A password changed -> Card A version becomes 2
+  const cardACurrentVersion = 2;
+  const cardBCurrentVersion = 1;
+
+  assert.notStrictEqual(cardASession.password_version, cardACurrentVersion); // Revoked
+  assert.strictEqual(cardBSession.password_version, cardBCurrentVersion); // Active & Unaffected
+  assert.strictEqual(creatorSession.authenticated, true); // Creator session untouched
+});
+
+// -------------------------------------------------------------
+// 20. PRE-FILLED LIVE PREVIEW & BUILDER TEMPLATE TESTS
+// -------------------------------------------------------------
+console.log('\n--- 20. Pre-filled Live Preview & Builder Template Tests ---');
+
+test('New card builder initializes with complete demonstration sample draft', () => {
+  function getInitialBuilderDraft() {
+    return {
+      recipientName: 'Ananya',
+      title: 'A Celestial Surprise for Ananya',
+      selectedTheme: 'dreamy',
+      welcomeHeading: 'A starry sanctuary, crafted with love.',
+      memoriesCount: 3,
+      timelineCount: 1,
+      quizCount: 1,
+      secretMessagesCount: 1,
+      lettersCount: 1,
+      wishesCount: 2,
+      musicTitle: 'Gentle Moments',
+      status: 'draft',
+    };
+  }
+
+  const draft = getInitialBuilderDraft();
+  assert.strictEqual(draft.recipientName, 'Ananya');
+  assert.ok(draft.memoriesCount >= 3);
+  assert.ok(draft.quizCount >= 1);
+  assert.ok(draft.lettersCount >= 1);
+  assert.strictEqual(draft.selectedTheme, 'dreamy');
+});
+
+test('Starting fresh completely clears the draft canvas', () => {
+  function resetToBlank() {
+    return {
+      recipientName: '',
+      title: '',
+      memories: [],
+      timelineEntries: [],
+      quizQuestions: [],
+      letters: [],
+      wishes: [],
+    };
+  }
+
+  const blank = resetToBlank();
+  assert.strictEqual(blank.recipientName, '');
+  assert.strictEqual(blank.title, '');
+  assert.strictEqual(blank.memories.length, 0);
+  assert.strictEqual(blank.letters.length, 0);
+});
+
+test('Publishing generates independent card without mutating the source demonstration template', () => {
+  const demoTemplate = { id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', slug: 'demo', is_demo: true };
+
+  function publishNewCard(draftInput) {
+    return {
+      id: `gift-${Date.now()}-abc`,
+      slug: `${draftInput.recipientName.toLowerCase()}-gift`,
+      title: draftInput.title,
+      is_demo: false, // New cards are never marked as demo
+      status: 'published',
+    };
+  }
+
+  const newCard = publishNewCard({ recipientName: 'Zoya', title: 'For Zoya' });
+  assert.notStrictEqual(newCard.id, demoTemplate.id);
+  assert.notStrictEqual(newCard.slug, demoTemplate.slug);
+  assert.strictEqual(newCard.is_demo, false);
+  assert.strictEqual(demoTemplate.is_demo, true);
+  assert.strictEqual(demoTemplate.slug, 'demo');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

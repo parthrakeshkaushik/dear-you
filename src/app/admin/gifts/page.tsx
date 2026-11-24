@@ -21,6 +21,8 @@ import {
   Download,
   Filter,
   X,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react';
 import { MOCK_GIFTS } from '@/lib/mock-data';
 import { THEME_PRESETS } from '@/config/themes';
@@ -39,6 +41,9 @@ export default function AdminGiftsManagementPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [republishGift, setRepublishGift] = useState<GiftType | null>(null);
   const [duplicateGift, setDuplicateGift] = useState<GiftType | null>(null);
+  const [changePasswordGift, setChangePasswordGift] = useState<GiftType | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [newPasswordHintInput, setNewPasswordHintInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Republish Form State
@@ -161,6 +166,56 @@ export default function AdminGiftsManagementPage() {
       }
     } catch {
       showNotification('error', 'Network error while duplicating gift.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Open Change Password Modal
+  const openChangePasswordModal = (gift: GiftType) => {
+    setChangePasswordGift(gift);
+    setNewPasswordInput('');
+    setNewPasswordHintInput(gift.password_hint || '');
+  };
+
+  // Confirm Change Password with Immediate Session Revocation
+  const handleConfirmChangePassword = async () => {
+    if (!changePasswordGift || !newPasswordInput.trim()) return;
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch(`/api/gifts/${changePasswordGift.slug}/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          new_password: newPasswordInput.trim(),
+          password_hint: newPasswordHintInput.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification('error', data.error || 'Failed to update password.');
+      } else {
+        setGifts(
+          gifts.map((g) =>
+            g.id === changePasswordGift.id
+              ? {
+                  ...g,
+                  password_version: data.passwordVersion,
+                  password_hint: newPasswordHintInput.trim() || undefined,
+                }
+              : g
+          )
+        );
+        showNotification(
+          'success',
+          'Password updated! All active recipient sessions have been invalidated immediately.'
+        );
+        setChangePasswordGift(null);
+      }
+    } catch {
+      showNotification('error', 'Network error while updating card password.');
     } finally {
       setIsSubmitting(false);
     }
@@ -334,6 +389,12 @@ export default function AdminGiftsManagementPage() {
                       : gift.status.toUpperCase()}
                   </span>
 
+                  {(gift.is_demo === true || gift.slug === 'demo' || gift.slug === 'demo-gift') && (
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                      OFFICIAL DEMO
+                    </span>
+                  )}
+
                   <span className="text-xs text-platform-muted">
                     Theme: <strong className="text-platform-dark font-medium">{themeDef?.name || 'Custom'}</strong>
                   </span>
@@ -399,6 +460,16 @@ export default function AdminGiftsManagementPage() {
                 >
                   <Copy className="w-4 h-4 text-platform-muted" />
                   <span className="hidden sm:inline">Duplicate</span>
+                </button>
+
+                {/* 2.5 CHANGE PASSWORD WITH IMMEDIATE RECIPIENT SESSION REVOCATION */}
+                <button
+                  onClick={() => openChangePasswordModal(gift)}
+                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                  title="Change Password & Invalidate Recipient Sessions"
+                >
+                  <Lock className="w-4 h-4 text-platform-muted" />
+                  <span className="hidden sm:inline">Password</span>
                 </button>
 
                 {/* 3. COPY LINK */}
@@ -722,6 +793,101 @@ export default function AdminGiftsManagementPage() {
                   <>
                     <Copy className="w-3.5 h-3.5" />
                     <span>Create Duplicate & Edit</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password & Invalidate Recipient Sessions Modal */}
+      {changePasswordGift && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-black/10 text-left relative my-8">
+            <div className="flex items-center justify-between pb-4 border-b border-black/5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-100 text-platform-violet flex items-center justify-center">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-lg font-medium text-platform-dark">
+                    Change Card Password
+                  </h3>
+                  <p className="text-[11px] text-platform-muted">
+                    {changePasswordGift.title} (/g/{changePasswordGift.slug})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setChangePasswordGift(null)}
+                className="p-1 rounded-lg text-platform-muted hover:text-platform-dark hover:bg-black/5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Critical Security Invalidation Warning */}
+            <div className="mt-4 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="leading-snug">
+                <strong>Immediate Session Invalidation:</strong> Changing this password immediately revokes all existing recipient access sessions. Anyone viewing this card in an active browser tab will be returned to the password screen.
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  New Password <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  placeholder="Enter new password (e.g. surprise2026)"
+                  required
+                  className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Password Hint (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={newPasswordHintInput}
+                  onChange={(e) => setNewPasswordHintInput(e.target.value)}
+                  placeholder="e.g. Favorite cafe where we first met"
+                  className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                />
+                <p className="text-[10px] text-stone-500 mt-1">
+                  Note: Password hints are private and never shown to the public on real customer cards.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="mt-6 pt-4 border-t border-black/5 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setChangePasswordGift(null)}
+                className="px-4 py-2 rounded-xl border border-black/10 text-xs text-platform-muted hover:text-platform-dark hover:bg-black/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmChangePassword}
+                disabled={isSubmitting || !newPasswordInput.trim()}
+                className="px-5 py-2.5 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isSubmitting ? (
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Update Password & Revoke Sessions</span>
                   </>
                 )}
               </button>

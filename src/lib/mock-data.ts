@@ -235,7 +235,10 @@ export const MOCK_GIFTS: Record<string, Gift> = {
     event_date: '2026-11-25',
     selected_theme: 'dreamy',
     status: 'published',
-    password_hint: 'The word you always use when something is magical (Hint: "special")',
+    is_demo: true,
+    password_hash: '$2a$10$IFQY0xiDMZHPzug70DTzheADu5FvyvsfplxWuuCG.I0D1HJ5EGyqm', // bcrypt hash of "show"
+    password_hint: 'show',
+    password_version: 1,
     expiry_enabled: false,
     expiry_timezone: 'Asia/Kolkata',
     welcome_heading: 'A starry little sanctuary, just for you.',
@@ -373,25 +376,6 @@ export const MOCK_GIFTS: Record<string, Gift> = {
     updated_at: '2026-11-24T12:00:00Z',
   },
 
-  'expired-demo': {
-    id: 'e1234567-89ab-cdef-0123-456789abcdef',
-    owner_id: 'u-102',
-    recipient_name: 'Rohan',
-    title: 'A Memory of Friendship',
-    slug: 'expired-demo',
-    event_type: 'Friendship',
-    event_date: '2026-01-01',
-    selected_theme: 'scrapbook',
-    status: 'published',
-    expiry_enabled: true,
-    expires_at: '2026-02-01T00:00:00Z',
-    expiry_timezone: 'Asia/Kolkata',
-    expiry_heading: 'This scrapbook has closed its pages.',
-    expiry_message: 'Dear Rohan, the interactive gift created for you has reached its peaceful conclusion. The memories and gratitude we celebrated will remain timeless in our hearts.',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  },
-
   'aarav-anniversary': {
     id: 'a8888888-4444-4444-4444-1234567890ab',
     owner_id: 'u-103',
@@ -433,4 +417,10 @@ export const MOCK_GIFTS: Record<string, Gift> = {
     created_at: '2026-10-18T16:30:00Z',
     updated_at: '2026-10-19T10:00:00Z',
   },
+};
+
+// Official demonstration card alias for easy /g/demo access
+MOCK_GIFTS['demo'] = {
+  ...MOCK_GIFTS['demo-gift'],
+  slug: 'demo',
 };

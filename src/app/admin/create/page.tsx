@@ -31,6 +31,7 @@ import {
   Frame,
   Layers,
   RotateCw,
+  RotateCcw,
   X,
 } from 'lucide-react';
 import { ThemeId, CustomThemeConfig } from '@/types/theme';
@@ -205,6 +206,121 @@ export default function GiftBuilderPage() {
   // Step 10: Publishing state
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublishedSuccess, setIsPublishedSuccess] = useState(false);
+  const [publishedSlug, setPublishedSlug] = useState('');
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  // Clear draft to completely blank canvas
+  const handleStartBlank = () => {
+    setRecipientName('');
+    setTitle('');
+    setIntroduction('');
+    setCoverImage('');
+    setWelcomeHeading('');
+    setWelcomeMessage('');
+    setGiftBoxMessage('');
+    setScratchCardHiddenText('');
+    setClosingMessage('');
+    setMemories([]);
+    setTimelineEntries([]);
+    setQuizQuestions([]);
+    setSecretMessages([]);
+    setLetters([]);
+    setWishes([]);
+    setPassword('');
+    setPasswordHint('');
+  };
+
+  // Restore pre-filled demonstration draft template
+  const handleLoadDemoTemplate = () => {
+    setRecipientName('Ananya');
+    setTitle('A Celestial Surprise for Ananya');
+    setEventType('Birthday');
+    setEventDate('2026-11-25');
+    setSlug(`ananya-birthday-${Math.floor(100 + Math.random() * 900)}`);
+    setIntroduction('A little universe crafted just for you.');
+    setSelectedTheme('dreamy');
+    setWelcomeHeading('A starry sanctuary, crafted with love.');
+    setWelcomeMessage('Take a breath, relax, and step into this moment prepared for you.');
+    setWelcomeButtonText('Start Your Journey');
+    setGiftBoxMessage('May this year bring gentle days, deep laughter, and wishes fulfilled.');
+    setScratchCardHiddenText('You make every room brighter simply by walking into it.');
+    setClosingMessage('No matter where life leads, know that you are loved and cherished.');
+    setMemories([
+      {
+        id: 'm1',
+        image_path: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=800&auto=format&fit=crop&q=80',
+        caption: 'The rooftop coffee where we talked until the city lights came on.',
+        memory_date: '2024-03-14',
+        display_order: 1,
+        frame_style: 'polaroid',
+        frame_size: 'medium',
+        rotation: -3,
+      },
+      {
+        id: 'm2',
+        image_path: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&auto=format&fit=crop&q=80',
+        caption: 'Unforgettable monsoon road trip in the misty hills.',
+        memory_date: '2024-07-22',
+        display_order: 2,
+        frame_style: 'vintage_wood',
+        frame_size: 'large',
+        rotation: 2.5,
+      },
+      {
+        id: 'm3',
+        image_path: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&auto=format&fit=crop&q=80',
+        caption: 'Laughing so hard we couldn’t breathe during game night.',
+        memory_date: '2025-01-05',
+        display_order: 3,
+        frame_style: 'golden_luxury',
+        frame_size: 'medium',
+        rotation: -2,
+      },
+    ]);
+    setTimelineEntries([
+      {
+        id: 't1',
+        title: 'The First Hello',
+        description: 'Orientation hall where we ended up sharing notes and laughing together.',
+        event_date: '2023-09-15',
+        display_order: 1,
+      },
+    ]);
+    setQuizQuestions([
+      {
+        id: 'q1',
+        question: 'Where did we eat our very first meal together?',
+        display_order: 1,
+        options: [
+          { id: 'o1', option_text: 'Corner Bakery & Chai', is_correct: true, display_order: 1 },
+          { id: 'o2', option_text: 'Subway Station Cafe', is_correct: false, display_order: 2 },
+        ],
+      },
+    ]);
+    setSecretMessages([
+      {
+        id: 's1',
+        title: 'Secret Appreciation',
+        content: 'Your quiet kindness inspires everyone around you more than you know.',
+        reveal_type: 'tap',
+        display_order: 1,
+      },
+    ]);
+    setLetters([
+      {
+        id: 'l1',
+        heading: 'To the one who brings joy everywhere',
+        content: 'Looking back over all our memories, I am endlessly grateful for your friendship. May this special milestone be everything you hoped for and more.',
+        display_order: 1,
+      },
+    ]);
+    setWishes([
+      { id: 'w1', wish_text: 'Peace of mind and restful nights.', display_order: 1 },
+      { id: 'w2', wish_text: 'Adventures that make your heart race with joy.', display_order: 2 },
+    ]);
+    setPassword('surprise2026');
+    setPasswordHint('Our special year');
+  };
 
   // Handle local photo upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -281,10 +397,60 @@ export default function GiftBuilderPage() {
 
   const handlePublish = async () => {
     setIsPublishing(true);
-    setTimeout(() => {
+    setPublishError(null);
+
+    try {
+      const res = await fetch('/api/gifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient_name: recipientName,
+          title,
+          slug,
+          event_type: eventType,
+          event_date: eventDate,
+          selected_theme: selectedTheme,
+          theme_config: selectedTheme === 'custom' ? customTheme : undefined,
+          introduction,
+          welcome_heading: welcomeHeading,
+          welcome_message: welcomeMessage,
+          welcome_button_text: welcomeButtonText,
+          gift_box_message: giftBoxMessage,
+          scratch_card_hidden_text: scratchCardHiddenText,
+          closing_message: closingMessage,
+          password,
+          password_hint: passwordHint,
+          expiry_enabled: expiryEnabled,
+          expires_at: expiryEnabled ? `${expiryDate}T${expiryTime}:00Z` : null,
+          expiry_timezone: expiryTimezone,
+          expiry_heading: expiryHeading,
+          expiry_message: expiryMessage,
+          music_url: enabledFeatures.music ? 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3' : undefined,
+          music_title: 'Gentle Moments',
+          memory_wall_config: { layout_mode: wallLayoutMode, enable_hanging_effect: true },
+          sections: previewGift.sections,
+          memories,
+          timeline_entries: timelineEntries,
+          quiz_questions: quizQuestions,
+          secret_messages: secretMessages,
+          letters,
+          wishes,
+          status: 'published',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setPublishError(data.error || 'Failed to publish card.');
+      } else {
+        setPublishedSlug(data.gift.slug);
+        setIsPublishedSuccess(true);
+      }
+    } catch {
+      setPublishError('Network error while publishing gift.');
+    } finally {
       setIsPublishing(false);
-      setIsPublishedSuccess(true);
-    }, 1000);
+    }
   };
 
   return (
@@ -310,7 +476,28 @@ export default function GiftBuilderPage() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap gap-2.5">
+          {/* Quick Template Controls */}
+          <button
+            type="button"
+            onClick={handleLoadDemoTemplate}
+            className="px-3 py-2 rounded-xl border border-platform-violet/30 bg-purple-50 hover:bg-purple-100 text-platform-violet text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-2xs"
+            title="Pre-fill with complete demonstration draft"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Load Sample Template</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleStartBlank}
+            className="px-3 py-2 rounded-xl border border-black/10 hover:bg-black/5 text-stone-600 text-xs font-medium transition-colors flex items-center gap-1.5"
+            title="Clear all fields and start fresh"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Start Fresh</span>
+          </button>
+
           {/* Mobile Preview Trigger Button */}
           <button
             onClick={() => setShowMobilePreview(true)}
@@ -1143,11 +1330,17 @@ export default function GiftBuilderPage() {
                   </button>
                 </div>
 
+                {publishError && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                    {publishError}
+                  </div>
+                )}
+
                 {isPublishedSuccess && (
                   <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between">
                     <span>Gift published successfully!</span>
                     <Link
-                      href={`/g/${slug}`}
+                      href={`/g/${publishedSlug || slug}`}
                       target="_blank"
                       className="font-semibold underline flex items-center gap-1"
                     >

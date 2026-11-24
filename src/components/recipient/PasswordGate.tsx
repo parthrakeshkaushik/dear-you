@@ -2,12 +2,14 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, KeyRound, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle } from 'lucide-react';
+import { KeyRound, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle, ShieldAlert } from 'lucide-react';
 
 interface PasswordGateProps {
   giftTitle: string;
   recipientName: string;
   passwordHint?: string;
+  isDemo?: boolean;
+  revocationNotice?: string | null;
   onSubmit: (password: string) => Promise<{ success: boolean; error?: string }>;
   onSuccess: () => void;
 }
@@ -16,6 +18,8 @@ export function PasswordGate({
   giftTitle,
   recipientName,
   passwordHint,
+  isDemo = false,
+  revocationNotice = null,
   onSubmit,
   onSuccess,
 }: PasswordGateProps) {
@@ -67,7 +71,7 @@ export function PasswordGate({
         {/* Dear You platform branding */}
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 text-xs font-medium text-[var(--theme-primary)] mb-4">
           <Sparkles className="w-3 h-3" />
-          <span>Dear You Experience</span>
+          <span>{isDemo ? 'Demonstration Card' : 'Dear You Experience'}</span>
         </div>
 
         <h1 className="font-serif text-2xl sm:text-3xl text-[var(--theme-text)] font-normal tracking-tight">
@@ -78,8 +82,33 @@ export function PasswordGate({
           {giftTitle || 'Someone special created a personal digital gift for you.'}
         </p>
 
+        {/* Immediate Session Revocation Notice (Displayed when password was updated by creator) */}
+        {revocationNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-xs text-left flex items-start gap-2.5"
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+            <span className="font-medium leading-relaxed">{revocationNotice}</span>
+          </motion.div>
+        )}
+
+        {/* Demonstration Card Direct Password Hint */}
+        {isDemo && (
+          <div className="mt-4 p-3.5 rounded-2xl bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/25 text-xs text-[var(--theme-text)]">
+            <div className="font-semibold text-[var(--theme-primary)] flex items-center justify-center gap-1.5 mb-1">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Showcase Demonstration Card</span>
+            </div>
+            <p className="text-xs">
+              <strong>Password hint: <code className="bg-black/10 dark:bg-white/10 px-2 py-0.5 rounded font-mono font-bold text-[var(--theme-primary)]">show</code></strong>
+            </p>
+          </div>
+        )}
+
         {/* Form */}
-        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div className="relative text-left">
             <div className="relative flex items-center">
               <input
@@ -118,13 +147,6 @@ export function PasswordGate({
                 </motion.div>
               )}
             </AnimatePresence>
-
-            {/* Optional Password Hint */}
-            {passwordHint && (
-              <p className="mt-2 text-[11px] text-[var(--theme-muted)] italic px-1">
-                Hint: {passwordHint}
-              </p>
-            )}
           </div>
 
           <button

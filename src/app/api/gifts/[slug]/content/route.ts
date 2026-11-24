@@ -69,41 +69,69 @@ export async function GET(
       );
     }
 
-    // 4. Check Recipient Session Cookie
+    // 4. Check Recipient Session Cookie with Password Version Revalidation
     const cookieName = getRecipientCookieName(slug);
     const token = request.cookies.get(cookieName)?.value;
 
     let hasAccess = false;
+    let isPasswordRevoked = false;
+
     if (token) {
-      hasAccess = await verifyRecipientToken(token, gift.id);
+      const authCheck = await verifyRecipientToken(
+        token,
+        gift.id,
+        gift.password_version || 1
+      );
+      hasAccess = authCheck.valid;
+      isPasswordRevoked = !!authCheck.passwordRevoked;
     }
 
     // Check query for preview if authorized
     const isPreview = request.nextUrl.searchParams.get('preview') === 'true';
 
+    const isDemo = gift.is_demo === true || slug === 'demo' || slug === 'demo-gift';
+
     if (!hasAccess && !isPreview) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
-          error: 'Unauthorized: Gift is password protected',
+          error: isPasswordRevoked
+            ? 'The card password has been updated. Please enter the new password to continue.'
+            : 'Unauthorized: Gift is password protected',
           requiresPassword: true,
-          hint: gift.password_hint,
+          passwordRevoked: isPasswordRevoked,
+          isDemo,
+          hint: isDemo ? 'show' : undefined,
         },
         { status: 401 }
       );
+
+      // Invalidate existing stale cookie immediately
+      if (isPasswordRevoked) {
+        response.cookies.set(cookieName, '', { path: '/', maxAge: 0 });
+      }
+
+      return response;
     }
 
     // Strip password hash from public delivery
     const { password_hash, ...safeGiftData } = gift;
 
+    // Secure password hint policy: Only the designated demo card exposes a hint ("show")
+    if (!isDemo) {
+      safeGiftData.password_hint = undefined;
+    } else {
+      safeGiftData.password_hint = 'show';
+    }
+
     return NextResponse.json({
       success: true,
-      gift: safeGiftData,
+      gift: {
+        ...safeGiftData,
+        is_demo: isDemo,
+        password_version: gift.password_version || 1,
+      },
     });
-  } catch (error) {
-    console.error('Content retrieval error:', error);
-    return NextResponse.json(
-      { error: 'An unexpected internal error occurred' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

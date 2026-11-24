@@ -69,18 +69,28 @@ export async function GET(
     const isPreview = request.nextUrl.searchParams.get('preview') === 'true';
 
     let hasAccess = false;
+    let isPasswordRevoked = false;
     if (token) {
-      hasAccess = await verifyRecipientToken(token, gift.id);
+      const authCheck = await verifyRecipientToken(token, gift.id, gift.password_version || 1);
+      hasAccess = authCheck.valid;
+      isPasswordRevoked = !!authCheck.passwordRevoked;
     }
 
     if (gift.password_hash && !hasAccess && !isPreview) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
-          error: 'Password verification required to download this gift.',
+          error: isPasswordRevoked
+            ? 'The card password has been updated. Please enter the new password to continue.'
+            : 'Password verification required to download this gift.',
           requiresPassword: true,
+          passwordRevoked: isPasswordRevoked,
         },
         { status: 401 }
       );
+      if (isPasswordRevoked) {
+        response.cookies.set(cookieName, '', { path: '/', maxAge: 0 });
+      }
+      return response;
     }
 
     // 5. Generate Standalone Offline HTML

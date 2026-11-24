@@ -22,18 +22,24 @@ export default function LandingPage() {
           </span>
         </div>
 
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-3">
           <Link
             href="/g/demo-gift"
-            className="text-sm font-medium text-platform-muted hover:text-platform-dark transition-colors px-3 py-1.5"
+            className="text-sm font-medium text-platform-muted hover:text-platform-dark transition-colors px-2 py-1.5"
           >
-            Experience Demo
+            Demo Card
+          </Link>
+          <Link
+            href="/signup"
+            className="text-xs font-semibold text-white bg-platform-violet hover:bg-platform-violet/90 transition-colors rounded-full px-4 py-2 shadow-xs"
+          >
+            Sign Up
           </Link>
           <Link
             href="/login"
-            className="text-xs tracking-wider uppercase font-semibold text-platform-muted/80 hover:text-platform-dark transition-colors border border-black/10 rounded-full px-4 py-2 hover:border-black/30"
+            className="text-xs tracking-wider uppercase font-semibold text-platform-muted/80 hover:text-platform-dark transition-colors border border-black/10 rounded-full px-3.5 py-2 hover:border-black/30"
           >
-            Admin Sign In
+            Sign In
           </Link>
         </nav>
       </header>

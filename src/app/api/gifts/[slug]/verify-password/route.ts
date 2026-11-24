@@ -31,6 +31,10 @@ export async function POST(
     // Retrieve gift
     const gift = MOCK_GIFTS[slug];
 
+    if (!gift) {
+      return NextResponse.json({ error: 'Gift not found' }, { status: 404 });
+    }
+
     // Moderation & Deletion check
     if (gift.moderation_status === 'deleted' || gift.deleted_at) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });
@@ -62,13 +66,18 @@ export async function POST(
       );
     }
 
+    // Check if this is the designated demonstration card
+    const isDemo = gift.is_demo === true || slug === 'demo' || slug === 'demo-gift';
+
     // Password verification logic
     let isMatch = false;
-    if (gift.password_hash) {
+    if (isDemo && password === 'show') {
+      isMatch = true;
+    } else if (gift.password_hash) {
       isMatch = await verifyPassword(password, gift.password_hash);
     } else {
-      // Fallback for default demo / test gifts without explicit hash
-      isMatch = password === 'special' || password === 'love' || password === 'birthday';
+      // Fallback for demo cards without explicit hash
+      isMatch = isDemo && (password === 'show' || password === 'special');
     }
 
     if (!isMatch) {
@@ -80,13 +89,15 @@ export async function POST(
       );
     }
 
-    // Success: reset rate limit and issue JWT session cookie
+    // Success: reset rate limit and issue JWT session cookie bound to current password_version
     resetRateLimit(rateLimitKey);
-    const token = await createRecipientToken(gift.id, gift.slug);
+    const passwordVersion = gift.password_version || 1;
+    const token = await createRecipientToken(gift.id, gift.slug, passwordVersion);
 
     const response = NextResponse.json({
       success: true,
       message: 'Access granted',
+      passwordVersion,
     });
 
     const cookieName = getRecipientCookieName(slug);
@@ -95,15 +106,12 @@ export async function POST(
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * 7, // 7 days (revoked immediately on password change)
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Password verification error:', error);
-    return NextResponse.json(
-      { error: 'An unexpected internal error occurred' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Server verification failure' }, { status: 500 });
   }
 }

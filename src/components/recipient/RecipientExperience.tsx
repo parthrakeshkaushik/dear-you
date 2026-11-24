@@ -34,8 +34,11 @@ export function RecipientExperience({
   onVerifyPassword,
 }: RecipientExperienceProps) {
   const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
+  const [revocationNotice, setRevocationNotice] = useState<string | null>(null);
   const [hasStartedExperience, setHasStartedExperience] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+
+  const isDemo = gift.is_demo === true || gift.slug === 'demo' || gift.slug === 'demo-gift';
 
   // Audio state
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -84,6 +87,34 @@ export function RecipientExperience({
       }
     };
   }, []);
+
+  // Periodic heartbeat session check to detect creator password updates in real-time
+  useEffect(() => {
+    if (!isUnlocked) return;
+
+    const checkSession = async () => {
+      try {
+        const res = await fetch(`/api/gifts/${gift.slug}/session-check`);
+        if (res.status === 401) {
+          const data = await res.json().catch(() => ({}));
+          // Immediately revoke unlocked view and return to password gate
+          setIsUnlocked(false);
+          if (audioRef.current) {
+            audioRef.current.pause();
+            setIsAudioPlaying(false);
+          }
+          setRevocationNotice(
+            data.message || 'The card password has been updated. Please enter the new password to continue.'
+          );
+        }
+      } catch {
+        // Network non-blocking
+      }
+    };
+
+    const interval = setInterval(checkSession, 5000);
+    return () => clearInterval(interval);
+  }, [isUnlocked, gift.slug]);
 
   // Play / Pause toggle
   const handleTogglePlay = useCallback(() => {
@@ -192,9 +223,14 @@ export function RecipientExperience({
         <PasswordGate
           giftTitle={gift.title}
           recipientName={gift.recipient_name}
-          passwordHint={gift.password_hint}
+          passwordHint={isDemo ? 'show' : undefined}
+          isDemo={isDemo}
+          revocationNotice={revocationNotice}
           onSubmit={handleVerifyPassword}
-          onSuccess={() => setIsUnlocked(true)}
+          onSuccess={() => {
+            setIsUnlocked(true);
+            setRevocationNotice(null);
+          }}
         />
       </ThemeContainer>
     );

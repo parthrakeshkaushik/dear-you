@@ -153,6 +153,8 @@ export interface Gift {
   // Password & Access
   password_hash?: string;
   password_hint?: string;
+  password_version?: number; // Incremented on every password update for immediate session invalidation
+  is_demo?: boolean; // Identifies the designated showcase demonstration card
   
   // Expiry configuration
   expiry_enabled: boolean;
@@ -204,6 +206,8 @@ export interface PublicGiftMeta {
   is_unavailable?: boolean;
   unavailable_message?: string;
   password_hint?: string;
+  is_demo?: boolean;
+  password_version?: number;
   expiry_enabled: boolean;
   expires_at?: string | null;
   expiry_timezone: string;
