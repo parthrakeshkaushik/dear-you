@@ -19,8 +19,22 @@ import { formatDate } from '@/lib/utils';
 export default function DeveloperAuditLogsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
+  const [logs, setLogs] = useState(MOCK_AUDIT_LOGS);
 
-  const logs = MOCK_AUDIT_LOGS;
+  React.useEffect(() => {
+    async function fetchAuditLogs() {
+      try {
+        const res = await fetch('/api/developer/audit-logs');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.logs && data.logs.length > 0) {
+            setLogs(data.logs);
+          }
+        }
+      } catch {}
+    }
+    fetchAuditLogs();
+  }, []);
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =

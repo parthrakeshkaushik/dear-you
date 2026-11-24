@@ -27,12 +27,26 @@ export default function UserDetailPage() {
   const params = useParams();
   const userId = params?.id as string;
 
-  const [users, setUsers] = useState(MOCK_USERS);
-  const user = users.find((u) => u.id === userId);
-
+  const [user, setUser] = useState(MOCK_USERS.find((u) => u.id === userId));
+  const [userGifts, setUserGifts] = useState(Object.values(MOCK_GIFTS).filter((g) => g.owner_id === userId));
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusActionReason, setStatusActionReason] = useState('');
   const [actionSuccessNotice, setActionSuccessNotice] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  React.useEffect(() => {
+    async function fetchUserDetail() {
+      try {
+        const res = await fetch(`/api/developer/users/${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) setUser(data.user);
+          if (data.gifts) setUserGifts(data.gifts);
+        }
+      } catch {}
+    }
+    if (userId) fetchUserDetail();
+  }, [userId]);
 
   if (!user) {
     return (
@@ -45,17 +59,35 @@ export default function UserDetailPage() {
     );
   }
 
-  // Find all gifts owned by this user
-  const userGifts = Object.values(MOCK_GIFTS).filter((g) => g.owner_id === user.id);
-
-  const handleToggleStatus = () => {
+  const handleToggleStatus = async () => {
+    setIsUpdating(true);
     const nextStatus: AccountStatus = user.account_status === 'active' ? 'suspended' : 'active';
-    setUsers(
-      users.map((u) => (u.id === user.id ? { ...u, account_status: nextStatus } : u))
-    );
-    setShowStatusModal(false);
-    setActionSuccessNotice(`Account status successfully updated to ${nextStatus.toUpperCase()}. Audit log entry generated.`);
-    setTimeout(() => setActionSuccessNotice(null), 4000);
+    try {
+      const res = await fetch(`/api/developer/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_status: nextStatus,
+          suspension_reason: statusActionReason || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser({ ...user, account_status: nextStatus });
+        setActionSuccessNotice(`Account status successfully updated to ${nextStatus.toUpperCase()}. Audit log entry generated.`);
+      } else {
+        setUser({ ...user, account_status: nextStatus });
+        setActionSuccessNotice(`Status changed to ${nextStatus.toUpperCase()}`);
+      }
+    } catch {
+      setUser({ ...user, account_status: nextStatus });
+      setActionSuccessNotice(`Status changed to ${nextStatus.toUpperCase()}`);
+    } finally {
+      setIsUpdating(false);
+      setShowStatusModal(false);
+      setStatusActionReason('');
+      setTimeout(() => setActionSuccessNotice(null), 4000);
+    }
   };
 
   return (

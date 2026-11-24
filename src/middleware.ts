@@ -6,6 +6,19 @@ import {
   SESSION_COOKIE_NAME,
 } from '@/lib/auth/persistent-session';
 
+const AUTHORIZED_DEVELOPER_EMAILS = [
+  'kaushikparth363@gmail.com',
+  'kaushikparth353@gmail.com',
+];
+
+function isDevUser(email?: string | null, appMeta?: Record<string, any>): boolean {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  const isEmailMatch = AUTHORIZED_DEVELOPER_EMAILS.some((dev) => dev.toLowerCase() === clean);
+  const isRoleMatch = appMeta?.role === 'developer' || appMeta?.is_super_admin === true;
+  return isEmailMatch || isRoleMatch;
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -39,6 +52,7 @@ export async function middleware(request: NextRequest) {
 
   let hasSupabaseUser = false;
   let supabaseUserEmail = '';
+  let supabaseUserAppMetadata: Record<string, any> = {};
 
   try {
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -67,6 +81,7 @@ export async function middleware(request: NextRequest) {
     if (user) {
       hasSupabaseUser = true;
       supabaseUserEmail = user.email || '';
+      supabaseUserAppMetadata = user.app_metadata || {};
     }
   } catch (err) {
     // Supabase auth client check failure (e.g. invalid cookie signature or offline)
@@ -87,6 +102,16 @@ export async function middleware(request: NextRequest) {
       const redirectUrl = new URL('/login', request.url);
       return NextResponse.redirect(redirectUrl);
     }
+
+    // Strict Role-Based Server-Side Enforcement for /developer routes
+    if (pathname.startsWith('/developer')) {
+      const isAuthorizedDev = isDevUser(supabaseUserEmail, supabaseUserAppMetadata);
+      if (!isAuthorizedDev) {
+        // Ordinary user attempting to access /developer directly via URL is blocked
+        const forbiddenUrl = new URL('/admin?unauthorized=true', request.url);
+        return NextResponse.redirect(forbiddenUrl);
+      }
+    }
   }
 
   // 4. Auth Route Redirect (/login)
@@ -97,9 +122,7 @@ export async function middleware(request: NextRequest) {
 
     if (!isExplicitExpired && !isExplicitLoggedOut) {
       if ((hasSupabaseUser || hasValidPersistentSession) && !isSessionExpired) {
-        const isDev =
-          supabaseUserEmail.includes('dev') ||
-          supabaseUserEmail.includes('owner');
+        const isDev = isDevUser(supabaseUserEmail, supabaseUserAppMetadata);
         const targetUrl = new URL(isDev ? '/developer' : '/admin', request.url);
         return NextResponse.redirect(targetUrl);
       }

@@ -18,12 +18,33 @@ import {
 import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
 
 export default function DeveloperAnalyticsPage() {
+  const [analytics, setAnalytics] = React.useState({
+    totalGifts: Object.values(MOCK_GIFTS).length,
+    publishedGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'published').length,
+    draftGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'draft').length,
+    pausedGifts: 0,
+    expiredGifts: 0,
+  });
+
+  React.useEffect(() => {
+    async function fetchAnalytics() {
+      try {
+        const res = await fetch('/api/developer/analytics');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.analytics) setAnalytics(data.analytics);
+        }
+      } catch {}
+    }
+    fetchAnalytics();
+  }, []);
+
   const gifts = Object.values(MOCK_GIFTS);
   const users = MOCK_USERS;
 
-  const totalGifts = gifts.length;
-  const publishedGifts = gifts.filter((g) => g.status === 'published').length;
-  const draftGifts = gifts.filter((g) => g.status === 'draft').length;
+  const totalGifts = analytics.totalGifts;
+  const publishedGifts = analytics.publishedGifts;
+  const draftGifts = analytics.draftGifts;
   const publishedConversion = Math.round((publishedGifts / Math.max(totalGifts, 1)) * 100);
 
   const totalPhotos = gifts.reduce((acc, g) => acc + (g.memories?.length || 0), 0);

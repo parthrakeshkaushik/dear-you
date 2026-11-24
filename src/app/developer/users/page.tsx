@@ -27,6 +27,24 @@ export default function DeveloperUsersPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus | 'pending'>('all');
   const [methodFilter, setMethodFilter] = useState<'all' | RegistrationMethod>('all');
   const [users, setUsers] = useState(MOCK_USERS);
+  const [isLoading, setIsLoading] = useState(true);
+
+  React.useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await fetch('/api/developer/users');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.users && data.users.length > 0) {
+            setUsers(data.users);
+          }
+        }
+      } catch {} finally {
+        setIsLoading(false);
+      }
+    }
+    fetchUsers();
+  }, []);
 
   // Filter users
   const filteredUsers = users.filter((user) => {

@@ -41,11 +41,30 @@ export default function DeveloperGiftsPage() {
   const [giftsState, setGiftsState] = useState<Record<string, GiftType>>(MOCK_GIFTS);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    async function fetchGifts() {
+      try {
+        const res = await fetch('/api/developer/gifts');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.gifts && data.gifts.length > 0) {
+            const map: Record<string, GiftType> = {};
+            data.gifts.forEach((g: GiftType) => {
+              map[g.slug || g.id] = g;
+            });
+            setGiftsState(map);
+          }
+        }
+      } catch {}
+    }
+    fetchGifts();
+  }, []);
+
   const gifts = Object.values(giftsState);
   const users = MOCK_USERS;
 
   // Moderation Handlers
-  const handleTogglePause = (gift: GiftType) => {
+  const handleTogglePause = async (gift: GiftType) => {
     const isCurrentlyPaused = gift.moderation_status === 'paused';
     const nextStatus: ModerationStatus = isCurrentlyPaused ? 'active' : 'paused';
     const updated = {
@@ -56,6 +75,14 @@ export default function DeveloperGiftsPage() {
     };
 
     setGiftsState({ ...giftsState, [gift.slug]: updated });
+    try {
+      await fetch(`/api/developer/gifts/${gift.id || gift.slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: isCurrentlyPaused ? 'resume' : 'pause' }),
+      });
+    } catch {}
+
     setActionNotice(
       isCurrentlyPaused
         ? `Gift "${gift.title}" has been unpaused and restored to active state.`
@@ -64,7 +91,7 @@ export default function DeveloperGiftsPage() {
     setTimeout(() => setActionNotice(null), 4000);
   };
 
-  const handleToggleUnpublish = (gift: GiftType) => {
+  const handleToggleUnpublish = async (gift: GiftType) => {
     const isCurrentlyUnpublished = gift.moderation_status === 'unpublished';
     const nextStatus: ModerationStatus = isCurrentlyUnpublished ? 'active' : 'unpublished';
     const updated = {
@@ -75,6 +102,14 @@ export default function DeveloperGiftsPage() {
     };
 
     setGiftsState({ ...giftsState, [gift.slug]: updated });
+    try {
+      await fetch(`/api/developer/gifts/${gift.id || gift.slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: isCurrentlyUnpublished ? 'resume' : 'unpublish' }),
+      });
+    } catch {}
+
     setActionNotice(
       isCurrentlyUnpublished
         ? `Gift "${gift.title}" is now published and active.`
@@ -83,7 +118,7 @@ export default function DeveloperGiftsPage() {
     setTimeout(() => setActionNotice(null), 4000);
   };
 
-  const handleDelete = (gift: GiftType) => {
+  const handleDelete = async (gift: GiftType) => {
     const isDeleted = gift.moderation_status === 'deleted';
     const nextStatus: ModerationStatus = isDeleted ? 'active' : 'deleted';
     const updated = {
@@ -94,6 +129,14 @@ export default function DeveloperGiftsPage() {
     };
 
     setGiftsState({ ...giftsState, [gift.slug]: updated });
+    try {
+      await fetch(`/api/developer/gifts/${gift.id || gift.slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: isDeleted ? 'restore' : 'delete' }),
+      });
+    } catch {}
+
     setActionNotice(
       isDeleted
         ? `Gift "${gift.title}" restored from trash.`

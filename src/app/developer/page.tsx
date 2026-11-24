@@ -25,27 +25,48 @@ import { THEME_PRESETS } from '@/config/themes';
 import { formatDate } from '@/lib/utils';
 
 export default function DeveloperOverviewPage() {
-  const users = MOCK_USERS;
-  const gifts = Object.values(MOCK_GIFTS);
-  const auditLogs = MOCK_AUDIT_LOGS;
-
-  // Compute metrics from actual data
-  const totalUsers = users.length;
-  const activeUsers = users.filter((u) => u.account_status === 'active').length;
-  const totalGifts = gifts.length;
-  const publishedGifts = gifts.filter((g) => g.status === 'published').length;
-  const draftGifts = gifts.filter((g) => g.status === 'draft').length;
-  const expiredGifts = gifts.filter((g) => {
-    return g.expiry_enabled && g.expires_at && Date.now() > new Date(g.expires_at).getTime();
-  }).length;
-
-  const totalPhotosUploaded = gifts.reduce((acc, g) => acc + (g.memories?.length || 0), 0);
-
-  // Theme usage counts
-  const themeCounts: Record<string, number> = {};
-  gifts.forEach((g) => {
-    themeCounts[g.selected_theme] = (themeCounts[g.selected_theme] || 0) + 1;
+  const [metrics, setMetrics] = React.useState({
+    totalUsers: MOCK_USERS.length,
+    activeUsers: MOCK_USERS.filter((u) => u.account_status === 'active').length,
+    totalGifts: Object.values(MOCK_GIFTS).length,
+    publishedGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'published').length,
+    draftGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'draft').length,
+    expiredGifts: Object.values(MOCK_GIFTS).filter((g) => {
+      return g.expiry_enabled && g.expires_at && Date.now() > new Date(g.expires_at).getTime();
+    }).length,
+    themeCounts: {} as Record<string, number>,
   });
+  const [recentGifts, setRecentGifts] = React.useState(Object.values(MOCK_GIFTS).slice(0, 5));
+  const [recentAuditLogs, setRecentAuditLogs] = React.useState(MOCK_AUDIT_LOGS.slice(0, 8));
+
+  React.useEffect(() => {
+    async function fetchOverview() {
+      try {
+        const res = await fetch('/api/developer/overview');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.metrics) setMetrics(data.metrics);
+          if (data.recentGifts) setRecentGifts(data.recentGifts);
+          if (data.recentAuditLogs) setRecentAuditLogs(data.recentAuditLogs);
+        }
+      } catch {}
+    }
+    fetchOverview();
+  }, []);
+
+  const {
+    totalUsers,
+    activeUsers,
+    totalGifts,
+    publishedGifts,
+    draftGifts,
+    expiredGifts,
+    themeCounts,
+  } = metrics;
+  const gifts = recentGifts;
+  const auditLogs = recentAuditLogs;
+  const users = MOCK_USERS;
+  const totalPhotosUploaded = gifts.reduce((acc: number, g: any) => acc + (g.memories?.length || 0), 0);
 
   return (
     <div className="space-y-8">

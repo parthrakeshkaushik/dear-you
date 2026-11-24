@@ -69,9 +69,11 @@ function AuthPageContent() {
           const sessRes = await fetch('/api/auth/session');
           const sessData = await sessRes.json();
           if (sessData.authenticated) {
+            const userEmail = (session.user.email || '').toLowerCase();
             const isDev =
-              session.user.email?.includes('dev') ||
-              session.user.email?.includes('owner');
+              userEmail === 'kaushikparth363@gmail.com' ||
+              userEmail === 'kaushikparth353@gmail.com' ||
+              session.user.app_metadata?.role === 'developer';
             router.replace(isDev ? '/developer' : '/admin');
           }
         }
@@ -201,11 +203,9 @@ function AuthPageContent() {
     setIsLoading(true);
 
     try {
-      const isDeveloperAccount =
-        cleanEmail.includes('dev') ||
-        cleanEmail.includes('owner') ||
-        cleanEmail === 'developer1@dearyou.com' ||
-        cleanEmail === 'developer2@dearyou.com';
+      const isDesignatedDev =
+        cleanEmail === 'kaushikparth363@gmail.com' ||
+        cleanEmail === 'kaushikparth353@gmail.com';
 
       const effectiveDays = rememberMe ? rememberDuration : 1;
       const maxAgeSeconds = effectiveDays * 24 * 60 * 60;
@@ -251,6 +251,11 @@ function AuthPageContent() {
         return;
       }
 
+      const isDeveloperAccount =
+        isDesignatedDev ||
+        data?.user?.app_metadata?.role === 'developer' ||
+        data?.user?.user_metadata?.role === 'developer';
+
       // Establish secure 14-day persistent session on the server
       if (data?.user?.id) {
         try {
@@ -274,7 +279,10 @@ function AuthPageContent() {
       }
     } catch {
       // Local dev fallback
-      if (cleanEmail.includes('dev') || cleanEmail.includes('owner')) {
+      if (
+        cleanEmail === 'kaushikparth363@gmail.com' ||
+        cleanEmail === 'kaushikparth353@gmail.com'
+      ) {
         router.push('/developer');
       } else {
         router.push('/admin');

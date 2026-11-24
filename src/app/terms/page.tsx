@@ -84,7 +84,7 @@ export default function TermsPage() {
               4. Developer Inspection & Support
             </h2>
             <p>
-              As outlined in our Privacy Policy, authorized platform developers may inspect gift contents, themes, and media strictly for platform maintenance, troubleshooting, and understanding usage patterns to enhance features.
+              As outlined in our Privacy Policy, our two designated platform developers (<code>kaushikparth363@gmail.com</code> and <code>kaushikparth353@gmail.com</code>) may inspect gift contents, themes, and uploaded media strictly for platform maintenance, troubleshooting, content moderation, and understanding usage patterns to enhance features. All administrative access is audit-logged.
             </p>
           </section>
 

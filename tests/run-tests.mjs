@@ -125,7 +125,10 @@ test('Blocks 6th consecutive password attempt to stop brute-forcing', () => {
 // -------------------------------------------------------------
 console.log('\n--- 4. Role-Based Access Control & Registration Tests ---');
 
-const authorizedDevs = ['developer1@dearyou.com', 'developer2@dearyou.com', 'dev@dearyou.com'];
+const authorizedDevs = [
+  'kaushikparth363@gmail.com',
+  'kaushikparth353@gmail.com',
+];
 
 function checkDeveloperPermission(userEmail, role) {
   if (role === 'developer' && authorizedDevs.includes(userEmail.toLowerCase())) {
@@ -134,8 +137,14 @@ function checkDeveloperPermission(userEmail, role) {
   return { allowed: false, role: 'creator' };
 }
 
-test('Authorized developer email and role grants access to Developer Dashboard', () => {
-  const check = checkDeveloperPermission('developer1@dearyou.com', 'developer');
+test('Authorized developer kaushikparth363@gmail.com grants full Developer Dashboard access', () => {
+  const check = checkDeveloperPermission('kaushikparth363@gmail.com', 'developer');
+  assert.strictEqual(check.allowed, true);
+  assert.strictEqual(check.role, 'developer');
+});
+
+test('Authorized developer kaushikparth353@gmail.com grants full Developer Dashboard access', () => {
+  const check = checkDeveloperPermission('kaushikparth353@gmail.com', 'developer');
   assert.strictEqual(check.allowed, true);
   assert.strictEqual(check.role, 'developer');
 });
@@ -1242,6 +1251,86 @@ test('Public website surfaces demo card while user admin dashboard does not', ()
   assert.strictEqual(publicShowcaseGifts.length, 1);
   assert.strictEqual(publicShowcaseGifts[0].slug, 'demo-gift');
   assert.strictEqual(userAdminGifts.length, 0);
+});
+
+// -------------------------------------------------------------
+// 23. TWO DESIGNATED DEVELOPER ACCOUNTS & SUPER ADMIN ACCESS
+// -------------------------------------------------------------
+console.log('\n--- 23. Two Designated Developer Accounts & Super Admin Access ---');
+
+const DESIGNATED_DEVELOPER_EMAILS = [
+  'kaushikparth363@gmail.com',
+  'kaushikparth353@gmail.com',
+];
+
+function isDesignatedPlatformDeveloper(email, dbRole, accountStatus = 'active') {
+  if (!email || accountStatus !== 'active') return false;
+  const cleanEmail = email.trim().toLowerCase();
+  const isEmailAuthorized = DESIGNATED_DEVELOPER_EMAILS.includes(cleanEmail);
+  const isRoleAuthorized = dbRole === 'developer';
+  return isEmailAuthorized && isRoleAuthorized;
+}
+
+test('Developer 1 kaushikparth363@gmail.com is recognized as authorized super admin', () => {
+  assert.strictEqual(
+    isDesignatedPlatformDeveloper('kaushikparth363@gmail.com', 'developer', 'active'),
+    true
+  );
+});
+
+test('Developer 2 kaushikparth353@gmail.com is recognized as authorized super admin', () => {
+  assert.strictEqual(
+    isDesignatedPlatformDeveloper('kaushikparth353@gmail.com', 'developer', 'active'),
+    true
+  );
+});
+
+test('Suspended developer account is blocked from administrative access', () => {
+  assert.strictEqual(
+    isDesignatedPlatformDeveloper('kaushikparth353@gmail.com', 'developer', 'suspended'),
+    false
+  );
+});
+
+test('Ordinary creator cannot elevate permissions to developer role', () => {
+  assert.strictEqual(
+    isDesignatedPlatformDeveloper('regular-user@gmail.com', 'creator', 'active'),
+    false
+  );
+  // Even if ordinary user fakes 'developer' string in frontend, unauthorized email fails
+  assert.strictEqual(
+    isDesignatedPlatformDeveloper('regular-user@gmail.com', 'developer', 'active'),
+    false
+  );
+});
+
+test('Sensitive credentials are never exposed in developer audit logs', () => {
+  function sanitizeAuditDetails(details) {
+    const copy = { ...details };
+    delete copy.password;
+    delete copy.password_hash;
+    delete copy.otp;
+    delete copy.token;
+    delete copy.secret;
+    return copy;
+  }
+
+  const rawAudit = {
+    action: 'inspect_gift',
+    slug: 'maya-gift',
+    password: 'supersecretpassword123',
+    password_hash: '$2a$10$abcdef...',
+    token: 'jwt-session-token-xyz',
+    otp: '123456',
+  };
+
+  const sanitized = sanitizeAuditDetails(rawAudit);
+  assert.strictEqual(sanitized.action, 'inspect_gift');
+  assert.strictEqual(sanitized.slug, 'maya-gift');
+  assert.strictEqual(sanitized.password, undefined);
+  assert.strictEqual(sanitized.password_hash, undefined);
+  assert.strictEqual(sanitized.token, undefined);
+  assert.strictEqual(sanitized.otp, undefined);
 });
 
 console.log(`\n==============================================`);

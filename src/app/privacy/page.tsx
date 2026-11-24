@@ -72,9 +72,10 @@ export default function PrivacyPolicyPage() {
               To ensure platform quality and guide real-world feature development, authorized developers may inspect gift contents under the following principles:
             </p>
             <ul className="list-disc pl-5 space-y-1 text-stone-600">
-              <li><strong>Who can inspect:</strong> Exactly two authorized platform developers with multi-factor secured developer accounts.</li>
-              <li><strong>Why we inspect:</strong> To diagnose layout issues across diverse screens, verify responsive rendering of memories, and study how real creators structure heartfelt gifts.</li>
-              <li><strong>Audit Logging:</strong> Every inspection action (viewing a user profile, opening gift messages, or loading media) is recorded with an immutable audit log timestamp.</li>
+              <li><strong>Who can inspect:</strong> Exactly two authorized platform developers (`kaushikparth363@gmail.com` and `kaushikparth353@gmail.com`) with multi-factor secured developer accounts.</li>
+              <li><strong>Why we inspect:</strong> For platform administration, system reliability, creator troubleshooting, content moderation, and studying real creator use cases to enhance responsive layouts and memory experiences.</li>
+              <li><strong>Audit Logging:</strong> Every inspection action (viewing a user profile, opening gift messages, or loading media) is recorded with an immutable audit log timestamp in our Developer Audit Registry.</li>
+              <li><strong>Media Privacy:</strong> Private photographs and memory media are protected through secure server-side authorization and are never indexed, publicly accessible, or browsable outside authorized sessions.</li>
             </ul>
           </section>
 
@@ -104,7 +105,7 @@ export default function PrivacyPolicyPage() {
               If you have any questions or wish to submit a data deletion request, you can contact the Dear You developer team directly at:
             </p>
             <p className="font-mono text-xs text-platform-violet bg-purple-50 p-2.5 rounded-lg inline-block">
-              privacy@dearyou.com
+              kaushikparth363@gmail.com / kaushikparth353@gmail.com
             </p>
           </section>
         </div>

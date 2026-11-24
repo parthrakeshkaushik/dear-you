@@ -39,6 +39,20 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
   ];
 
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [developerEmail, setDeveloperEmail] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    async function loadDevIdentity() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setDeveloperEmail(user.email || null);
+        }
+      } catch {}
+    }
+    loadDevIdentity();
+  }, []);
 
   const handleSignOut = async (global = false) => {
     setIsSigningOut(true);
@@ -106,10 +120,14 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
 
           {/* Developer Authorization Badge */}
           <div className="mb-6 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <div className="text-[11px] font-mono">
-              <span className="text-white block font-medium">Authorized Dev</span>
-              <span className="text-indigo-300/70 text-[10px]">Read-Only Inspection Mode</span>
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <div className="text-[11px] font-mono overflow-hidden">
+              <span className="text-white block font-medium truncate">
+                {developerEmail || 'Platform Owner'}
+              </span>
+              <span className="text-indigo-300/80 text-[10px] font-semibold">
+                Super Admin Access
+              </span>
             </div>
           </div>
 

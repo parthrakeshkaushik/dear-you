@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Mail,
   ShieldAlert,
+  ChevronRight,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -52,6 +53,27 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   ];
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDeveloper, setIsDeveloper] = useState(false);
+
+  React.useEffect(() => {
+    async function checkRole() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const email = (user.email || '').toLowerCase();
+          if (
+            email === 'kaushikparth363@gmail.com' ||
+            email === 'kaushikparth353@gmail.com' ||
+            user.app_metadata?.role === 'developer'
+          ) {
+            setIsDeveloper(true);
+          }
+        }
+      } catch {}
+    }
+    checkRole();
+  }, []);
 
   const handleLogout = async (global = false) => {
     setIsLoggingOut(true);
@@ -136,6 +158,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               );
             })}
           </nav>
+
+          {/* Platform Developer Console Entry for Authorized Accounts */}
+          {isDeveloper && (
+            <div className="mt-4">
+              <Link
+                href="/developer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-50 border border-indigo-200/80 text-indigo-700 hover:bg-indigo-100 transition-all shadow-2xs"
+              >
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                  <span>Developer Console</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />
+              </Link>
+            </div>
+          )}
 
           {/* Quick Create Highlight */}
           <div className="mt-8 p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100/70">
