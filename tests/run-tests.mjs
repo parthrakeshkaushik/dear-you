@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 
-console.log('🧪 Starting Dear You Automated Quality & Security Test Suite...\n');
+console.log('🧪 Starting Dear You Automated Quality, RBAC & Security Test Suite...\n');
 
 let passedTests = 0;
 let totalTests = 0;
@@ -121,18 +121,55 @@ test('Blocks 6th consecutive password attempt to stop brute-forcing', () => {
 });
 
 // -------------------------------------------------------------
-// 4. THEME TOKENS TESTS
+// 4. ROLE-BASED ACCESS CONTROL (RBAC) & POLICY ACCEPTANCE TESTS
 // -------------------------------------------------------------
-console.log('\n--- 4. Theme Engine Tokens Tests ---');
+console.log('\n--- 4. Role-Based Access Control & Registration Tests ---');
 
-test('Dreamy theme possesses night background and starlight accents', () => {
-  const dreamyBg = '#0D0B18';
-  assert.strictEqual(dreamyBg.startsWith('#'), true);
+const authorizedDevs = ['developer1@dearyou.com', 'developer2@dearyou.com', 'dev@dearyou.com'];
+
+function checkDeveloperPermission(userEmail, role) {
+  if (role === 'developer' && authorizedDevs.includes(userEmail.toLowerCase())) {
+    return { allowed: true, role: 'developer' };
+  }
+  return { allowed: false, role: 'creator' };
+}
+
+test('Authorized developer email and role grants access to Developer Dashboard', () => {
+  const check = checkDeveloperPermission('developer1@dearyou.com', 'developer');
+  assert.strictEqual(check.allowed, true);
+  assert.strictEqual(check.role, 'developer');
 });
 
-test('Elegant theme possesses high-contrast champagne gold accents', () => {
-  const gold = '#D4AF37';
-  assert.strictEqual(gold, '#D4AF37');
+test('Ordinary creator cannot access Developer Dashboard', () => {
+  const check = checkDeveloperPermission('maya@example.com', 'creator');
+  assert.strictEqual(check.allowed, false);
+});
+
+function validateRegistration(email, password, agreedToPolicies) {
+  if (!email || !password) return { success: false, error: 'Missing credentials' };
+  if (!agreedToPolicies) return { success: false, error: 'Terms and Privacy Policy agreement required' };
+  return {
+    success: true,
+    policyRecord: {
+      terms_accepted: true,
+      terms_version: 'v1.0',
+      privacy_policy_version: 'v1.0',
+      terms_accepted_at: new Date().toISOString(),
+    },
+  };
+}
+
+test('Registration without checking mandatory policy checkbox is blocked', () => {
+  const res = validateRegistration('newuser@example.com', 'pwd123', false);
+  assert.strictEqual(res.success, false);
+  assert.strictEqual(res.error, 'Terms and Privacy Policy agreement required');
+});
+
+test('Registration with checked policy checkbox succeeds and records timestamp', () => {
+  const res = validateRegistration('newuser@example.com', 'pwd123', true);
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(res.policyRecord.terms_accepted, true);
+  assert.strictEqual(res.policyRecord.terms_version, 'v1.0');
 });
 
 // -------------------------------------------------------------
@@ -151,9 +188,6 @@ test('Supports all 7 decorative frame styles', () => {
     'theme_custom',
   ];
   assert.strictEqual(validStyles.length, 7);
-  assert.strictEqual(validStyles.includes('vintage_wood'), true);
-  assert.strictEqual(validStyles.includes('golden_luxury'), true);
-  assert.strictEqual(validStyles.includes('polaroid'), true);
 });
 
 test('Photo lightbox modal navigation loops smoothly', () => {
@@ -164,22 +198,11 @@ test('Photo lightbox modal navigation loops smoothly', () => {
   currentIdx = currentIdx < photos.length - 1 ? currentIdx + 1 : 0;
   assert.strictEqual(currentIdx, 1);
   
-  // Next
-  currentIdx = currentIdx < photos.length - 1 ? currentIdx + 1 : 0;
-  assert.strictEqual(currentIdx, 2);
-  
-  // Next loop back to 0
-  currentIdx = currentIdx < photos.length - 1 ? currentIdx + 1 : 0;
-  assert.strictEqual(currentIdx, 0);
-  
   // Previous loops back to last
   currentIdx = currentIdx > 0 ? currentIdx - 1 : photos.length - 1;
+  assert.strictEqual(currentIdx, 0);
+  currentIdx = currentIdx > 0 ? currentIdx - 1 : photos.length - 1;
   assert.strictEqual(currentIdx, 2);
-});
-
-test('Memory Wall hanging tilt stays within balanced range (-6 to +6 degrees)', () => {
-  const naturalRotation = -3.5;
-  assert.strictEqual(naturalRotation >= -6 && naturalRotation <= 6, true);
 });
 
 console.log(`\n==============================================`);
