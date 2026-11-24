@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRecipientToken, getRecipientCookieName } from '@/lib/auth/recipient-session';
 import { checkGiftExpiry } from '@/lib/expiry';
-import { MOCK_GIFTS } from '@/lib/mock-data';
+import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
 
 export async function GET(
   request: NextRequest,
@@ -15,7 +15,44 @@ export async function GET(
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });
     }
 
-    // Check expiry
+    // 1. Check Moderation & Deletion Status
+    if (gift.moderation_status === 'deleted' || gift.deleted_at) {
+      return NextResponse.json({ error: 'Gift not found' }, { status: 404 });
+    }
+
+    if (
+      gift.moderation_status === 'paused' ||
+      gift.moderation_status === 'unpublished' ||
+      gift.status !== 'published'
+    ) {
+      return NextResponse.json(
+        {
+          isUnavailable: true,
+          message:
+            'This gift is currently unavailable. Please contact the person who shared this gift with you.',
+          selected_theme: gift.selected_theme,
+          theme_config: gift.theme_config,
+        },
+        { status: 423 }
+      );
+    }
+
+    // 2. Check Creator Account Status
+    const owner = MOCK_USERS.find((u) => u.id === gift.owner_id);
+    if (owner && owner.account_status === 'suspended') {
+      return NextResponse.json(
+        {
+          isUnavailable: true,
+          message:
+            'This gift is currently unavailable. Please contact the person who shared this gift with you.',
+          selected_theme: gift.selected_theme,
+          theme_config: gift.theme_config,
+        },
+        { status: 423 }
+      );
+    }
+
+    // 3. Check Expiry
     const expiry = checkGiftExpiry(gift.expiry_enabled, gift.expires_at, gift.expiry_timezone);
     if (expiry.isExpired) {
       // Never serve sensitive content after expiry! Only return closure data.
@@ -32,7 +69,7 @@ export async function GET(
       );
     }
 
-    // Check Recipient Session Cookie
+    // 4. Check Recipient Session Cookie
     const cookieName = getRecipientCookieName(slug);
     const token = request.cookies.get(cookieName)?.value;
 

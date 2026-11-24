@@ -1,6 +1,8 @@
 /**
- * In-memory sliding window rate limiter for password attempts.
- * Limits attempts per IP/slug key.
+ * In-memory sliding window rate limiter for security-sensitive endpoints:
+ * - Gift password attempts (5 attempts / 15 minutes)
+ * - Registration attempts (5 attempts / 1 hour)
+ * - Resend verification attempts (3 attempts / 5 minutes)
  */
 
 interface RateLimitRecord {
@@ -10,25 +12,29 @@ interface RateLimitRecord {
 
 const memoryStore = new Map<string, RateLimitRecord>();
 
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes window
+const DEFAULT_MAX_ATTEMPTS = 5;
+const DEFAULT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes window
 
-export function checkRateLimit(key: string): { allowed: boolean; remainingAttempts: number; retryAfterSeconds?: number } {
+export function checkRateLimit(
+  key: string,
+  maxAttempts: number = DEFAULT_MAX_ATTEMPTS,
+  windowMs: number = DEFAULT_WINDOW_MS
+): { allowed: boolean; remainingAttempts: number; retryAfterSeconds?: number } {
   const now = Date.now();
   const record = memoryStore.get(key);
 
   if (!record || now > record.resetAt) {
-    memoryStore.set(key, { attempts: 1, resetAt: now + WINDOW_MS });
-    return { allowed: true, remainingAttempts: MAX_ATTEMPTS - 1 };
+    memoryStore.set(key, { attempts: 1, resetAt: now + windowMs });
+    return { allowed: true, remainingAttempts: maxAttempts - 1 };
   }
 
-  if (record.attempts >= MAX_ATTEMPTS) {
+  if (record.attempts >= maxAttempts) {
     const retryAfterSeconds = Math.ceil((record.resetAt - now) / 1000);
     return { allowed: false, remainingAttempts: 0, retryAfterSeconds };
   }
 
   record.attempts += 1;
-  return { allowed: true, remainingAttempts: MAX_ATTEMPTS - record.attempts };
+  return { allowed: true, remainingAttempts: maxAttempts - record.attempts };
 }
 
 export function resetRateLimit(key: string): void {

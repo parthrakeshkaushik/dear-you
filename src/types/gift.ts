@@ -10,6 +10,8 @@ export type EventType =
 
 export type GiftStatus = 'draft' | 'published' | 'archived' | 'expired';
 
+export type ModerationStatus = 'active' | 'paused' | 'unpublished' | 'deleted';
+
 export type SectionType =
   | 'welcome'
   | 'gift_box'
@@ -139,6 +141,15 @@ export interface Gift {
   // Status
   status: GiftStatus;
   
+  // Moderation & Platform Control
+  moderation_status?: ModerationStatus;
+  moderation_reason?: string;
+  moderated_by?: string;
+  moderated_at?: string;
+  deleted_at?: string | null;
+  deleted_by?: string;
+  deletion_reason?: string;
+  
   // Password & Access
   password_hash?: string;
   password_hint?: string;
@@ -183,6 +194,9 @@ export interface PublicGiftMeta {
   selected_theme: ThemeId;
   theme_config?: CustomThemeConfig;
   status: GiftStatus;
+  moderation_status?: ModerationStatus;
+  is_unavailable?: boolean;
+  unavailable_message?: string;
   password_hint?: string;
   expiry_enabled: boolean;
   expires_at?: string | null;

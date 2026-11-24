@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { notFound, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   ArrowLeft,
   Eye,
@@ -23,13 +23,23 @@ import {
   Cake,
   Music,
   Wind,
+  PauseCircle,
+  PlayCircle,
+  ShieldAlert,
+  Trash2,
+  RotateCcw,
+  AlertTriangle,
+  X,
+  AlertCircle,
 } from 'lucide-react';
-import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
-import { THEME_PRESETS, getThemeDefinition } from '@/config/themes';
+import { MOCK_GIFTS, MOCK_USERS, MOCK_AUDIT_LOGS } from '@/lib/mock-data';
+import { getThemeDefinition } from '@/config/themes';
 import { formatDate, formatDateTimeZone } from '@/lib/utils';
 import { MemoryWall } from '@/components/recipient/MemoryWall';
 import { MemoriesGallery } from '@/components/recipient/MemoriesGallery';
 import { PhotoViewerModal } from '@/components/recipient/PhotoViewerModal';
+import { ModerationStatus, Gift as GiftType } from '@/types/gift';
+import { ModerationReasonCategory } from '@/types/user';
 
 export default function GiftInspectionPage() {
   const params = useParams();
@@ -45,15 +55,28 @@ export default function GiftInspectionPage() {
     | 'expiry'
   >('overview');
 
-  // Look up gift by slug or id
+  // Look up initial gift
   const giftsList = Object.values(MOCK_GIFTS);
-  const gift = giftsList.find((g) => g.slug === slugOrId || g.id === slugOrId);
+  const initialGift = giftsList.find((g) => g.slug === slugOrId || g.id === slugOrId);
+
+  // Local reactive gift state for live moderation
+  const [gift, setGift] = useState<GiftType | undefined>(initialGift);
+
+  // Moderation Modals State
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [moderationReason, setModerationReason] = useState<ModerationReasonCategory>('policy_violation');
+  const [moderationNotes, setModerationNotes] = useState('');
+  const [newExpiryDate, setNewExpiryDate] = useState(gift?.expires_at ? gift.expires_at.split('T')[0] : '');
+  const [newExpiryEnabled, setNewExpiryEnabled] = useState(Boolean(gift?.expiry_enabled));
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   if (!gift) {
     return (
-      <div className="p-8 text-center space-y-4">
+      <div className="p-8 text-center space-y-4 font-mono">
         <p className="text-stone-400 text-sm">Gift record not found.</p>
-        <Link href="/developer/gifts" className="text-indigo-400 underline text-xs font-mono">
+        <Link href="/developer/gifts" className="text-indigo-400 underline text-xs">
           ← Back to Platform Gifts Directory
         </Link>
       </div>
@@ -69,6 +92,93 @@ export default function GiftInspectionPage() {
       ? Date.now() > new Date(gift.expires_at).getTime()
       : false;
 
+  const modStatus = gift.moderation_status || 'active';
+  const isPaused = modStatus === 'paused';
+  const isUnpublished = modStatus === 'unpublished';
+  const isDeleted = modStatus === 'deleted';
+
+  // Moderation Action Handlers
+  const confirmPause = () => {
+    const updated: GiftType = {
+      ...gift,
+      moderation_status: 'paused',
+      moderation_reason: `${moderationReason}: ${moderationNotes || 'Administrative hold'}`,
+      moderated_at: new Date().toISOString(),
+    };
+    setGift(updated);
+    setShowPauseModal(false);
+    setActionNotice(`Gift "${gift.title}" has been paused. Recipients can no longer access it.`);
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const handleResume = () => {
+    const updated: GiftType = {
+      ...gift,
+      moderation_status: 'active',
+      moderation_reason: undefined,
+      moderated_at: new Date().toISOString(),
+    };
+    setGift(updated);
+    setActionNotice(`Gift "${gift.title}" resumed to active status.`);
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const handleToggleUnpublish = () => {
+    const nextStatus: ModerationStatus = isUnpublished ? 'active' : 'unpublished';
+    const updated: GiftType = {
+      ...gift,
+      moderation_status: nextStatus,
+      moderated_at: new Date().toISOString(),
+      moderation_reason: isUnpublished ? undefined : 'Unpublished by platform developer',
+    };
+    setGift(updated);
+    setActionNotice(
+      isUnpublished
+        ? `Gift "${gift.title}" republished and active.`
+        : `Gift "${gift.title}" unpublished. Recipient access revoked.`
+    );
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const confirmDelete = () => {
+    const updated: GiftType = {
+      ...gift,
+      moderation_status: 'deleted',
+      deleted_at: new Date().toISOString(),
+      deletion_reason: moderationNotes || 'Soft-deleted by developer moderation',
+    };
+    setGift(updated);
+    setShowDeleteModal(false);
+    setActionNotice(`Gift "${gift.title}" has been soft-deleted and moved to trash.`);
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const handleRestore = () => {
+    const updated: GiftType = {
+      ...gift,
+      moderation_status: 'active',
+      deleted_at: null,
+      deletion_reason: undefined,
+      moderated_at: new Date().toISOString(),
+    };
+    setGift(updated);
+    setActionNotice(`Gift "${gift.title}" has been successfully restored.`);
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
+  const confirmExpiryUpdate = () => {
+    const updated: GiftType = {
+      ...gift,
+      expiry_enabled: newExpiryEnabled,
+      expires_at: newExpiryEnabled && newExpiryDate ? `${newExpiryDate}T23:59:59Z` : null,
+      updated_at: new Date().toISOString(),
+    };
+    setGift(updated);
+    setShowExpiryModal(false);
+    setActionNotice(`Expiry configuration updated for "${gift.title}".`);
+    setTimeout(() => setActionNotice(null), 4000);
+  };
+
   const inspectionTabs = [
     { id: 'overview', label: '1. Overview & Meta', icon: Gift },
     { id: 'recipient', label: '2. Recipient Info', icon: User },
@@ -81,7 +191,7 @@ export default function GiftInspectionPage() {
 
   return (
     <div className="space-y-8 max-w-6xl">
-      {/* Top Header & Inspection Actions */}
+      {/* Top Header & Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
         <div>
           <Link
@@ -96,13 +206,17 @@ export default function GiftInspectionPage() {
               {gift.title}
             </h1>
             <span
-              className={`text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full ${
-                gift.status === 'published'
+              className={`text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full uppercase ${
+                modStatus === 'active'
                   ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
+                  : modStatus === 'paused'
+                  ? 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
+                  : modStatus === 'unpublished'
+                  ? 'bg-blue-950/60 text-blue-400 border border-blue-500/30'
+                  : 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
               }`}
             >
-              {gift.status.toUpperCase()}
+              MOD: {modStatus}
             </span>
           </div>
           <p className="text-xs text-stone-400 font-mono mt-0.5">
@@ -115,29 +229,144 @@ export default function GiftInspectionPage() {
           <Link
             href={`/g/${gift.slug}/preview`}
             target="_blank"
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-2 shadow-md transition-all"
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-2 shadow-md transition-all font-mono"
           >
             <ExternalLink className="w-4 h-4" />
-            <span>Launch Live Recipient Preview</span>
+            <span>Launch Live Preview</span>
           </Link>
         </div>
       </div>
 
-      {/* Developer Inspection Disclosure Notice */}
-      <div className="p-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 text-xs flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>
-            Authorized Read-Only Inspection • Access governed by published Privacy Policy & Terms acceptance.
-          </span>
+      {/* Action Notification Toast */}
+      {actionNotice && (
+        <div className="p-3.5 rounded-xl bg-indigo-950/80 border border-indigo-500/40 text-indigo-200 text-xs font-mono flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span>{actionNotice}</span>
         </div>
-        <span className="font-mono text-[11px] text-stone-400 hidden sm:inline">
-          Audit Log ID: log-{gift.id.slice(0, 8)}
-        </span>
+      )}
+
+      {/* ======================================================== */}
+      {/* ADMINISTRATIVE MODERATION CONTROL PANEL                 */}
+      {/* ======================================================== */}
+      <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-[10px] font-mono font-semibold uppercase text-stone-400 tracking-wider">
+              Developer Administrative Control Panel
+            </span>
+            <h3 className="text-sm font-semibold text-white mt-0.5">
+              Live Gift Access & Moderation Status
+            </h3>
+          </div>
+
+          {/* Quick Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Pause / Resume Button */}
+            {isPaused ? (
+              <button
+                onClick={handleResume}
+                className="px-3 py-1.5 rounded-xl bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/40 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <PlayCircle className="w-3.5 h-3.5" />
+                <span>Resume Gift</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowPauseModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 text-amber-300 border border-amber-500/30 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <PauseCircle className="w-3.5 h-3.5" />
+                <span>Pause Gift</span>
+              </button>
+            )}
+
+            {/* Unpublish / Republish Button */}
+            <button
+              onClick={handleToggleUnpublish}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
+                isUnpublished
+                  ? 'bg-blue-600/30 text-blue-200 border-blue-500/40 hover:bg-blue-600/50'
+                  : 'bg-black/40 text-stone-300 border-white/10 hover:border-blue-400 hover:text-blue-300'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>{isUnpublished ? 'Republish' : 'Unpublish'}</span>
+            </button>
+
+            {/* Edit Expiry Button */}
+            <button
+              onClick={() => setShowExpiryModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-black/40 text-stone-300 border border-white/10 hover:border-indigo-400 hover:text-indigo-300 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Extend Expiry</span>
+            </button>
+
+            {/* Soft Delete / Restore Button */}
+            {isDeleted ? (
+              <button
+                onClick={handleRestore}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restore Gift</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Gift</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Status Indicators Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-3 border-t border-white/5">
+          <div className="p-3 rounded-xl bg-black/40 border border-white/5">
+            <span className="text-stone-400 text-[10px] block uppercase">Recipient Access</span>
+            <span className={modStatus === 'active' && !isExpired ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+              {modStatus === 'active' && !isExpired ? 'LIVE & AVAILABLE' : 'CUT OFF (BLOCKED)'}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-black/40 border border-white/5">
+            <span className="text-stone-400 text-[10px] block uppercase">Creator Account</span>
+            <span className={owner?.account_status === 'active' ? 'text-stone-200' : 'text-rose-400 font-semibold'}>
+              {owner?.account_status === 'active' ? 'Active Creator' : 'Suspended Creator'}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-black/40 border border-white/5">
+            <span className="text-stone-400 text-[10px] block uppercase">Email Verification</span>
+            <span className={owner?.email_verified !== false ? 'text-emerald-400' : 'text-amber-400'}>
+              {owner?.email_verified !== false ? 'Verified Email' : 'Pending Verification'}
+            </span>
+          </div>
+
+          <div className="p-3 rounded-xl bg-black/40 border border-white/5">
+            <span className="text-stone-400 text-[10px] block uppercase">Current Expiry</span>
+            <span className="text-stone-200 truncate block">
+              {gift.expiry_enabled && gift.expires_at ? formatDate(gift.expires_at) : 'No Expiry'}
+            </span>
+          </div>
+        </div>
+
+        {gift.moderation_reason && (
+          <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/20 text-amber-200 text-xs font-mono flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold block">Internal Moderation Record:</span>
+              <span className="text-stone-300">{gift.moderation_reason}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-white/10 text-xs font-medium scrollbar-none">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-white/10 text-xs font-medium scrollbar-none font-mono">
         {inspectionTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -161,52 +390,26 @@ export default function GiftInspectionPage() {
 
       {/* Tab 1: Overview & Meta */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-mono">
           <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4">
-            <h3 className="font-serif text-base font-semibold text-white">Gift Metadata</h3>
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between py-1.5 border-b border-white/5">
-                <span className="text-stone-400">Gift ID:</span>
-                <span className="text-white">{gift.id}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-white/5">
-                <span className="text-stone-400">Event Type:</span>
-                <span className="text-purple-300 font-semibold">{gift.event_type}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-white/5">
-                <span className="text-stone-400">Occasion Date:</span>
-                <span className="text-white">{gift.event_date || 'None specified'}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-white/5">
-                <span className="text-stone-400">Created Date:</span>
-                <span className="text-white">{formatDate(gift.created_at)}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-stone-400">Last Modified:</span>
-                <span className="text-white">{formatDate(gift.updated_at)}</span>
-              </div>
+            <h3 className="font-serif text-lg font-semibold text-white">Gift Overview</h3>
+            <div className="space-y-2">
+              <p><span className="text-stone-400">Title:</span> <strong className="text-white font-sans">{gift.title}</strong></p>
+              <p><span className="text-stone-400">ID:</span> <code className="text-stone-300">{gift.id}</code></p>
+              <p><span className="text-stone-400">Slug:</span> <code className="text-stone-300">/g/{gift.slug}</code></p>
+              <p><span className="text-stone-400">Category:</span> <span className="text-purple-300">{gift.event_type}</span></p>
+              <p><span className="text-stone-400">Theme:</span> <span className="text-indigo-300">{gift.selected_theme}</span></p>
             </div>
           </div>
 
           <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4">
-            <h3 className="font-serif text-base font-semibold text-white">Creator Account</h3>
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex justify-between py-1.5 border-b border-white/5">
-                <span className="text-stone-400">Creator Name:</span>
-                <span className="text-white">{owner?.display_name || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-white/5">
-                <span className="text-stone-400">Creator Email:</span>
-                <span className="text-white">{owner?.email || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-white/5">
-                <span className="text-stone-400">Terms Accepted:</span>
-                <span className="text-emerald-400 font-semibold">Yes ({owner?.terms_version || 'v1.0'})</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-stone-400">Privacy Policy Version:</span>
-                <span className="text-emerald-400 font-semibold">{owner?.privacy_policy_version || 'v1.0'}</span>
-              </div>
+            <h3 className="font-serif text-lg font-semibold text-white">Creator Account</h3>
+            <div className="space-y-2">
+              <p><span className="text-stone-400">Name:</span> <span className="text-white font-sans">{owner?.display_name || 'N/A'}</span></p>
+              <p><span className="text-stone-400">Email:</span> <span className="text-stone-300">{owner?.email || 'N/A'}</span></p>
+              <p><span className="text-stone-400">Email Status:</span> <span className={owner?.email_verified !== false ? 'text-emerald-400' : 'text-amber-400'}>{owner?.email_verified !== false ? 'Verified' : 'Pending Verification'}</span></p>
+              <p><span className="text-stone-400">Account Status:</span> <span className={owner?.account_status === 'active' ? 'text-stone-300' : 'text-rose-400'}>{owner?.account_status || 'active'}</span></p>
+              <p><span className="text-stone-400">Registered:</span> <span className="text-stone-300">{owner ? formatDate(owner.created_at) : 'N/A'}</span></p>
             </div>
           </div>
         </div>
@@ -214,37 +417,20 @@ export default function GiftInspectionPage() {
 
       {/* Tab 2: Recipient Info */}
       {activeTab === 'recipient' && (
-        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-5">
-          <h3 className="font-serif text-lg font-semibold text-white">
-            Recipient Experience Entry Details
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4 text-xs font-mono">
+          <h3 className="font-serif text-lg font-semibold text-white">Recipient & Access Settings</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1">
-              <span className="text-stone-400 text-[11px] block uppercase">Recipient Display Name</span>
-              <span className="text-lg font-serif text-white block">{gift.recipient_name}</span>
+              <span className="text-stone-400 text-[11px] block uppercase">Recipient Name</span>
+              <span className="text-white font-sans font-semibold text-base">{gift.recipient_name}</span>
             </div>
             <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1">
-              <span className="text-stone-400 text-[11px] block uppercase">Opening Button Label</span>
-              <span className="text-sm text-stone-200 block">{gift.welcome_button_text || 'Open Your Surprise'}</span>
+              <span className="text-stone-400 text-[11px] block uppercase">Password Protection</span>
+              <span className="text-emerald-400 font-semibold">Bcrypt Hashed (Secure)</span>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <span className="text-xs font-mono text-stone-400 block uppercase">
-              Welcome Headline Configured by Creator:
-            </span>
-            <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-sm font-serif text-white">
-              "{gift.welcome_heading || 'A special moment created for you.'}"
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <span className="text-xs font-mono text-stone-400 block uppercase">
-              Introductory Message:
-            </span>
-            <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-xs sm:text-sm text-stone-300 leading-relaxed font-light">
-              "{gift.welcome_message || 'No custom intro message written.'}"
+            <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1 sm:col-span-2">
+              <span className="text-stone-400 text-[11px] block uppercase">Password Hint (Publicly Visible)</span>
+              <span className="text-stone-200 font-sans">{gift.password_hint || 'None set'}</span>
             </div>
           </div>
         </div>
@@ -252,248 +438,249 @@ export default function GiftInspectionPage() {
 
       {/* Tab 3: Theme & Styling */}
       {activeTab === 'theme' && (
-        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-serif text-lg font-semibold text-white">
-              Selected Theme: {themeDef.name} ({gift.selected_theme})
-            </h3>
-            <span className="text-xs font-mono px-3 py-1 rounded-full bg-indigo-950 border border-indigo-500/30 text-indigo-300">
-              Style: {themeDef.backgroundStyle}
-            </span>
-          </div>
-
-          {/* Color Tokens Palette */}
-          <div>
-            <span className="text-xs font-mono text-stone-400 block uppercase mb-3">
-              Design Token Palette Values:
-            </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-              <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg border border-white/20" style={{ backgroundColor: themeDef.colors.bg }} />
-                <div>
-                  <span className="text-[10px] text-stone-400 block">Background</span>
-                  <span className="text-stone-200">{themeDef.colors.bg}</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg border border-white/20" style={{ backgroundColor: themeDef.colors.primary }} />
-                <div>
-                  <span className="text-[10px] text-stone-400 block">Primary</span>
-                  <span className="text-stone-200">{themeDef.colors.primary}</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg border border-white/20" style={{ backgroundColor: themeDef.colors.secondary }} />
-                <div>
-                  <span className="text-[10px] text-stone-400 block">Secondary</span>
-                  <span className="text-stone-200">{themeDef.colors.secondary}</span>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg border border-white/20" style={{ backgroundColor: themeDef.colors.accent }} />
-                <div>
-                  <span className="text-[10px] text-stone-400 block">Accent</span>
-                  <span className="text-stone-200">{themeDef.colors.accent}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Typography Pairings */}
-          <div className="p-4 rounded-xl bg-black/40 border border-white/5 grid grid-cols-2 gap-4 text-xs font-mono">
-            <div>
-              <span className="text-stone-400 text-[10px] block uppercase">Heading Font</span>
-              <span className="text-white text-sm font-serif">{themeDef.typography.headingFont}</span>
-            </div>
-            <div>
-              <span className="text-stone-400 text-[10px] block uppercase">Body Font</span>
-              <span className="text-white text-sm">{themeDef.typography.bodyFont}</span>
-            </div>
-          </div>
+        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4 text-xs font-mono">
+          <h3 className="font-serif text-lg font-semibold text-white">Theme & Palette Tokens</h3>
+          <p className="text-stone-400">Active Theme Preset: <strong className="text-indigo-300">{gift.selected_theme}</strong></p>
         </div>
       )}
 
-      {/* Tab 4: Written Content & Letters */}
+      {/* Tab 4: Written Content */}
       {activeTab === 'written_content' && (
-        <div className="space-y-6">
-          {/* Personal Letters (Un-truncated) */}
-          <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4">
-            <h3 className="font-serif text-lg font-semibold text-white flex items-center gap-2">
-              <FileText className="w-4 h-4 text-indigo-400" />
-              <span>Personal Letter to {gift.recipient_name}</span>
-            </h3>
-
-            {gift.letters && gift.letters.length > 0 ? (
-              gift.letters.map((letter, idx) => (
-                <div
-                  key={letter.id || idx}
-                  className="p-6 rounded-2xl bg-black/40 border border-white/10 space-y-3"
-                >
-                  <h4 className="font-serif text-base font-medium text-purple-200">
-                    "{letter.heading || 'Letter'}"
-                  </h4>
-                  <div className="space-y-4 text-xs sm:text-sm text-stone-300 font-light leading-relaxed whitespace-pre-wrap">
-                    {letter.content}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-stone-500 font-mono">No personal letter added.</p>
-            )}
+        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-6">
+          <h3 className="font-serif text-lg font-semibold text-white">Written Letters & Messages</h3>
+          <div className="p-5 rounded-xl bg-black/40 border border-white/5 space-y-2">
+            <h4 className="font-serif text-base text-white">{gift.welcome_heading}</h4>
+            <p className="text-stone-300 text-xs leading-relaxed font-light">{gift.welcome_message}</p>
           </div>
-
-          {/* Final Farewell Closing Message */}
-          <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-2">
-            <span className="text-xs font-mono text-stone-400 block uppercase">
-              Closing Farewell Message:
-            </span>
-            <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-xs sm:text-sm text-stone-300 leading-relaxed italic">
-              "{gift.closing_message || 'No custom closing note configured.'}"
+          {gift.letters?.map((letter, i) => (
+            <div key={i} className="p-5 rounded-xl bg-black/40 border border-white/5 space-y-2">
+              <h4 className="font-serif text-base text-white">{letter.heading}</h4>
+              <p className="text-stone-300 text-xs leading-relaxed font-light">{letter.content}</p>
             </div>
-          </div>
+          ))}
         </div>
       )}
 
-      {/* Tab 5: Photographs & Memory Wall */}
+      {/* Tab 5: Photos & Memory Wall */}
       {activeTab === 'photos' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-serif text-lg font-semibold text-white">
-                Framed Photographs ({memories.length})
-              </h3>
-              <p className="text-xs text-stone-400">
-                Inspect frames, sizes, rotation angles, and handwritten captions.
-              </p>
-            </div>
-          </div>
-
-          {/* Photos Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {memories.map((photo, index) => (
-              <div
-                key={photo.id || index}
-                className="p-4 rounded-2xl bg-[#0F172A] border border-white/10 shadow-xs space-y-3"
-              >
-                <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-black/40 border border-white/5">
-                  <img
-                    src={photo.image_path}
-                    alt={photo.caption}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                <div className="space-y-1 text-xs">
-                  <p className="font-handwriting text-lg text-white line-clamp-2 leading-tight">
-                    {photo.caption || 'No caption'}
-                  </p>
-                  <div className="flex items-center justify-between text-[11px] font-mono text-stone-400 pt-1">
-                    <span>Frame: <strong className="text-indigo-300">{photo.frame_style || 'polaroid'}</strong></span>
-                    <span>Tilt: {photo.rotation ?? 0}°</span>
-                  </div>
-                </div>
+        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-6">
+          <h3 className="font-serif text-lg font-semibold text-white">Photos & Memory Wall ({memories.length})</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {memories.map((m) => (
+              <div key={m.id} className="p-2 rounded-xl bg-black/40 border border-white/5 space-y-2">
+                <img src={m.image_path} alt={m.caption} className="w-full h-32 object-cover rounded-lg" />
+                <p className="text-[11px] text-stone-300 truncate">{m.caption}</p>
+                <span className="text-[9px] text-stone-500 font-mono block">Style: {m.frame_style || 'polaroid'}</span>
               </div>
             ))}
-          </div>
-
-          {/* Embedded Wall Preview Section */}
-          <div className="p-6 rounded-2xl bg-black/40 border border-white/10 space-y-4">
-            <h4 className="font-serif text-base font-semibold text-white flex items-center gap-2">
-              <Camera className="w-4 h-4 text-purple-400" />
-              <span>Full Interactive Memory Wall Preview</span>
-            </h4>
-            <div className="rounded-xl overflow-hidden bg-stone-950 border border-white/10">
-              <MemoryWall memories={memories} wallConfig={gift.memory_wall_config} />
-            </div>
           </div>
         </div>
       )}
 
       {/* Tab 6: Interactive Features */}
       {activeTab === 'interactive' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Scratch Card */}
-          <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-3">
-            <h4 className="font-serif text-base font-semibold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>Golden Scratch Card Note</span>
-            </h4>
-            <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-xs font-handwriting text-xl text-amber-200">
-              "{gift.scratch_card_hidden_text || 'Default scratch surprise'}"
-            </div>
-          </div>
-
-          {/* Gift Box Note */}
-          <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-3">
-            <h4 className="font-serif text-base font-semibold text-white flex items-center gap-2">
-              <Gift className="w-4 h-4 text-rose-400" />
-              <span>Gift Box Surprise Note</span>
-            </h4>
-            <div className="p-4 rounded-xl bg-black/40 border border-white/5 text-xs sm:text-sm text-stone-300 leading-relaxed">
-              "{gift.gift_box_message || 'Default box message'}"
-            </div>
-          </div>
-
-          {/* Secret Messages */}
-          <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-3 md:col-span-2">
-            <h4 className="font-serif text-base font-semibold text-white flex items-center gap-2">
-              <Lock className="w-4 h-4 text-indigo-400" />
-              <span>Secret Messages (Unsealed Inspection)</span>
-            </h4>
-            {gift.secret_messages && gift.secret_messages.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {gift.secret_messages.map((s, idx) => (
-                  <div key={s.id || idx} className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1">
-                    <span className="text-[11px] font-mono text-indigo-300 font-semibold">{s.title}</span>
-                    <p className="font-handwriting text-lg text-white leading-snug">"{s.content}"</p>
-                  </div>
-                ))}
+        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4 text-xs font-mono">
+          <h3 className="font-serif text-lg font-semibold text-white">Enabled Modules</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {gift.sections?.map((s) => (
+              <div key={s.id} className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
+                <span className="text-stone-300 uppercase">{s.section_type}</span>
+                <span className={s.enabled ? 'text-emerald-400 font-semibold' : 'text-stone-500'}>
+                  {s.enabled ? 'ACTIVE' : 'OFF'}
+                </span>
               </div>
-            ) : (
-              <p className="text-xs text-stone-500 font-mono">No secret messages added.</p>
-            )}
+            ))}
           </div>
         </div>
       )}
 
       {/* Tab 7: Publication & Expiry Details */}
       {activeTab === 'expiry' && (
-        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-6">
-          <h3 className="font-serif text-lg font-semibold text-white">
-            Publication Lifecycle & Expiry Audit
-          </h3>
+        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-6 text-xs font-mono">
+          <h3 className="font-serif text-lg font-semibold text-white">Lifecycle & Expiry Details</h3>
+          <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-2">
+            <p><span className="text-stone-400">Expiry Configured:</span> <strong className="text-white">{gift.expiry_enabled ? 'ENABLED' : 'DISABLED'}</strong></p>
+            <p><span className="text-stone-400">Scheduled Expiry:</span> <span className="text-stone-200">{gift.expires_at ? formatDateTimeZone(gift.expires_at, gift.expiry_timezone) : 'Never'}</span></p>
+            <p><span className="text-stone-400">Timezone:</span> <span className="text-stone-200">{gift.expiry_timezone}</span></p>
+          </div>
+        </div>
+      )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
-            <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1">
-              <span className="text-stone-400 text-[11px] block uppercase">Expiry Configured</span>
-              <span className="text-white font-semibold">
-                {gift.expiry_enabled ? 'ENABLED (Time-Bound)' : 'DISABLED (Indefinite Access)'}
-              </span>
+      {/* ======================================================== */}
+      {/* MODAL 1: PAUSE GIFT WITH REASON CATEGORY                */}
+      {/* ======================================================== */}
+      {showPauseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="max-w-md w-full p-6 rounded-2xl bg-[#0F172A] border border-amber-500/30 text-white space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-lg font-semibold flex items-center gap-2 text-amber-300">
+                <PauseCircle className="w-5 h-5 text-amber-400" />
+                <span>Pause Gift Access</span>
+              </h3>
+              <button onClick={() => setShowPauseModal(false)} className="text-stone-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1">
-              <span className="text-stone-400 text-[11px] block uppercase">Scheduled Timestamp</span>
-              <span className="text-white">
-                {gift.expires_at ? formatDateTimeZone(gift.expires_at, gift.expiry_timezone) : 'N/A'}
-              </span>
+            <p className="text-xs text-stone-300 leading-relaxed font-light">
+              Pausing immediately blocks recipient access. Recipients will see a polite unavailable message without revealing moderation details. The creator’s data is preserved.
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-mono text-stone-400 mb-1">Moderation Reason:</label>
+              <select
+                value={moderationReason}
+                onChange={(e) => setModerationReason(e.target.value as ModerationReasonCategory)}
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+              >
+                <option value="policy_violation">Policy Violation</option>
+                <option value="spam_or_abuse">Spam or Abuse</option>
+                <option value="inappropriate_content">Inappropriate Content</option>
+                <option value="security_concern">Security Concern</option>
+                <option value="user_request">Creator Request</option>
+                <option value="technical_issue">Technical Issue</option>
+                <option value="other">Other Administrative Reason</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono text-stone-400 mb-1">Internal Notes (Audit Trail):</label>
+              <textarea
+                value={moderationNotes}
+                onChange={(e) => setModerationNotes(e.target.value)}
+                rows={2}
+                placeholder="Optional notes for developer logs..."
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white focus:outline-none focus:border-amber-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowPauseModal(false)}
+                className="px-4 py-2 rounded-xl border border-white/10 text-xs text-stone-300 hover:bg-white/5 font-mono"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPause}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-black font-semibold text-xs font-mono shadow-md"
+              >
+                Confirm Pause
+              </button>
             </div>
           </div>
+        </div>
+      )}
 
-          {gift.expiry_enabled && (
-            <div className="space-y-3">
-              <span className="text-xs font-mono text-stone-400 block uppercase">
-                Post-Expiry Farewell Message Configured:
-              </span>
-              <div className="p-4 rounded-xl bg-black/30 border border-white/5 space-y-2 text-xs">
-                <h5 className="font-serif text-sm font-semibold text-white">
-                  {gift.expiry_heading || 'This surprise has reached its final page.'}
-                </h5>
-                <p className="text-stone-300 leading-relaxed font-light">
-                  {gift.expiry_message}
-                </p>
-              </div>
+      {/* ======================================================== */}
+      {/* MODAL 2: DELETE CONFIRMATION DIALOG                     */}
+      {/* ======================================================== */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="max-w-md w-full p-6 rounded-2xl bg-[#0F172A] border border-rose-500/30 text-white space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-lg font-semibold flex items-center gap-2 text-rose-400">
+                <Trash2 className="w-5 h-5 text-rose-400" />
+                <span>Confirm Gift Soft-Deletion</span>
+              </h3>
+              <button onClick={() => setShowDeleteModal(false)} className="text-stone-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          )}
+
+            <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/20 text-xs text-rose-200 space-y-1">
+              <p><strong>Gift:</strong> {gift.title}</p>
+              <p><strong>Creator:</strong> {owner?.display_name} ({owner?.email})</p>
+            </div>
+
+            <p className="text-xs text-stone-300 leading-relaxed font-light">
+              This action soft-deletes the gift. It will be removed from recipient access and hidden from ordinary creator listings, but retained in the developer trash registry for recovery.
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-mono text-stone-400 mb-1">Deletion Reason:</label>
+              <input
+                type="text"
+                value={moderationNotes}
+                onChange={(e) => setModerationNotes(e.target.value)}
+                placeholder="Reason for deletion..."
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white focus:outline-none focus:border-rose-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 rounded-xl border border-white/10 text-xs text-stone-300 hover:bg-white/5 font-mono"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs font-mono shadow-md"
+              >
+                Confirm Soft Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL 3: EXTEND / EDIT EXPIRY                           */}
+      {/* ======================================================== */}
+      {showExpiryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="max-w-md w-full p-6 rounded-2xl bg-[#0F172A] border border-indigo-500/30 text-white space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-lg font-semibold flex items-center gap-2 text-indigo-300">
+                <Clock className="w-5 h-5 text-indigo-400" />
+                <span>Extend / Modify Expiry Date</span>
+              </h3>
+              <button onClick={() => setShowExpiryModal(false)} className="text-stone-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs font-mono">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newExpiryEnabled}
+                  onChange={(e) => setNewExpiryEnabled(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 text-indigo-600"
+                />
+                <span className="text-white">Enable Time-Bound Expiration</span>
+              </label>
+
+              {newExpiryEnabled && (
+                <div>
+                  <label className="block text-[11px] text-stone-400 mb-1">New Expiration Date:</label>
+                  <input
+                    type="date"
+                    value={newExpiryDate}
+                    onChange={(e) => setNewExpiryDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowExpiryModal(false)}
+                className="px-4 py-2 rounded-xl border border-white/10 text-xs text-stone-300 hover:bg-white/5 font-mono"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmExpiryUpdate}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs font-mono shadow-md"
+              >
+                Save Expiry Settings
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

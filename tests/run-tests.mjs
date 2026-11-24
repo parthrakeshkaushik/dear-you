@@ -274,6 +274,115 @@ test('Music is optional at the creator configuration level', () => {
   assert.strictEqual(Boolean(giftWithoutMusic.music_url), false);
 });
 
+// -------------------------------------------------------------
+// 7. DISPOSABLE EMAIL & ACCOUNT AUTHENTICITY TESTS
+// -------------------------------------------------------------
+console.log('\n--- 7. Disposable Email & Account Authenticity Tests ---');
+
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com',
+  'temp-mail.org',
+  '10minutemail.com',
+  'guerrillamail.com',
+  'sharklasers.com',
+  'trashmail.com',
+  'yopmail.com',
+  'dispostable.com',
+  'burnermail.io',
+]);
+
+function checkDisposableEmail(email) {
+  if (!email || !email.includes('@')) return false;
+  const domain = email.trim().toLowerCase().split('@')[1];
+  return DISPOSABLE_DOMAINS.has(domain);
+}
+
+test('Blocks known disposable and temporary burner email domains', () => {
+  assert.strictEqual(checkDisposableEmail('spam@mailinator.com'), true);
+  assert.strictEqual(checkDisposableEmail('burner@10minutemail.com'), true);
+  assert.strictEqual(checkDisposableEmail('temp@sharklasers.com'), true);
+  assert.strictEqual(checkDisposableEmail('throwaway@yopmail.com'), true);
+});
+
+test('Allows legitimate email providers', () => {
+  assert.strictEqual(checkDisposableEmail('user@gmail.com'), false);
+  assert.strictEqual(checkDisposableEmail('maya@outlook.com'), false);
+  assert.strictEqual(checkDisposableEmail('kabir@yahoo.com'), false);
+  assert.strictEqual(checkDisposableEmail('founder@mycompany.org'), false);
+});
+
+// -------------------------------------------------------------
+// 8. DEVELOPER MODERATION & RECIPIENT ACCESS ENFORCEMENT TESTS
+// -------------------------------------------------------------
+console.log('\n--- 8. Developer Moderation & Recipient Cutoff Tests ---');
+
+function evaluateRecipientAccess(gift, creator) {
+  if (!gift || gift.moderation_status === 'deleted' || gift.deleted_at) {
+    return { status: 404, allowed: false, reason: 'not_found' };
+  }
+
+  if (gift.moderation_status === 'paused' || gift.moderation_status === 'unpublished' || gift.status !== 'published') {
+    return { status: 423, allowed: false, reason: 'unavailable', message: 'This gift is currently unavailable.' };
+  }
+
+  if (creator && creator.account_status === 'suspended') {
+    return { status: 423, allowed: false, reason: 'unavailable', message: 'This gift is currently unavailable.' };
+  }
+
+  return { status: 200, allowed: true };
+}
+
+test('Active published gift allows recipient access', () => {
+  const gift = { id: 'g1', status: 'published', moderation_status: 'active' };
+  const creator = { id: 'u1', account_status: 'active' };
+  const res = evaluateRecipientAccess(gift, creator);
+  assert.strictEqual(res.allowed, true);
+  assert.strictEqual(res.status, 200);
+});
+
+test('Paused gift immediately blocks recipient access with unavailable status', () => {
+  const gift = { id: 'g1', status: 'published', moderation_status: 'paused', moderation_reason: 'Policy review' };
+  const creator = { id: 'u1', account_status: 'active' };
+  const res = evaluateRecipientAccess(gift, creator);
+  assert.strictEqual(res.allowed, false);
+  assert.strictEqual(res.status, 423);
+  assert.strictEqual(res.reason, 'unavailable');
+});
+
+test('Unpublished gift immediately blocks recipient access', () => {
+  const gift = { id: 'g1', status: 'published', moderation_status: 'unpublished' };
+  const creator = { id: 'u1', account_status: 'active' };
+  const res = evaluateRecipientAccess(gift, creator);
+  assert.strictEqual(res.allowed, false);
+  assert.strictEqual(res.status, 423);
+});
+
+test('Soft-deleted gift returns 404 not found to recipients', () => {
+  const gift = { id: 'g1', status: 'published', moderation_status: 'deleted', deleted_at: new Date().toISOString() };
+  const creator = { id: 'u1', account_status: 'active' };
+  const res = evaluateRecipientAccess(gift, creator);
+  assert.strictEqual(res.allowed, false);
+  assert.strictEqual(res.status, 404);
+});
+
+test('Restored gift re-enables recipient access', () => {
+  let gift = { id: 'g1', status: 'published', moderation_status: 'paused' };
+  const creator = { id: 'u1', account_status: 'active' };
+  
+  assert.strictEqual(evaluateRecipientAccess(gift, creator).allowed, false);
+  
+  // Developer restores gift
+  gift = { ...gift, moderation_status: 'active' };
+  assert.strictEqual(evaluateRecipientAccess(gift, creator).allowed, true);
+});
+
+test('Suspended creator account immediately blocks recipient access to all their gifts', () => {
+  const gift = { id: 'g1', status: 'published', moderation_status: 'active' };
+  const suspendedCreator = { id: 'u1', account_status: 'suspended' };
+  const res = evaluateRecipientAccess(gift, creator => suspendedCreator);
+  assert.strictEqual(evaluateRecipientAccess(gift, suspendedCreator).allowed, false);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

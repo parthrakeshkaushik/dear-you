@@ -31,8 +31,23 @@ export async function POST(
     // Retrieve gift
     const gift = MOCK_GIFTS[slug];
 
-    if (!gift) {
+    // Moderation & Deletion check
+    if (gift.moderation_status === 'deleted' || gift.deleted_at) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });
+    }
+
+    if (
+      gift.moderation_status === 'paused' ||
+      gift.moderation_status === 'unpublished' ||
+      gift.status !== 'published'
+    ) {
+      return NextResponse.json(
+        {
+          error: 'This gift is currently unavailable. Please contact the person who shared this gift with you.',
+          isUnavailable: true,
+        },
+        { status: 423 }
+      );
     }
 
     // Server-side expiry check

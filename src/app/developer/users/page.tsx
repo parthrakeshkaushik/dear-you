@@ -154,15 +154,26 @@ export default function DeveloperUsersPage() {
 
                     {/* Status Badge */}
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
-                          user.account_status === 'active'
-                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
-                        }`}
-                      >
-                        {user.account_status.toUpperCase()}
-                      </span>
+                      <div className="flex flex-col gap-1 w-fit">
+                        <span
+                          className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
+                            user.account_status === 'active'
+                              ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
+                          }`}
+                        >
+                          {user.account_status.toUpperCase()}
+                        </span>
+                        <span
+                          className={`text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded ${
+                            user.email_verified !== false
+                              ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-amber-950/40 text-amber-300 border border-amber-500/20'
+                          }`}
+                        >
+                          {user.email_verified !== false ? 'VERIFIED' : 'UNVERIFIED'}
+                        </span>
+                      </div>
                     </td>
 
                     {/* View Profile Action */}

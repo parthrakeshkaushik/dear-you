@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Gift,
   LayoutDashboard,
@@ -14,10 +14,26 @@ import {
   X,
   ExternalLink,
   Sparkles,
+  CheckCircle2,
+  Mail,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
+}
+
+function VerifiedBanner() {
+  const searchParams = useSearchParams();
+  const isNewlyVerified = searchParams?.get('verified') === 'true';
+
+  if (!isNewlyVerified) return null;
+
+  return (
+    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2.5 shadow-sm">
+      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+      <span>Email verified successfully! Your Gift Creator Studio is active and ready to publish.</span>
+    </div>
+  );
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
@@ -150,7 +166,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-5 sm:p-8 md:p-10 max-w-7xl mx-auto w-full overflow-y-auto">
+      <main className="flex-1 p-5 sm:p-8 md:p-10 max-w-7xl mx-auto w-full overflow-y-auto space-y-5">
+        <Suspense fallback={null}>
+          <VerifiedBanner />
+        </Suspense>
         {children}
       </main>
     </div>

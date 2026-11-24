@@ -17,6 +17,7 @@ import {
   Code2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { isDisposableEmail } from '@/lib/security/disposable-email';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -57,11 +58,22 @@ export default function AuthPage() {
       const supabase = createClient();
 
       if (isSignUp) {
-        // Sign Up Flow
+        // Disposable Email Domain Check
+        if (isDisposableEmail(email)) {
+          setErrorMessage(
+            'Disposable and temporary email addresses are not permitted. Please use your genuine email address.'
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        // Sign Up Flow with verification redirect
+        const origin = window.location.origin;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
+            emailRedirectTo: `${origin}/auth/callback`,
             data: {
               display_name: displayName || email.split('@')[0],
               terms_accepted: true,
@@ -78,14 +90,15 @@ export default function AuthPage() {
           return;
         }
 
-        setSuccessMessage('Account created successfully! Signing you into Dear You...');
-        setTimeout(() => {
-          if (isDeveloperAccount) {
-            router.push('/developer');
-          } else {
-            router.push('/admin');
-          }
-        }, 800);
+        if (isDeveloperAccount) {
+          setSuccessMessage('Developer account authorized. Accessing console...');
+          setTimeout(() => router.push('/developer'), 800);
+        } else {
+          setSuccessMessage('Account registered! Redirecting to email verification...');
+          setTimeout(() => {
+            router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          }, 800);
+        }
       } else {
         // Sign In Flow
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -95,6 +108,12 @@ export default function AuthPage() {
 
         if (error && !error.message.includes('fetch') && !error.message.includes('placeholder')) {
           setErrorMessage(error.message);
+          return;
+        }
+
+        // Check if creator email is unconfirmed
+        if (data?.user && !data.user.email_confirmed_at && !isDeveloperAccount) {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
           return;
         }
 
@@ -237,6 +256,16 @@ export default function AuthPage() {
                 />
                 <Lock className="w-4 h-4 text-platform-muted absolute left-3.5" />
               </div>
+              {!isSignUp && (
+                <div className="flex justify-end mt-1.5">
+                  <Link
+                    href="/forgot-password"
+                    className="text-[11px] text-platform-violet hover:underline font-medium"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Exactly ONE Mandatory Checkbox for Terms and Conditions and Privacy Policy */}
