@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkRateLimit, resetRateLimit } from '@/lib/security/rate-limiter';
+import { checkRateLimit, recordFailedAttempt, resetRateLimit } from '@/lib/security/rate-limiter';
 import { verifyPassword } from '@/lib/auth/password';
 import { createRecipientToken, getRecipientCookieName } from '@/lib/auth/recipient-session';
 import { checkGiftExpiry } from '@/lib/expiry';
 import { MOCK_GIFTS } from '@/lib/mock-data';
+
+const FRIENDLY_PASSWORD_MESSAGES = [
+  "That was a good try! But I think there's another little secret to discover. Try again!",
+  "Almost there! Someone special is waiting for you inside. Give it another shot!",
+  "Nice attempt! I think you can solve this little mystery.",
+  "Not quite this time! Think about the hint and try once more.",
+  "You're getting closer! Take another guess.",
+  "A little mystery deserves a little patience. Try again!",
+  "Good effort! Maybe that special memory holds the answer.",
+  "Oops! That wasn't the secret word. One more try?",
+  "The surprise is still waiting for you. Give it another go!",
+  "A lovely surprise is just one correct password away!",
+];
 
 export async function POST(
   request: NextRequest,
@@ -14,15 +27,27 @@ export async function POST(
     const body = await request.json();
     const { password } = body;
 
-    // Rate Limiting by IP or forwarded address
+    const cleanPassword = (password || '').trim();
+
+    // Do not count empty submissions as password attempts
+    if (!cleanPassword) {
+      return NextResponse.json(
+        { error: 'Please enter the access password to open this gift.' },
+        { status: 400 }
+      );
+    }
+
+    // Rate Limiting by IP and card slug: at least 10 attempts before 15-minute cooldown
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
     const rateLimitKey = `${ip}:${slug}`;
-    const rateCheck = checkRateLimit(rateLimitKey);
+    const rateCheck = checkRateLimit(rateLimitKey, 10, 15 * 60 * 1000);
 
     if (!rateCheck.allowed) {
       return NextResponse.json(
         {
-          error: `Too many password attempts. Please wait ${rateCheck.retryAfterSeconds} seconds before trying again.`,
+          error: `You've tried several times! Take a short 15-minute breather to think of the secret clue, and you'll be able to try again.`,
+          retryAfterSeconds: rateCheck.retryAfterSeconds,
+          isBlocked: true,
         },
         { status: 429 }
       );
@@ -71,7 +96,6 @@ export async function POST(
 
     // Password verification logic
     let isMatch = false;
-    const cleanPassword = (password || '').trim();
 
     if (isDemo && (cleanPassword.toLowerCase() === 'special' || cleanPassword === 'special')) {
       isMatch = true;
@@ -83,9 +107,35 @@ export async function POST(
     }
 
     if (!isMatch) {
+      // Record failed attempt securely on server
+      const failed = recordFailedAttempt(rateLimitKey, 10, 15 * 60 * 1000);
+
+      if (failed.isBlocked) {
+        return NextResponse.json(
+          {
+            error: `You've tried several times! Take a short 15-minute breather to think of the secret clue, and you'll be able to try again.`,
+            retryAfterSeconds: failed.retryAfterSeconds,
+            isBlocked: true,
+          },
+          { status: 429 }
+        );
+      }
+
+      const msgIndex = Math.max(0, (10 - failed.remainingAttempts - 1) % FRIENDLY_PASSWORD_MESSAGES.length);
+      const friendlyMessage = FRIENDLY_PASSWORD_MESSAGES[msgIndex];
+      const remainingText =
+        failed.remainingAttempts === 1
+          ? '1 attempt remaining.'
+          : failed.remainingAttempts <= 3
+          ? `${failed.remainingAttempts} little chances left.`
+          : `${failed.remainingAttempts} attempts remaining.`;
+
       return NextResponse.json(
         {
-          error: `Incorrect password. ${rateCheck.remainingAttempts} attempts remaining.`,
+          error: `${friendlyMessage} (${remainingText})`,
+          friendlyMessage,
+          remainingAttempts: failed.remainingAttempts,
+          remainingText,
         },
         { status: 401 }
       );

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -103,12 +103,23 @@ const WIZARD_PAGES: WizardPageConfig[] = [
   },
 ];
 
-export default function GiftBuilderPage() {
+function GiftBuilderInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const draftIdParam = searchParams?.get('draftId') || searchParams?.get('edit') || null;
+
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = WIZARD_PAGES.length;
   const [showMobilePreview, setShowMobilePreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Draft persistence & autosave state
+  const [draftId, setDraftId] = useState<string | null>(draftIdParam);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error'>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+  const editorScrollPosRef = useRef<number>(0);
+  const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   // Form State - Page 1: Cover & Welcome
   const [recipientName, setRecipientName] = useState('Ananya');
@@ -394,15 +405,71 @@ export default function GiftBuilderPage() {
     updated_at: new Date().toISOString(),
   };
 
-  const handlePublish = async () => {
-    setIsPublishing(true);
-    setPublishError(null);
+  // Load existing draft if draftIdParam is present
+  useEffect(() => {
+    if (!draftIdParam) {
+      isInitialLoadRef.current = false;
+      return;
+    }
 
-    try {
-      const res = await fetch('/api/gifts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    async function loadExistingDraft() {
+      try {
+        const res = await fetch(`/api/gifts?id=${draftIdParam}`);
+        if (res.ok) {
+          const data = await res.json();
+          const g: GiftType = data.gift;
+          if (g) {
+            setRecipientName(g.recipient_name || '');
+            setTitle(g.title || '');
+            setSlug(g.slug || '');
+            setEventType(g.event_type || 'Birthday');
+            if (g.event_date) setEventDate(g.event_date);
+            setIntroduction(g.introduction || '');
+            setCoverImage(g.cover_image || '');
+            setWelcomeHeading(g.welcome_heading || '');
+            setWelcomeMessage(g.welcome_message || '');
+            setWelcomeButtonText(g.welcome_button_text || 'Start Your Journey');
+            setSelectedTheme(g.selected_theme || 'dreamy');
+            if (g.theme_config) setCustomTheme(g.theme_config);
+            setGiftBoxMessage(g.gift_box_message || '');
+            setScratchCardHiddenText(g.scratch_card_hidden_text || '');
+            if (g.memories && g.memories.length > 0) setMemories(g.memories);
+            if (g.timeline_entries && g.timeline_entries.length > 0) setTimelineEntries(g.timeline_entries);
+            if (g.quiz_questions && g.quiz_questions.length > 0) setQuizQuestions(g.quiz_questions);
+            if (g.secret_messages && g.secret_messages.length > 0) setSecretMessages(g.secret_messages);
+            if (g.letters && g.letters.length > 0) setLetters(g.letters);
+            if (g.wishes && g.wishes.length > 0) setWishes(g.wishes.map((w: any) => w.wish_text));
+            setClosingMessage(g.closing_message || '');
+            setPasswordHint(g.password_hint || '');
+            setExpiryEnabled(!!g.expiry_enabled);
+            if (g.expires_at) {
+              setExpiryDate(g.expires_at.split('T')[0]);
+              setExpiryTime(g.expires_at.split('T')[1]?.slice(0, 5) || '23:59');
+            }
+            if (g.expiry_timezone) setExpiryTimezone(g.expiry_timezone);
+            setExpiryHeading(g.expiry_heading || '');
+            setExpiryMessage(g.expiry_message || '');
+            setDraftId(g.id);
+            setSaveStatus('saved');
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load existing draft:', err);
+      } finally {
+        isInitialLoadRef.current = false;
+      }
+    }
+
+    loadExistingDraft();
+  }, [draftIdParam]);
+
+  // Robust Server-Side Draft Save Function
+  const saveDraft = useCallback(
+    async (customStatus: 'draft' | 'published' = 'draft') => {
+      setSaveStatus('saving');
+      try {
+        const payload = {
+          draft_id: draftId,
           recipient_name: recipientName,
           title,
           slug,
@@ -428,7 +495,19 @@ export default function GiftBuilderPage() {
           music_url: enabledFeatures.music ? 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3' : undefined,
           music_title: 'Gentle Moments',
           memory_wall_config: { layout_mode: wallLayoutMode, enable_hanging_effect: true },
-          sections: previewGift.sections,
+          sections: [
+            { id: '1', section_type: 'gift_box', display_order: 1, enabled: enabledFeatures.gift_box ?? true },
+            { id: '2', section_type: 'celebration', display_order: 2, enabled: enabledFeatures.celebration ?? true },
+            { id: '3', section_type: 'memory_wall', display_order: 3, enabled: (enabledFeatures.memory_wall ?? true) && (wallLayoutMode === 'both' || wallLayoutMode === 'auto') },
+            { id: '4', section_type: 'memories', display_order: 4, enabled: (enabledFeatures.memories ?? true) && (wallLayoutMode === 'both' || wallLayoutMode === 'manual') },
+            { id: '5', section_type: 'timeline', display_order: 5, enabled: enabledFeatures.timeline ?? true },
+            { id: '6', section_type: 'quiz', display_order: 6, enabled: enabledFeatures.quiz ?? true },
+            { id: '7', section_type: 'scratch_card', display_order: 7, enabled: enabledFeatures.scratch_card ?? true },
+            { id: '8', section_type: 'secret_messages', display_order: 8, enabled: enabledFeatures.secret_messages ?? true },
+            { id: '9', section_type: 'future_wishes', display_order: 9, enabled: enabledFeatures.future_wishes ?? true },
+            { id: '10', section_type: 'letters', display_order: 10, enabled: enabledFeatures.letters ?? true },
+            { id: '11', section_type: 'closing', display_order: 11, enabled: enabledFeatures.closing ?? true },
+          ],
           memories,
           timeline_entries: timelineEntries,
           quiz_questions: quizQuestions,
@@ -439,15 +518,131 @@ export default function GiftBuilderPage() {
             wish_text: w,
             display_order: idx + 1,
           })),
-          status: 'published',
-        }),
-      });
+          status: customStatus,
+        };
 
-      const data = await res.json();
-      if (!res.ok) {
-        setPublishError(data.error || 'Failed to publish card.');
+        // Emergency local snapshot backup
+        try {
+          localStorage.setItem('dearyou_draft_recovery', JSON.stringify(payload));
+        } catch {}
+
+        const res = await fetch('/api/gifts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          if (data.draft_id) setDraftId(data.draft_id);
+          setSaveStatus('saved');
+          setLastSavedTime(
+            new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          );
+          return { success: true, data };
+        } else {
+          setSaveStatus('error');
+          return { success: false, error: data.error };
+        }
+      } catch (err: any) {
+        setSaveStatus('error');
+        return { success: false, error: err.message };
+      }
+    },
+    [
+      draftId,
+      recipientName,
+      title,
+      slug,
+      eventType,
+      eventDate,
+      coverImage,
+      selectedTheme,
+      customTheme,
+      introduction,
+      welcomeHeading,
+      welcomeMessage,
+      welcomeButtonText,
+      giftBoxMessage,
+      scratchCardHiddenText,
+      closingMessage,
+      password,
+      passwordHint,
+      expiryEnabled,
+      expiryDate,
+      expiryTime,
+      expiryTimezone,
+      expiryHeading,
+      expiryMessage,
+      enabledFeatures,
+      wallLayoutMode,
+      memories,
+      timelineEntries,
+      quizQuestions,
+      secretMessages,
+      letters,
+      wishes,
+    ]
+  );
+
+  // Debounced Autosave (1200ms) on user edits
+  useEffect(() => {
+    if (isInitialLoadRef.current) return;
+    setSaveStatus('unsaved');
+
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = setTimeout(() => {
+      saveDraft('draft');
+    }, 1200);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [
+    recipientName,
+    title,
+    slug,
+    eventType,
+    eventDate,
+    coverImage,
+    selectedTheme,
+    customTheme,
+    introduction,
+    welcomeHeading,
+    welcomeMessage,
+    welcomeButtonText,
+    giftBoxMessage,
+    scratchCardHiddenText,
+    closingMessage,
+    passwordHint,
+    expiryEnabled,
+    expiryDate,
+    expiryTime,
+    memories,
+    timelineEntries,
+    quizQuestions,
+    secretMessages,
+    letters,
+    wishes,
+    enabledFeatures,
+    saveDraft,
+  ]);
+
+  const handlePublish = async () => {
+    setIsPublishing(true);
+    setPublishError(null);
+
+    try {
+      const res = await saveDraft('published');
+      if (!res.success) {
+        setPublishError(res.error || 'Failed to publish card.');
       } else {
-        setPublishedSlug(data.gift.slug);
+        setPublishedSlug(res.data.gift.slug);
         setIsPublishedSuccess(true);
       }
     } catch {
@@ -478,7 +673,40 @@ export default function GiftBuilderPage() {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Desktop Save Status Indicator */}
+          <div className="hidden sm:inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-black/5 border border-black/5 text-platform-muted">
+            {saveStatus === 'saving' && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-amber-800 font-medium">Saving draft...</span>
+              </>
+            )}
+            {saveStatus === 'saved' && (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-emerald-800 font-medium">
+                  Saved {lastSavedTime ? `at ${lastSavedTime}` : ''}
+                </span>
+              </>
+            )}
+            {saveStatus === 'unsaved' && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-stone-400" />
+                <span className="text-stone-600">Unsaved changes</span>
+              </>
+            )}
+            {saveStatus === 'error' && (
+              <button
+                type="button"
+                onClick={() => saveDraft('draft')}
+                className="text-rose-600 font-medium underline cursor-pointer"
+              >
+                Save failed — Retry
+              </button>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={handleStartFresh}
@@ -489,10 +717,23 @@ export default function GiftBuilderPage() {
             <span>Start Fresh</span>
           </button>
 
-          {/* Mobile Preview Trigger Button */}
+          {/* Desktop Manual Save Draft Button */}
           <button
-            onClick={() => setShowMobilePreview(true)}
-            className="lg:hidden inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-platform-violet text-white text-xs font-semibold shadow-md active:scale-95 transition-all"
+            type="button"
+            onClick={() => saveDraft('draft')}
+            disabled={saveStatus === 'saving'}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-black/10 text-xs font-medium text-platform-dark hover:bg-black/5 transition-colors cursor-pointer"
+          >
+            <span>Save Draft</span>
+          </button>
+
+          {/* Mobile Preview Trigger Button (Header) */}
+          <button
+            onClick={() => {
+              editorScrollPosRef.current = window.scrollY;
+              setShowMobilePreview(true);
+            }}
+            className="lg:hidden inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-platform-violet text-white text-xs font-semibold shadow-md active:scale-95 transition-all"
           >
             <Eye className="w-4 h-4" />
             <span>Live Preview</span>
@@ -500,9 +741,9 @@ export default function GiftBuilderPage() {
 
           <Link
             href="/admin/gifts"
-            className="px-4 py-2 rounded-xl border border-black/10 text-xs font-medium text-platform-dark hover:bg-black/5 transition-colors"
+            className="px-3.5 py-2 rounded-xl border border-black/10 text-xs font-medium text-platform-dark hover:bg-black/5 transition-colors"
           >
-            Cancel & Exit
+            Exit
           </Link>
         </div>
       </div>
@@ -512,7 +753,7 @@ export default function GiftBuilderPage() {
         {/* ======================================================== */}
         {/* LEFT PANEL: CREATOR EDITOR (45% width on desktop)        */}
         {/* ======================================================== */}
-        <div className="w-full lg:w-[45%] xl:w-[42%] space-y-6">
+        <div className="w-full lg:w-[45%] xl:w-[42%] space-y-6 pb-28 sm:pb-32 lg:pb-8">
           {/* Step Progress Bar */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-black/5 shadow-xs">
             <div className="flex items-center justify-between text-xs text-platform-muted mb-3 font-medium">
@@ -1204,6 +1445,66 @@ export default function GiftBuilderPage() {
       </div>
 
       {/* ======================================================== */}
+      {/* PERSISTENT STICKY BOTTOM ACTION BAR ON MOBILE            */}
+      {/* ======================================================== */}
+      <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white/95 backdrop-blur-md border-t border-black/10 px-4 py-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(0,0,0,0.08)] flex items-center justify-between gap-3">
+        {/* Left: Save status */}
+        <div className="flex items-center gap-1.5 text-xs text-platform-muted min-w-0 truncate">
+          {saveStatus === 'saving' && (
+            <span className="inline-flex items-center gap-1.5 text-amber-700 font-medium">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span>Saving...</span>
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium truncate">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="truncate">Saved {lastSavedTime ? `at ${lastSavedTime}` : ''}</span>
+            </span>
+          )}
+          {saveStatus === 'unsaved' && (
+            <span className="inline-flex items-center gap-1.5 text-stone-500">
+              <span className="w-2 h-2 rounded-full bg-stone-400" />
+              <span>Unsaved changes</span>
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <button
+              type="button"
+              onClick={() => saveDraft('draft')}
+              className="inline-flex items-center gap-1 text-rose-600 font-medium underline"
+            >
+              Save failed — Retry
+            </button>
+          )}
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => saveDraft('draft')}
+            disabled={saveStatus === 'saving'}
+            className="px-3 py-2 rounded-xl border border-black/10 text-xs font-medium text-platform-dark active:scale-95 transition-all bg-white shadow-2xs cursor-pointer"
+          >
+            Save Draft
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              editorScrollPosRef.current = window.scrollY;
+              setShowMobilePreview(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-platform-violet text-white text-xs font-semibold shadow-md active:scale-95 transition-all cursor-pointer"
+          >
+            <Eye className="w-4 h-4" />
+            <span>Live Preview</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
       {/* MOBILE / TABLET FULL-SCREEN PREVIEW MODAL                */}
       {/* ======================================================== */}
       <AnimatePresence>
@@ -1220,11 +1521,31 @@ export default function GiftBuilderPage() {
               activeSectionId={activeSectionId}
               onSectionVisible={handlePreviewSectionVisible}
               isMobileDrawer={true}
-              onCloseMobilePreview={() => setShowMobilePreview(false)}
+              onCloseMobilePreview={() => {
+                setShowMobilePreview(false);
+                requestAnimationFrame(() => {
+                  window.scrollTo({ top: editorScrollPosRef.current, behavior: 'instant' });
+                });
+              }}
             />
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function GiftBuilderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-16 text-center">
+          <div className="w-8 h-8 rounded-full border-2 border-platform-violet border-t-transparent animate-spin mx-auto mb-2" />
+          <p className="text-xs text-platform-muted">Loading Gift Creator Studio...</p>
+        </div>
+      }
+    >
+      <GiftBuilderInner />
+    </Suspense>
   );
 }

@@ -23,6 +23,7 @@ import {
   X,
   Lock,
   ShieldAlert,
+  FileText,
 } from 'lucide-react';
 import { MOCK_GIFTS } from '@/lib/mock-data';
 import { THEME_PRESETS } from '@/config/themes';
@@ -64,6 +65,9 @@ export default function AdminGiftsManagementPage() {
   const [republishGift, setRepublishGift] = useState<GiftType | null>(null);
   const [duplicateGift, setDuplicateGift] = useState<GiftType | null>(null);
   const [changePasswordGift, setChangePasswordGift] = useState<GiftType | null>(null);
+  const [renameGift, setRenameGift] = useState<GiftType | null>(null);
+  const [renameTitleInput, setRenameTitleInput] = useState('');
+  const [renameRecipientInput, setRenameRecipientInput] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [newPasswordHintInput, setNewPasswordHintInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -259,10 +263,68 @@ export default function AdminGiftsManagementPage() {
     );
   };
 
-  const handleDelete = (id: string) => {
-    setGifts(gifts.filter((g) => g.id !== id));
-    setDeleteConfirmId(null);
-    showNotification('success', 'Gift record deleted.');
+  const openRenameModal = (gift: GiftType) => {
+    setRenameGift(gift);
+    setRenameTitleInput(gift.title || '');
+    setRenameRecipientInput(gift.recipient_name || '');
+  };
+
+  const handleConfirmRename = async () => {
+    if (!renameGift) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/gifts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: renameGift.id,
+          title: renameTitleInput.trim(),
+          recipient_name: renameRecipientInput.trim(),
+        }),
+      });
+
+      if (res.ok) {
+        setGifts((prev) =>
+          prev.map((g) =>
+            g.id === renameGift.id
+              ? {
+                  ...g,
+                  title: renameTitleInput.trim(),
+                  recipient_name: renameRecipientInput.trim(),
+                  updated_at: new Date().toISOString(),
+                }
+              : g
+          )
+        );
+        showNotification('success', 'Card renamed successfully.');
+        setRenameGift(null);
+      } else {
+        showNotification('error', 'Failed to rename card.');
+      }
+    } catch {
+      showNotification('error', 'Network error while renaming card.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch('/api/gifts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setGifts((prev) => prev.filter((g) => g.id !== id));
+        setDeleteConfirmId(null);
+        showNotification('success', 'Gift record deleted.');
+      } else {
+        showNotification('error', 'Failed to delete gift.');
+      }
+    } catch {
+      showNotification('error', 'Network error while deleting gift.');
+    }
   };
 
   // Filter gifts by Tab
@@ -547,14 +609,26 @@ export default function AdminGiftsManagementPage() {
                     <span className="hidden sm:inline">Preview</span>
                   </Link>
 
-                  {/* 5. EDIT CARD */}
+                  {/* 5. RENAME DRAFT / CARD */}
+                  <button
+                    onClick={() => openRenameModal(gift)}
+                    className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                    title="Rename Card"
+                  >
+                    <FileText className="w-4 h-4 text-platform-muted" />
+                    <span className="hidden sm:inline">Rename</span>
+                  </button>
+
+                  {/* 6. EDIT / CONTINUE EDITING DRAFT */}
                   <Link
-                    href={`/admin/create?edit=${gift.id}`}
+                    href={`/admin/create?draftId=${gift.id}`}
                     className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium"
-                    title="Edit Card"
+                    title={gift.status === 'draft' ? 'Continue Editing Draft' : 'Edit Card'}
                   >
                     <Edit3 className="w-4 h-4 text-platform-muted" />
-                    <span className="hidden sm:inline">Edit</span>
+                    <span className="hidden sm:inline">
+                      {gift.status === 'draft' ? 'Continue Editing' : 'Edit'}
+                    </span>
                   </Link>
 
                   {/* 6. PUBLISH / UNPUBLISH TOGGLE (Only for non-expired cards) */}
@@ -930,6 +1004,76 @@ export default function AdminGiftsManagementPage() {
                     <span>Update Password & Revoke Sessions</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Card / Draft Modal */}
+      {renameGift && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-black/10 text-left relative space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-black/5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-100 text-platform-violet flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <h3 className="font-serif text-lg font-medium text-platform-dark">
+                  Rename {renameGift.status === 'draft' ? 'Draft' : 'Card'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setRenameGift(null)}
+                className="p-1.5 rounded-full hover:bg-black/5 text-stone-400 hover:text-stone-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Card Title *
+                </label>
+                <input
+                  type="text"
+                  value={renameTitleInput}
+                  onChange={(e) => setRenameTitleInput(e.target.value)}
+                  placeholder="e.g. A Birthday Surprise for Maya"
+                  className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Recipient Name *
+                </label>
+                <input
+                  type="text"
+                  value={renameRecipientInput}
+                  onChange={(e) => setRenameRecipientInput(e.target.value)}
+                  placeholder="e.g. Maya"
+                  className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-black/5 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setRenameGift(null)}
+                className="px-4 py-2 rounded-xl border border-black/10 text-xs text-platform-muted hover:text-platform-dark hover:bg-black/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRename}
+                disabled={isSubmitting || !renameTitleInput.trim() || !renameRecipientInput.trim()}
+                className="px-5 py-2.5 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

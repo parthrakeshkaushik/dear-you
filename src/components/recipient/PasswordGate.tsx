@@ -107,6 +107,29 @@ export function PasswordGate({
           </div>
         )}
 
+        {/* Creator's Password Hint Display (Non-Demo Cards) */}
+        {!isDemo && passwordHint && passwordHint.trim().length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-[var(--theme-border)] text-left shadow-xs"
+          >
+            <span className="text-[11px] uppercase tracking-wider font-semibold text-[var(--theme-secondary)] block mb-1">
+              A little hint from someone special
+            </span>
+            <p className="font-handwriting text-lg sm:text-xl text-[var(--theme-text)] leading-snug">
+              &ldquo;{passwordHint.trim()}&rdquo;
+            </p>
+          </motion.div>
+        )}
+
+        {/* Friendly guidance when no hint was left */}
+        {!isDemo && (!passwordHint || passwordHint.trim().length === 0) && (
+          <div className="mt-4 p-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-[var(--theme-border)] text-[11px] text-[var(--theme-muted)] text-center leading-relaxed">
+            No password hint was left for this gift — you can ask the person who sent this to you for a clue!
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div className="relative text-left">
@@ -133,17 +156,17 @@ export function PasswordGate({
               </button>
             </div>
 
-            {/* Error Message */}
+            {/* Gentle, Encouraging Error Feedback */}
             <AnimatePresence>
               {errorMessage && (
                 <motion.div
                   initial={{ opacity: 0, height: 0, y: -5 }}
                   animate={{ opacity: 1, height: 'auto', y: 0 }}
                   exit={{ opacity: 0, height: 0, y: -5 }}
-                  className="flex items-center gap-2 mt-2 text-xs text-rose-500 font-medium px-1"
+                  className="flex items-start gap-2.5 mt-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs text-left leading-relaxed shadow-xs"
                 >
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{errorMessage}</span>
+                  <Sparkles className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                  <span className="font-medium">{errorMessage}</span>
                 </motion.div>
               )}
             </AnimatePresence>

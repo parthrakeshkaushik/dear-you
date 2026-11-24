@@ -233,14 +233,24 @@ export default function AdminOverviewPage() {
                         <Eye className="w-3 h-3" />
                         <span>Preview</span>
                       </Link>
-                      <Link
-                        href={`/g/${gift.slug}`}
-                        target="_blank"
-                        className="px-3 py-1.5 rounded-lg bg-platform-dark text-white hover:bg-black transition-colors inline-flex items-center gap-1 font-medium"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>Live Gift</span>
-                      </Link>
+                      {gift.status === 'draft' ? (
+                        <Link
+                          href={`/admin/create?draftId=${gift.id}`}
+                          className="px-3 py-1.5 rounded-lg bg-platform-dark text-white hover:bg-black transition-colors inline-flex items-center gap-1 font-medium"
+                        >
+                          <FileEdit className="w-3 h-3" />
+                          <span>Continue Editing</span>
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/g/${gift.slug}`}
+                          target="_blank"
+                          className="px-3 py-1.5 rounded-lg bg-platform-dark text-white hover:bg-black transition-colors inline-flex items-center gap-1 font-medium"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Live Gift</span>
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>

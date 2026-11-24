@@ -16,32 +16,42 @@ export type MemoryAnimationState = 'idle' | 'opening' | 'open' | 'closing' | 're
 
 export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
   const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [isCooldown, setIsCooldown] = useState(false);
   const [animationState, setAnimationState] = useState<MemoryAnimationState>('idle');
   const shouldReduceMotion = useReducedMotion();
 
-  // Intentional click handler: only triggers from idle state
-  const handleOpenPhoto = useCallback((index: number) => {
-    if (animationState !== 'idle') return;
-    setAnimationState('opening');
-    setActivePhotoIndex(index);
-    requestAnimationFrame(() => {
-      setAnimationState('open');
-    });
-  }, [animationState]);
+  // Intentional click handler: only triggers from idle state with no active cooldown
+  const handleOpenPhoto = useCallback(
+    (index: number) => {
+      if (isViewerOpen || isCooldown || activePhotoIndex !== null) return;
+      setAnimationState('opening');
+      setActivePhotoIndex(index);
+      setIsViewerOpen(true);
+      requestAnimationFrame(() => {
+        setAnimationState('open');
+      });
+    },
+    [isViewerOpen, isCooldown, activePhotoIndex]
+  );
 
-  // Intentional close handler
+  // Intentional close handler: immediately signals viewer to begin exit transition
   const handleClosePhoto = useCallback(() => {
-    if (animationState !== 'open' && animationState !== 'opening') return;
+    setIsViewerOpen(false);
     setAnimationState('closing');
-  }, [animationState]);
+  }, []);
 
-  // Clean exit transition completion: resets state to idle
+  // Clean exit transition completion: resets state to idle and applies post-close cooldown
   const handleExitComplete = useCallback(() => {
     setAnimationState('returning');
     setActivePhotoIndex(null);
-    requestAnimationFrame(() => {
+    setIsCooldown(true);
+
+    // 400ms cooldown prevents mobile tap residue and cursor hover from triggering repeated animations
+    setTimeout(() => {
       setAnimationState('idle');
-    });
+      setIsCooldown(false);
+    }, 400);
   }, []);
 
   if (!memories || memories.length === 0) return null;
@@ -190,22 +200,22 @@ export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
                   rotate: naturalRotation,
                 }}
                 whileHover={
-                  animationState === 'idle'
+                  !isViewerOpen && !isCooldown
                     ? {
-                        scale: 1.05,
-                        rotate: naturalRotation > 0 ? naturalRotation + 2 : naturalRotation - 2,
-                        y: -6,
-                        transition: { duration: 0.25 },
+                        scale: 1.04,
+                        rotate: naturalRotation > 0 ? naturalRotation + 1.5 : naturalRotation - 1.5,
+                        y: -4,
+                        transition: { duration: 0.2 },
                       }
                     : undefined
                 }
                 animate={
-                  animationState === 'idle' && !shouldReduceMotion
+                  !isViewerOpen && !shouldReduceMotion
                     ? {
                         rotate: [
                           naturalRotation,
-                          naturalRotation + 0.9,
-                          naturalRotation - 0.9,
+                          naturalRotation + 0.8,
+                          naturalRotation - 0.8,
                           naturalRotation,
                         ],
                       }
@@ -257,7 +267,7 @@ export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
 
       {/* Shared Interactive Photo Lightbox Modal with Predictable Lifecycle */}
       <PhotoViewerModal
-        isOpen={activePhotoIndex !== null && animationState !== 'returning' && animationState !== 'idle'}
+        isOpen={isViewerOpen && activePhotoIndex !== null}
         photos={memories}
         currentIndex={activePhotoIndex ?? 0}
         onClose={handleClosePhoto}

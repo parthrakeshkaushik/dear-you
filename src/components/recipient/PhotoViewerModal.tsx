@@ -25,6 +25,8 @@ export function PhotoViewerModal({
 }: PhotoViewerModalProps) {
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchEndYRef = useRef<number | null>(null);
   const currentPhoto = photos[currentIndex];
 
   const handlePrev = useCallback(() => {
@@ -67,22 +69,36 @@ export function PhotoViewerModal({
     };
   }, [isOpen]);
 
-  // Mobile swipe gestures
+  // Mobile swipe gestures (horizontal for navigation, vertical swipe-down for close)
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
     touchEndXRef.current = null;
+    touchEndYRef.current = null;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     touchEndXRef.current = e.touches[0].clientX;
+    touchEndYRef.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = () => {
-    if (touchStartXRef.current === null || touchEndXRef.current === null) return;
+    if (touchStartXRef.current === null || touchEndXRef.current === null) {
+      touchStartXRef.current = null;
+      touchEndXRef.current = null;
+      touchStartYRef.current = null;
+      touchEndYRef.current = null;
+      return;
+    }
+
     const deltaX = touchStartXRef.current - touchEndXRef.current;
+    const deltaY = (touchStartYRef.current ?? 0) - (touchEndYRef.current ?? 0);
     const minSwipeDistance = 50;
 
-    if (deltaX > minSwipeDistance) {
+    // Check vertical swipe-down to close (swipe down has negative deltaY)
+    if (deltaY < -70 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      onClose();
+    } else if (deltaX > minSwipeDistance) {
       handleNext(); // swiped left -> next
     } else if (deltaX < -minSwipeDistance) {
       handlePrev(); // swiped right -> previous
@@ -90,6 +106,8 @@ export function PhotoViewerModal({
 
     touchStartXRef.current = null;
     touchEndXRef.current = null;
+    touchStartYRef.current = null;
+    touchEndYRef.current = null;
   };
 
   return (
@@ -100,31 +118,39 @@ export function PhotoViewerModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
+          transition={{ duration: 0.22, ease: 'easeOut' }}
           onClick={onClose}
           className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 md:p-10 select-none overflow-hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Expanded photo viewer"
         >
-          {/* Top Controls Bar */}
-          <div className="absolute top-4 inset-x-4 sm:inset-x-8 flex items-center justify-between text-white z-20 pointer-events-none">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-sm text-xs font-medium pointer-events-auto">
-              <Camera className="w-3.5 h-3.5 text-white/70" />
+          {/* Top Controls Bar with Safe-Area insets and high z-index */}
+          <div className="absolute top-[max(1rem,env(safe-area-inset-top))] inset-x-4 sm:inset-x-8 flex items-center justify-between text-white z-50 pointer-events-none">
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/60 border border-white/20 backdrop-blur-md text-xs font-medium pointer-events-auto shadow-lg">
+              <Camera className="w-3.5 h-3.5 text-white/80" />
               <span>
                 {currentIndex + 1} / {photos.length}
               </span>
             </div>
 
+            {/* X Close Button - Generous 48px Touch Target, Safe-Area aware, High Contrast */}
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
               }}
-              className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/80 border border-white/15 text-white flex items-center justify-center transition-all cursor-pointer pointer-events-auto hover:scale-105 active:scale-95"
-              aria-label="Close photo viewer"
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onClose();
+              }}
+              className="w-12 h-12 min-w-[48px] min-h-[48px] rounded-full bg-white/20 hover:bg-white/35 active:bg-white/45 border border-white/30 text-white flex items-center justify-center transition-all cursor-pointer pointer-events-auto hover:scale-105 active:scale-95 shadow-xl backdrop-blur-md"
+              aria-label="Close enlarged photo"
+              title="Close (Esc)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6 stroke-[2.5]" />
             </button>
           </div>
 

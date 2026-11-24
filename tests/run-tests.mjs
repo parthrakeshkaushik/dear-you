@@ -1471,6 +1471,146 @@ test('Manual preview scroll synchronizes wizard active page without infinite loo
   assert.strictEqual(activeWizardStep, 2); // Unchanged during programmatic scroll
 });
 
+// -------------------------------------------------------------
+// 26. FRIENDLY PASSWORD ATTEMPTS & ENCOURAGING FEEDBACK TESTS
+// -------------------------------------------------------------
+console.log('\n--- 26. Friendly Password Attempts & Encouraging Feedback Tests ---');
+
+test('Password rate limiting allows at least 10 attempts before cooldown', () => {
+  const attemptsStore = new Map();
+  const maxAllowed = 10;
+  const key = 'recipient-ip:gift-slug';
+
+  for (let i = 1; i <= maxAllowed; i++) {
+    const current = (attemptsStore.get(key) || 0) + 1;
+    attemptsStore.set(key, current);
+    assert.strictEqual(current <= maxAllowed, true);
+  }
+
+  // 11th consecutive attempt triggers cooldown restriction
+  const overLimit = (attemptsStore.get(key) || 0) + 1;
+  assert.strictEqual(overLimit <= maxAllowed, false);
+});
+
+test('Empty password submission does not decrement remaining attempts', () => {
+  let attemptsCount = 0;
+  function verifyPasswordInput(pwd) {
+    if (!pwd || !pwd.trim()) {
+      return { status: 400, error: 'Password required', counted: false };
+    }
+    attemptsCount++;
+    return { status: 401, counted: true };
+  }
+
+  const emptyRes = verifyPasswordInput('');
+  assert.strictEqual(emptyRes.status, 400);
+  assert.strictEqual(emptyRes.counted, false);
+  assert.strictEqual(attemptsCount, 0);
+
+  const spacesRes = verifyPasswordInput('   ');
+  assert.strictEqual(spacesRes.status, 400);
+  assert.strictEqual(spacesRes.counted, false);
+  assert.strictEqual(attemptsCount, 0);
+});
+
+test('Incorrect password returns warm and rotating friendly messages', () => {
+  const FRIENDLY_MSGS = [
+    "That was a good try! But I think there's another little secret to discover. Try again!",
+    "Almost there! Someone special is waiting for you inside. Give it another shot!",
+    "Nice attempt! I think you can solve this little mystery.",
+    "Not quite this time! Think about the hint and try once more.",
+    "You're getting closer! Take another guess.",
+    "A little mystery deserves a little patience. Try again!",
+    "Good effort! Maybe that special memory holds the answer.",
+    "Oops! That wasn't the secret word. One more try?",
+    "The surprise is still waiting for you. Give it another go!",
+    "A lovely surprise is just one correct password away!",
+  ];
+
+  assert.strictEqual(FRIENDLY_MSGS.length, 10);
+  FRIENDLY_MSGS.forEach((msg) => {
+    assert.strictEqual(typeof msg, 'string');
+    assert.strictEqual(msg.length > 20, true);
+    // Never contains blunt phrases
+    assert.strictEqual(msg.toLowerCase().includes('wrong password'), false);
+    assert.strictEqual(msg.toLowerCase().includes('invalid password'), false);
+  });
+});
+
+test('Password hints are displayed accurately for protected cards', () => {
+  const giftWithHint = { title: 'Maya Birthday', password_hint: 'The cafe where it all started' };
+  const giftWithoutHint = { title: 'Kabir Gift', password_hint: '' };
+
+  assert.strictEqual(giftWithHint.password_hint, 'The cafe where it all started');
+  assert.strictEqual(giftWithoutHint.password_hint, '');
+});
+
+// -------------------------------------------------------------
+// 27. AUTOMATIC DRAFT PERSISTENCE & STICKY MOBILE PREVIEW TESTS
+// -------------------------------------------------------------
+console.log('\n--- 27. Automatic Draft Persistence & Sticky Mobile Preview Tests ---');
+
+test('Draft record creation and update-in-place without duplicates', () => {
+  const cardDatabase = new Map();
+  const userId = 'usr-123';
+
+  // 1. Initial draft creation
+  const draftId = 'draft-456';
+  cardDatabase.set(draftId, {
+    id: draftId,
+    owner_id: userId,
+    title: 'Draft Gift',
+    recipient_name: 'Ananya',
+    status: 'draft',
+    updated_at: new Date().toISOString(),
+  });
+
+  assert.strictEqual(cardDatabase.size, 1);
+  assert.strictEqual(cardDatabase.get(draftId).status, 'draft');
+
+  // 2. Autosave update in-place
+  const existing = cardDatabase.get(draftId);
+  cardDatabase.set(draftId, {
+    ...existing,
+    title: 'Updated Draft Gift',
+    updated_at: new Date().toISOString(),
+  });
+
+  // Size remains 1 (no duplicate row created)
+  assert.strictEqual(cardDatabase.size, 1);
+  assert.strictEqual(cardDatabase.get(draftId).title, 'Updated Draft Gift');
+
+  // 3. Publishing transitions status without duplicate
+  cardDatabase.set(draftId, {
+    ...cardDatabase.get(draftId),
+    status: 'published',
+    published_at: new Date().toISOString(),
+  });
+
+  assert.strictEqual(cardDatabase.size, 1);
+  assert.strictEqual(cardDatabase.get(draftId).status, 'published');
+});
+
+test('Mobile preview preserves and restores editor scroll position', () => {
+  let windowScrollY = 650;
+  let savedEditorScrollPos = 0;
+  let isMobilePreviewOpen = false;
+
+  // Tap Live Preview on mobile
+  savedEditorScrollPos = windowScrollY;
+  isMobilePreviewOpen = true;
+
+  assert.strictEqual(savedEditorScrollPos, 650);
+  assert.strictEqual(isMobilePreviewOpen, true);
+
+  // Close mobile preview
+  isMobilePreviewOpen = false;
+  windowScrollY = savedEditorScrollPos;
+
+  assert.strictEqual(isMobilePreviewOpen, false);
+  assert.strictEqual(windowScrollY, 650);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

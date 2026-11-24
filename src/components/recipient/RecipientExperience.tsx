@@ -223,7 +223,7 @@ export function RecipientExperience({
         <PasswordGate
           giftTitle={gift.title}
           recipientName={gift.recipient_name}
-          passwordHint={isDemo ? 'special' : undefined}
+          passwordHint={isDemo ? 'special' : gift.password_hint}
           isDemo={isDemo}
           revocationNotice={revocationNotice}
           onSubmit={handleVerifyPassword}
