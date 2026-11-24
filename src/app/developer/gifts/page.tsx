@@ -110,7 +110,7 @@ export default function DeveloperGiftsPage() {
       gift.recipient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       gift.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
       gift.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (owner && owner.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (owner && (owner.email?.toLowerCase().includes(searchQuery.toLowerCase()) || owner.phone?.includes(searchQuery))) ||
       (owner && owner.display_name?.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesTheme = themeFilter === 'all' || gift.selected_theme === themeFilter;
@@ -287,17 +287,17 @@ export default function DeveloperGiftsPage() {
                           {owner?.display_name || 'Creator'}
                         </span>
                         <span className="text-[11px] text-stone-400 block font-mono">
-                          {owner?.email || 'N/A'}
+                          {owner?.email || owner?.phone || 'N/A'}
                         </span>
                         <div className="flex items-center gap-1.5 mt-1">
                           <span
                             className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
-                              owner?.email_verified !== false
+                              (owner?.registration_method === 'mobile' ? owner?.phone_verified !== false : owner?.email_verified !== false)
                                 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
                                 : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
                             }`}
                           >
-                            {owner?.email_verified !== false ? 'Verified' : 'Unverified'}
+                            {(owner?.registration_method === 'mobile' ? owner?.phone_verified !== false : owner?.email_verified !== false) ? 'Verified' : 'Unverified'}
                           </span>
                           {owner?.account_status === 'suspended' && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded font-semibold bg-rose-950/80 text-rose-300 border border-rose-500/30">
@@ -471,13 +471,13 @@ export default function DeveloperGiftsPage() {
                     <p>
                       Creator:{' '}
                       <span className="text-stone-300">
-                        {owner?.display_name || 'Creator'} ({owner?.email || 'N/A'})
+                        {owner?.display_name || 'Creator'} ({owner?.email || owner?.phone || 'N/A'})
                       </span>
                     </p>
                     <p>
                       Verification:{' '}
-                      <span className={owner?.email_verified !== false ? 'text-emerald-400' : 'text-amber-400'}>
-                        {owner?.email_verified !== false ? 'Verified' : 'Unverified'}
+                      <span className={(owner?.registration_method === 'mobile' ? owner?.phone_verified !== false : owner?.email_verified !== false) ? 'text-emerald-400' : 'text-amber-400'}>
+                        {(owner?.registration_method === 'mobile' ? owner?.phone_verified !== false : owner?.email_verified !== false) ? 'Verified' : 'Unverified'}
                       </span>
                     </p>
                     <p>

@@ -167,6 +167,16 @@ function VerifyEmailContent() {
           Once confirmed, you can begin creating and publishing gifts.
         </p>
 
+        <div className="mt-3">
+          <Link
+            href={`/verify-otp?method=email&identifier=${encodeURIComponent(email)}`}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-platform-violet hover:underline"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Have a 6-digit verification code? Enter code here</span>
+          </Link>
+        </div>
+
         {/* Inline Email Edit Form */}
         <AnimatePresence>
           {isEditingEmail && (

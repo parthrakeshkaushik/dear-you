@@ -3,29 +3,43 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gift,
   Lock,
   Mail,
+  Smartphone,
   User,
   ArrowRight,
   Sparkles,
   AlertCircle,
   CheckCircle,
-  Shield,
-  Code2,
+  ShieldCheck,
+  ChevronDown,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
+import {
+  SUPPORTED_COUNTRY_CODES,
+  normalizePhoneNumber,
+  isValidE164Phone,
+} from '@/lib/security/phone-utils';
+import CaptchaWidget from '@/components/auth/CaptchaWidget';
 
 export default function AuthPage() {
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'email' | 'mobile'>('email');
+
+  // Form Fields
   const [email, setEmail] = useState('');
+  const [countryCode, setCountryCode] = useState('+91');
+  const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [agreedToPolicies, setAgreedToPolicies] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -35,14 +49,93 @@ export default function AuthPage() {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!email || !password) {
-      setErrorMessage('Please enter both email and password.');
+    // ==========================================
+    // 1. SIGN UP SUBMISSION
+    // ==========================================
+    if (isSignUp) {
+      if (!agreedToPolicies) {
+        setErrorMessage('You must agree to the Terms and Conditions and Privacy Policy to register.');
+        return;
+      }
+
+      if (!captchaToken) {
+        setErrorMessage('Please complete the security verification (CAPTCHA) check.');
+        return;
+      }
+
+      if (!password || password.length < 6) {
+        setErrorMessage('Password must be at least 6 characters long.');
+        return;
+      }
+
+      if (authMethod === 'email') {
+        const cleanEmail = email.trim().toLowerCase();
+        if (!cleanEmail || !cleanEmail.includes('@')) {
+          setErrorMessage('Please enter a valid email address.');
+          return;
+        }
+
+        if (isDisposableEmail(cleanEmail)) {
+          setErrorMessage(
+            'Disposable or temporary email addresses are not permitted. Please use your genuine email address.'
+          );
+          return;
+        }
+      } else {
+        const e164 = normalizePhoneNumber(countryCode, mobileNumber);
+        if (!isValidE164Phone(e164)) {
+          setErrorMessage('Please enter a valid mobile number with correct digits.');
+          return;
+        }
+      }
+
+      setIsLoading(true);
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            registration_method: authMethod,
+            full_name: displayName,
+            email: email.trim().toLowerCase(),
+            country_code: countryCode,
+            mobile_number: mobileNumber.trim(),
+            password,
+            terms_accepted: agreedToPolicies,
+            captcha_token: captchaToken,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setErrorMessage(data.error || 'Registration failed. Please check your information.');
+          setIsLoading(false);
+          return;
+        }
+
+        setSuccessMessage('Account registered! Redirecting to OTP verification...');
+        setTimeout(() => {
+          const params = new URLSearchParams({
+            method: data.registration_method,
+            identifier: data.raw_identifier,
+            destination: data.destination,
+          });
+          router.push(`/verify-otp?${params.toString()}`);
+        }, 800);
+      } catch {
+        setErrorMessage('Network error during registration. Please try again.');
+        setIsLoading(false);
+      }
       return;
     }
 
-    // Single Mandatory Checkbox Validation for Registration
-    if (isSignUp && !agreedToPolicies) {
-      setErrorMessage('You must agree to the Terms and Conditions and Privacy Policy to register.');
+    // ==========================================
+    // 2. SIGN IN SUBMISSION
+    // ==========================================
+    if (!password) {
+      setErrorMessage('Please enter your password.');
       return;
     }
 
@@ -50,84 +143,63 @@ export default function AuthPage() {
 
     try {
       const isDeveloperAccount =
-        email.toLowerCase().includes('dev') ||
-        email.toLowerCase().includes('owner') ||
-        email.toLowerCase() === 'developer1@dearyou.com' ||
-        email.toLowerCase() === 'developer2@dearyou.com';
+        authMethod === 'email' &&
+        (email.toLowerCase().includes('dev') ||
+          email.toLowerCase().includes('owner') ||
+          email.toLowerCase() === 'developer1@dearyou.com' ||
+          email.toLowerCase() === 'developer2@dearyou.com');
 
       const supabase = createClient();
 
-      if (isSignUp) {
-        // Disposable Email Domain Check
-        if (isDisposableEmail(email)) {
-          setErrorMessage(
-            'Disposable and temporary email addresses are not permitted. Please use your genuine email address.'
-          );
+      if (authMethod === 'email') {
+        const cleanEmail = email.trim().toLowerCase();
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+        if (error && !error.message.includes('fetch') && !error.message.includes('placeholder')) {
+          setErrorMessage(error.message);
           setIsLoading(false);
           return;
         }
 
-        // Sign Up Flow with verification redirect
-        const origin = window.location.origin;
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${origin}/auth/callback`,
-            data: {
-              display_name: displayName || email.split('@')[0],
-              terms_accepted: true,
-              terms_version: 'v1.0',
-              terms_accepted_at: new Date().toISOString(),
-              privacy_policy_version: 'v1.0',
-              privacy_policy_accepted_at: new Date().toISOString(),
-            },
-          },
-        });
-
-        if (error && !error.message.includes('fetch') && !error.message.includes('placeholder')) {
-          setErrorMessage(error.message);
-          return;
-        }
-
-        if (isDeveloperAccount) {
-          setSuccessMessage('Developer account authorized. Accessing console...');
-          setTimeout(() => router.push('/developer'), 800);
-        } else {
-          setSuccessMessage('Account registered! Redirecting to email verification...');
-          setTimeout(() => {
-            router.push(`/verify-email?email=${encodeURIComponent(email)}`);
-          }, 800);
-        }
-      } else {
-        // Sign In Flow
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error && !error.message.includes('fetch') && !error.message.includes('placeholder')) {
-          setErrorMessage(error.message);
-          return;
-        }
-
-        // Check if creator email is unconfirmed
+        // Check if unconfirmed
         if (data?.user && !data.user.email_confirmed_at && !isDeveloperAccount) {
-          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          router.push(`/verify-otp?method=email&identifier=${encodeURIComponent(cleanEmail)}`);
           return;
         }
 
-        // Direct developers to developer dashboard, creators to creator admin
         if (isDeveloperAccount) {
           router.push('/developer');
         } else {
           router.push('/admin');
         }
+      } else {
+        // Mobile Sign In
+        const e164Phone = normalizePhoneNumber(countryCode, mobileNumber);
+        const { data, error } = await supabase.auth.signInWithPassword({
+          phone: e164Phone,
+          password,
+        });
+
+        if (error && !error.message.includes('fetch') && !error.message.includes('placeholder')) {
+          setErrorMessage(error.message);
+          setIsLoading(false);
+          return;
+        }
+
+        // Check if phone is unconfirmed
+        if (data?.user && !data.user.phone_confirmed_at) {
+          router.push(`/verify-otp?method=mobile&identifier=${encodeURIComponent(e164Phone)}`);
+          return;
+        }
+
+        router.push('/admin');
       }
     } catch {
       // Local dev fallback
-      const isDev = email.toLowerCase().includes('dev') || email.toLowerCase().includes('owner');
-      if (isDev) {
+      if (email.toLowerCase().includes('dev') || email.toLowerCase().includes('owner')) {
         router.push('/developer');
       } else {
         router.push('/admin');
@@ -138,7 +210,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-6">
+    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-4 sm:p-6">
+      {/* Top Header */}
       <header className="max-w-6xl w-full mx-auto flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-platform-violet/15 flex items-center justify-center text-platform-violet shadow-xs">
@@ -154,20 +227,21 @@ export default function AuthPage() {
         </Link>
       </header>
 
-      <main className="flex items-center justify-center my-8">
+      {/* Main Form Container */}
+      <main className="flex items-center justify-center my-6">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="w-full max-w-md p-8 sm:p-10 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative overflow-hidden"
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative overflow-hidden"
         >
-          {/* Header Icon */}
-          <div className="w-14 h-14 rounded-2xl bg-purple-50 text-platform-violet mx-auto flex items-center justify-center mb-5 shadow-xs">
-            {isSignUp ? <Sparkles className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
+          {/* Brand Icon */}
+          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-platform-violet mx-auto flex items-center justify-center mb-4 shadow-xs">
+            {isSignUp ? <Sparkles className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
           </div>
 
           {/* Toggle between Sign In and Sign Up */}
-          <div className="inline-flex items-center p-1 rounded-full bg-black/5 border border-black/5 mb-6 text-xs">
+          <div className="inline-flex items-center p-1 rounded-full bg-black/5 border border-black/5 mb-5 text-xs">
             <button
               type="button"
               onClick={() => {
@@ -175,7 +249,9 @@ export default function AuthPage() {
                 setErrorMessage(null);
               }}
               className={`px-4 py-1.5 rounded-full font-medium transition-all cursor-pointer ${
-                !isSignUp ? 'bg-white text-platform-dark shadow-xs' : 'text-platform-muted hover:text-platform-dark'
+                !isSignUp
+                  ? 'bg-white text-platform-dark shadow-xs'
+                  : 'text-platform-muted hover:text-platform-dark'
               }`}
             >
               Sign In
@@ -187,7 +263,9 @@ export default function AuthPage() {
                 setErrorMessage(null);
               }}
               className={`px-4 py-1.5 rounded-full font-medium transition-all cursor-pointer ${
-                isSignUp ? 'bg-white text-platform-dark shadow-xs' : 'text-platform-muted hover:text-platform-dark'
+                isSignUp
+                  ? 'bg-white text-platform-dark shadow-xs'
+                  : 'text-platform-muted hover:text-platform-dark'
               }`}
             >
               Create Account
@@ -197,17 +275,52 @@ export default function AuthPage() {
           <h1 className="font-serif text-2xl sm:text-3xl font-normal text-[#1A1625]">
             {isSignUp ? 'Join Dear You' : 'Welcome Back'}
           </h1>
-          <p className="mt-1.5 text-xs text-platform-muted max-w-xs mx-auto">
+          <p className="mt-1 text-xs text-platform-muted max-w-xs mx-auto">
             {isSignUp
-              ? 'Start creating personalized, themed digital gifts for loved ones.'
+              ? 'Choose your preferred verification method to get started.'
               : 'Sign in to access your Creator or Developer Console.'}
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-left">
+          {/* Registration / Login Method Selector */}
+          <div className="mt-5 p-1 rounded-2xl bg-stone-100/80 border border-stone-200/70 grid grid-cols-2 gap-1 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('email');
+                setErrorMessage(null);
+              }}
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl transition-all cursor-pointer ${
+                authMethod === 'email'
+                  ? 'bg-white text-platform-dark shadow-xs font-semibold'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Continue with Email</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMethod('mobile');
+                setErrorMessage(null);
+              }}
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl transition-all cursor-pointer ${
+                authMethod === 'mobile'
+                  ? 'bg-white text-platform-dark shadow-xs font-semibold'
+                  : 'text-stone-500 hover:text-stone-800'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Continue with Mobile</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-3.5 text-left">
+            {/* Display Name (Signup Only) */}
             {isSignUp && (
               <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
-                  Your Name / Display Name
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Full Name / Display Name
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -215,33 +328,79 @@ export default function AuthPage() {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="e.g. Maya Sharma"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                    required
+                    className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                   />
-                  <User className="w-4 h-4 text-platform-muted absolute left-3.5" />
+                  <User className="w-4 h-4 text-platform-muted absolute left-3" />
                 </div>
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1.5">
-                Email Address
-              </label>
-              <div className="relative flex items-center">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  autoComplete="email"
-                  required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
-                />
-                <Mail className="w-4 h-4 text-platform-muted absolute left-3.5" />
+            {/* Email Identifier Field */}
+            {authMethod === 'email' && (
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Email Address
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    autoComplete="email"
+                    required
+                    className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  />
+                  <Mail className="w-4 h-4 text-platform-muted absolute left-3" />
+                </div>
               </div>
-            </div>
+            )}
 
+            {/* Mobile Identifier Field */}
+            {authMethod === 'mobile' && (
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                  Mobile Number
+                </label>
+                <div className="flex gap-2">
+                  {/* Country Code Dropdown */}
+                  <div className="relative w-28 shrink-0">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="w-full appearance-none pl-2.5 pr-6 py-2 rounded-xl border border-black/10 text-xs sm:text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-platform-violet/40 cursor-pointer"
+                    >
+                      {SUPPORTED_COUNTRY_CODES.map((c) => (
+                        <option key={c.code} value={c.dialCode}>
+                          {c.flag} {c.dialCode}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-stone-400 absolute right-2 top-3 pointer-events-none" />
+                  </div>
+
+                  {/* Phone Number Input */}
+                  <div className="relative flex-1 flex items-center">
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="98765 43210"
+                      required
+                      className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                    />
+                    <Smartphone className="w-4 h-4 text-platform-muted absolute left-3" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Password Field */}
             <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+              <label className="block text-xs font-semibold text-platform-dark mb-1">
                 Password
               </label>
               <div className="relative flex items-center">
@@ -252,14 +411,14 @@ export default function AuthPage() {
                   placeholder="••••••••••••"
                   autoComplete={isSignUp ? 'new-password' : 'current-password'}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
-                <Lock className="w-4 h-4 text-platform-muted absolute left-3.5" />
+                <Lock className="w-4 h-4 text-platform-muted absolute left-3" />
               </div>
               {!isSignUp && (
                 <div className="flex justify-end mt-1.5">
                   <Link
-                    href="/forgot-password"
+                    href={`/forgot-password?method=${authMethod}`}
                     className="text-[11px] text-platform-violet hover:underline font-medium"
                   >
                     Forgot password?
@@ -268,9 +427,9 @@ export default function AuthPage() {
               )}
             </div>
 
-            {/* Exactly ONE Mandatory Checkbox for Terms and Conditions and Privacy Policy */}
+            {/* Terms and Conditions Checkbox (SignUp Only) */}
             {isSignUp && (
-              <div className="pt-2">
+              <div className="pt-1">
                 <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50/50 border border-purple-100/70">
                   <input
                     type="checkbox"
@@ -309,30 +468,59 @@ export default function AuthPage() {
               </div>
             )}
 
-            {errorMessage && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
+            {/* CAPTCHA Bot Protection Widget */}
+            {isSignUp && (
+              <CaptchaWidget
+                onVerify={(token) => {
+                  setCaptchaToken(token);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                onExpire={() => setCaptchaToken(null)}
+              />
             )}
 
-            {successMessage && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
-                <CheckCircle className="w-4 h-4 shrink-0" />
-                <span>{successMessage}</span>
-              </div>
-            )}
+            {/* Messages */}
+            <AnimatePresence>
+              {errorMessage && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </motion.div>
+              )}
 
+              {successMessage && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs"
+                >
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>{successMessage}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Submit Action */}
             <button
               type="submit"
-              disabled={isLoading || (isSignUp && !agreedToPolicies)}
+              disabled={isLoading || (isSignUp && (!agreedToPolicies || !captchaToken))}
               className="w-full inline-flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-medium hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
               {isLoading ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>{isSignUp ? 'Create My Account' : 'Sign In'}</span>
+                  <span>
+                    {isSignUp
+                      ? `Send ${authMethod === 'email' ? 'Email' : 'Mobile'} OTP`
+                      : 'Sign In'}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -340,9 +528,9 @@ export default function AuthPage() {
           </form>
 
           {/* Quick link hint for Developer Team entry */}
-          <div className="mt-8 pt-4 border-t border-black/5 text-center">
+          <div className="mt-6 pt-4 border-t border-black/5 text-center">
             <p className="text-[11px] text-platform-muted">
-              Platform Developers: Sign in with your authorized email (e.g. <code>dev@dearyou.com</code>) to access the{' '}
+              Platform Developers: Sign in with your authorized email to access the{' '}
               <Link href="/developer" className="underline font-semibold text-platform-dark">
                 Developer Console
               </Link>
@@ -352,6 +540,7 @@ export default function AuthPage() {
         </motion.div>
       </main>
 
+      {/* Footer */}
       <footer className="text-center text-xs text-platform-muted flex items-center justify-center gap-4">
         <span>© {new Date().getFullYear()} Dear You.</span>
         <Link href="/terms" className="hover:underline">Terms</Link>

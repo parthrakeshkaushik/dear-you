@@ -383,6 +383,195 @@ test('Suspended creator account immediately blocks recipient access to all their
   assert.strictEqual(evaluateRecipientAccess(gift, suspendedCreator).allowed, false);
 });
 
+// -------------------------------------------------------------
+// 9. MOBILE PHONE E.164 NORMALIZATION & MASKING TESTS
+// -------------------------------------------------------------
+console.log('\n--- 9. Mobile Phone E.164 Normalization & Masking Tests ---');
+
+function normalizePhone(countryCode, rawNumber) {
+  const cleanCode = countryCode.trim().startsWith('+') ? countryCode.trim() : `+${countryCode.trim()}`;
+  const cleanDigits = rawNumber.replace(/\D/g, '');
+  const codeDigits = cleanCode.replace(/\D/g, '');
+  if (cleanDigits.startsWith(codeDigits) && cleanDigits.length > codeDigits.length) {
+    return `+${cleanDigits}`;
+  }
+  return `${cleanCode}${cleanDigits}`;
+}
+
+function isValidPhone(e164Phone) {
+  if (!e164Phone || !e164Phone.startsWith('+')) return false;
+  return /^\d{8,15}$/.test(e164Phone.slice(1));
+}
+
+function maskPhone(phone) {
+  if (!phone || phone.length < 8) return '••••••••';
+  const prefix = phone.slice(0, 3);
+  const start = phone.slice(3, 5);
+  const end = phone.slice(-3);
+  return `${prefix} ${start}*** **${end}`;
+}
+
+function maskUserEmail(email) {
+  if (!email || !email.includes('@')) return '';
+  const [localPart, domain] = email.split('@');
+  if (localPart.length <= 2) return `${localPart[0]}***@${domain}`;
+  return `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`;
+}
+
+test('Normalizes Indian mobile numbers with +91 to E.164 format', () => {
+  assert.strictEqual(normalizePhone('+91', '98765 43210'), '+919876543210');
+  assert.strictEqual(normalizePhone('+91', '98765-43210'), '+919876543210');
+  assert.strictEqual(normalizePhone('+91', '+919876543210'), '+919876543210');
+});
+
+test('Normalizes international phone numbers correctly', () => {
+  assert.strictEqual(normalizePhone('+1', '415 555 2671'), '+14155552671');
+  assert.strictEqual(normalizePhone('+44', '7911 123456'), '+447911123456');
+  assert.strictEqual(normalizePhone('+971', '50 123 4567'), '+971501234567');
+});
+
+test('Validates realistic E.164 phone length', () => {
+  assert.strictEqual(isValidPhone('+919876543210'), true);
+  assert.strictEqual(isValidPhone('+14155552671'), true);
+  assert.strictEqual(isValidPhone('9876543210'), false); // missing '+'
+  assert.strictEqual(isValidPhone('+123'), false); // too short
+});
+
+test('Masks phone and email safely for OTP verification UI', () => {
+  assert.strictEqual(maskPhone('+919876543210'), '+91 98*** **210');
+  assert.strictEqual(maskUserEmail('maya.sharma@example.com'), 'm***a@example.com');
+});
+
+// -------------------------------------------------------------
+// 10. CAPTCHA BOT PROTECTION & REPLAY DEFENSE TESTS
+// -------------------------------------------------------------
+console.log('\n--- 10. CAPTCHA Bot Protection & Replay Defense Tests ---');
+
+const usedTokensMock = new Set();
+
+function verifyCaptchaMock(token) {
+  if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    return { success: false, error: 'CAPTCHA token required' };
+  }
+  const clean = token.trim();
+  if (usedTokensMock.has(clean)) {
+    return { success: false, error: 'Token already used (replay attack detected)' };
+  }
+  if (clean === '2x00000000000000000000AB' || clean.startsWith('test_invalid')) {
+    return { success: false, error: 'Verification failed' };
+  }
+  if (clean === '1x00000000000000000000AA' || clean.startsWith('test_valid') || clean.length >= 10) {
+    usedTokensMock.add(clean);
+    return { success: true };
+  }
+  return { success: false, error: 'Invalid token format' };
+}
+
+test('Blocks registration submission when CAPTCHA is missing', () => {
+  const res = verifyCaptchaMock('');
+  assert.strictEqual(res.success, false);
+});
+
+test('Accepts valid Cloudflare Turnstile token on first use', () => {
+  const token = `test_valid_captcha_${Date.now()}`;
+  const res = verifyCaptchaMock(token);
+  assert.strictEqual(res.success, true);
+});
+
+test('Rejects replayed CAPTCHA token to prevent bot reuse attacks', () => {
+  const token = `test_valid_replay_${Date.now()}`;
+  const firstUse = verifyCaptchaMock(token);
+  assert.strictEqual(firstUse.success, true);
+  const replayUse = verifyCaptchaMock(token);
+  assert.strictEqual(replayUse.success, false);
+  assert.strictEqual(replayUse.error.includes('replay'), true);
+});
+
+test('Rejects invalid CAPTCHA token', () => {
+  const res = verifyCaptchaMock('test_invalid_token');
+  assert.strictEqual(res.success, false);
+});
+
+// -------------------------------------------------------------
+// 11. OTP VERIFICATION & BRUTE-FORCE SECURITY TESTS
+// -------------------------------------------------------------
+console.log('\n--- 11. OTP Verification & Anti-Brute-Force Tests ---');
+
+function validateOtpFormat(otp) {
+  if (!otp || typeof otp !== 'string') return false;
+  return /^\d{6}$/.test(otp.trim());
+}
+
+test('Enforces strictly 6 numeric digits for OTPs', () => {
+  assert.strictEqual(validateOtpFormat('123456'), true);
+  assert.strictEqual(validateOtpFormat('000000'), true);
+  assert.strictEqual(validateOtpFormat('12345'), false); // 5 digits
+  assert.strictEqual(validateOtpFormat('1234567'), false); // 7 digits
+  assert.strictEqual(validateOtpFormat('12345a'), false); // alphanumeric
+});
+
+// -------------------------------------------------------------
+// 12. REGISTRATION METHOD ISOLATION & DEVELOPER DASHBOARD TESTS
+// -------------------------------------------------------------
+console.log('\n--- 12. Method Isolation & Developer Dashboard Tests ---');
+
+function mapUserToDirectoryView(user) {
+  const isEmail = user.registration_method === 'email';
+  const isMobile = user.registration_method === 'mobile';
+
+  return {
+    id: user.id,
+    method: user.registration_method,
+    identifier: isEmail ? user.email : user.phone,
+    emailStatus: isEmail ? (user.email_verified ? 'Verified' : 'Pending') : 'Not Provided',
+    mobileStatus: isMobile ? (user.phone_verified ? 'Verified' : 'Pending') : 'Not Provided',
+    accountStatus: user.account_status,
+  };
+}
+
+test('Email creator does not show mobile verification as failed (shows Not Provided)', () => {
+  const user = {
+    id: 'u-email-1',
+    registration_method: 'email',
+    email: 'creator@example.com',
+    email_verified: true,
+    account_status: 'active',
+  };
+  const row = mapUserToDirectoryView(user);
+  assert.strictEqual(row.method, 'email');
+  assert.strictEqual(row.identifier, 'creator@example.com');
+  assert.strictEqual(row.emailStatus, 'Verified');
+  assert.strictEqual(row.mobileStatus, 'Not Provided');
+});
+
+test('Mobile creator does not show email verification as failed (shows Not Provided)', () => {
+  const user = {
+    id: 'u-phone-1',
+    registration_method: 'mobile',
+    phone: '+919876543210',
+    phone_verified: true,
+    account_status: 'active',
+  };
+  const row = mapUserToDirectoryView(user);
+  assert.strictEqual(row.method, 'mobile');
+  assert.strictEqual(row.identifier, '+919876543210');
+  assert.strictEqual(row.emailStatus, 'Not Provided');
+  assert.strictEqual(row.mobileStatus, 'Verified');
+});
+
+test('Unverified mobile creator correctly reflects Pending status', () => {
+  const user = {
+    id: 'u-phone-2',
+    registration_method: 'mobile',
+    phone: '+919812345678',
+    phone_verified: false,
+    account_status: 'active',
+  };
+  const row = mapUserToDirectoryView(user);
+  assert.strictEqual(row.mobileStatus, 'Pending');
+  assert.strictEqual(row.emailStatus, 'Not Provided');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

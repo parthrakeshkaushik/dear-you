@@ -124,16 +124,54 @@ export default function UserDetailPage() {
               <span className="font-mono text-white uppercase font-semibold">{user.role}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-white/5">
-              <span className="text-stone-400">Email Verification</span>
-              <span
-                className={`font-mono text-[11px] font-semibold px-2 py-0.5 rounded ${
-                  user.email_verified !== false
-                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
-                }`}
-              >
-                {user.email_verified !== false ? 'VERIFIED' : 'PENDING VERIFICATION'}
+              <span className="text-stone-400">Registration Method</span>
+              <span className="font-mono text-white font-semibold">
+                {user.registration_method === 'mobile' ? 'Mobile Number' : 'Email Address'}
               </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-white/5">
+              <span className="text-stone-400">Registered Email</span>
+              <span className="font-mono text-white">
+                {user.email || 'Not Provided'}
+              </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-white/5">
+              <span className="text-stone-400">Email Verification</span>
+              {user.registration_method === 'email' ? (
+                <span
+                  className={`font-mono text-[11px] font-semibold px-2 py-0.5 rounded ${
+                    user.email_verified !== false
+                      ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  {user.email_verified !== false ? 'VERIFIED' : 'PENDING VERIFICATION'}
+                </span>
+              ) : (
+                <span className="font-mono text-[11px] text-stone-500">Not Provided</span>
+              )}
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-white/5">
+              <span className="text-stone-400">Registered Mobile</span>
+              <span className="font-mono text-white">
+                {user.phone || 'Not Provided'}
+              </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-white/5">
+              <span className="text-stone-400">Mobile Verification</span>
+              {user.registration_method === 'mobile' ? (
+                <span
+                  className={`font-mono text-[11px] font-semibold px-2 py-0.5 rounded ${
+                    user.phone_verified !== false
+                      ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  {user.phone_verified !== false ? 'VERIFIED' : 'PENDING VERIFICATION'}
+                </span>
+              ) : (
+                <span className="font-mono text-[11px] text-stone-500">Not Provided</span>
+              )}
             </div>
             <div className="flex justify-between py-1.5 border-b border-white/5">
               <span className="text-stone-400">Registered Date</span>

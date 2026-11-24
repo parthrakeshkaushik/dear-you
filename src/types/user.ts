@@ -1,9 +1,14 @@
 export type UserRole = 'developer' | 'creator' | 'recipient';
 export type AccountStatus = 'active' | 'suspended';
+export type RegistrationMethod = 'email' | 'mobile';
 
 export interface PlatformUser {
   id: string;
-  email: string;
+  email?: string;
+  phone?: string;
+  phone_verified?: boolean;
+  registration_method: RegistrationMethod;
+  country_code?: string;
   display_name?: string;
   role: UserRole;
   account_status: AccountStatus;
@@ -30,6 +35,9 @@ export type AuditActionType =
   | 'change_user_status'
   | 'user_suspended'
   | 'user_reactivated'
+  | 'otp_sent'
+  | 'otp_verified'
+  | 'otp_failed'
   | 'gift_paused'
   | 'gift_unpaused'
   | 'gift_unpublished'
