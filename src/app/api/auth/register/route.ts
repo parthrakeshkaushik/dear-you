@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyCaptchaToken } from '@/lib/security/captcha';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
-import { normalizePhoneNumber, isValidE164Phone, maskPhoneNumber, maskEmail } from '@/lib/security/phone-utils';
+import {
+  normalizePhoneNumber,
+  isValidE164Phone,
+  maskPhoneNumber,
+  maskEmail,
+  getPhoneBridgeEmail,
+} from '@/lib/security/phone-utils';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
+import { generateOtp, safeUpsertAdminUser, safeLogOtp } from '@/lib/security/otp-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,6 +65,8 @@ export async function POST(request: NextRequest) {
 
     const displayName = full_name?.trim() || 'Gift Creator';
     const supabaseAdmin = createAdminClient();
+    const otpCode = generateOtp();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     // ==========================================
     // OPTION A: EMAIL REGISTRATION FLOW
@@ -78,47 +87,86 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check account uniqueness
-      const { data: existingUser } = await supabaseAdmin
-        .from('admin_users')
-        .select('id, email_verified')
-        .eq('email', cleanEmail)
-        .maybeSingle();
+      // Check whether user already exists in Supabase Auth
+      let userId: string | null = null;
+      let existingConfirmed = false;
 
-      if (existingUser && existingUser.email_verified) {
-        return NextResponse.json(
-          { error: 'An account with this email address already exists. Please sign in.' },
-          { status: 409 }
-        );
+      const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
+      const existingAuthUser = usersList?.users?.find(
+        (u) => u.email?.toLowerCase() === cleanEmail
+      );
+
+      if (existingAuthUser) {
+        existingConfirmed = !!existingAuthUser.email_confirmed_at;
+        if (existingConfirmed) {
+          return NextResponse.json(
+            { error: 'An account with this email address already exists. Please sign in.' },
+            { status: 409 }
+          );
+        }
+        // Unconfirmed existing user: refresh password and assign fresh OTP
+        userId = existingAuthUser.id;
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password,
+          user_metadata: {
+            display_name: displayName,
+            registration_method: 'email',
+            otp_code: otpCode,
+            otp_expires_at: otpExpiresAt,
+          },
+        });
+      } else {
+        // Create user via Admin API (bypasses SMTP rate limits)
+        const { data: createData, error: createError } =
+          await supabaseAdmin.auth.admin.createUser({
+            email: cleanEmail,
+            password,
+            email_confirm: false,
+            user_metadata: {
+              display_name: displayName,
+              registration_method: 'email',
+              otp_code: otpCode,
+              otp_expires_at: otpExpiresAt,
+            },
+          });
+
+        if (createError) {
+          if (
+            createError.message.includes('already') ||
+            createError.message.includes('registered')
+          ) {
+            return NextResponse.json(
+              { error: 'An account with this email address already exists. Please sign in.' },
+              { status: 409 }
+            );
+          }
+          return NextResponse.json({ error: createError.message }, { status: 400 });
+        }
+
+        userId = createData?.user?.id || null;
       }
 
-      // Supabase Email SignUp (triggers email OTP or confirmation token)
+      // Attempt Supabase email dispatch; catch and ignore SMTP rate limits safely
       const origin =
         request.headers.get('origin') ||
         process.env.NEXT_PUBLIC_APP_URL ||
         'http://localhost:3000';
 
-      const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          emailRedirectTo: `${origin}/auth/callback`,
-          data: {
-            display_name: displayName,
-            registration_method: 'email',
+      try {
+        await supabaseAdmin.auth.resend({
+          type: 'signup',
+          email: cleanEmail,
+          options: {
+            emailRedirectTo: `${origin}/auth/callback`,
           },
-        },
-      });
-
-      if (authError && !authError.message.includes('fetch') && !authError.message.includes('placeholder')) {
-        return NextResponse.json({ error: authError.message }, { status: 400 });
+        });
+      } catch (smtpErr: any) {
+        console.warn('Supabase SMTP send notice (handled gracefully):', smtpErr?.message);
       }
 
-      const userId = authData?.user?.id;
-
-      // Upsert into admin_users
+      // Upsert into admin_users safely with schema resilience
       if (userId) {
-        await supabaseAdmin.from('admin_users').upsert({
+        await safeUpsertAdminUser(supabaseAdmin, {
           id: userId,
           email: cleanEmail,
           display_name: displayName,
@@ -130,11 +178,24 @@ export async function POST(request: NextRequest) {
         });
 
         // Record policy acceptance
-        await supabaseAdmin.from('policy_acceptances').insert({
-          user_id: userId,
-          terms_accepted: true,
-          terms_version: 'v1.0',
-          privacy_policy_version: 'v1.0',
+        try {
+          await supabaseAdmin.from('policy_acceptances').insert({
+            user_id: userId,
+            terms_accepted: true,
+            terms_version: 'v1.0',
+            privacy_policy_version: 'v1.0',
+            ip_address: ip,
+          });
+        } catch (policyErr) {
+          console.warn('Policy acceptance log note:', policyErr);
+        }
+
+        // Audit log in otp_verification_logs
+        await safeLogOtp(supabaseAdmin, {
+          destination: cleanEmail,
+          destination_type: 'email',
+          action_type: 'signup',
+          expires_at: otpExpiresAt,
           ip_address: ip,
         });
       }
@@ -163,42 +224,84 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check account uniqueness
-      const { data: existingPhoneUser } = await supabaseAdmin
-        .from('admin_users')
-        .select('id, phone_verified')
-        .eq('phone', e164Phone)
-        .maybeSingle();
+      const bridgeEmail = getPhoneBridgeEmail(e164Phone);
 
-      if (existingPhoneUser && existingPhoneUser.phone_verified) {
-        return NextResponse.json(
-          { error: 'An account with this mobile number already exists. Please sign in.' },
-          { status: 409 }
-        );
-      }
+      // Check whether user already exists with this mobile bridge email
+      let userId: string | null = null;
+      let existingConfirmed = false;
 
-      // Supabase Phone SignUp
-      const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
-        phone: e164Phone,
-        password,
-        options: {
-          data: {
+      const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
+      const existingAuthUser = usersList?.users?.find(
+        (u) =>
+          u.email?.toLowerCase() === bridgeEmail.toLowerCase() ||
+          u.user_metadata?.phone === e164Phone
+      );
+
+      if (existingAuthUser) {
+        existingConfirmed =
+          !!existingAuthUser.phone_confirmed_at ||
+          !!existingAuthUser.email_confirmed_at ||
+          existingAuthUser.user_metadata?.phone_verified === true;
+
+        if (existingConfirmed) {
+          return NextResponse.json(
+            { error: 'An account with this mobile number already exists. Please sign in.' },
+            { status: 409 }
+          );
+        }
+
+        // Unconfirmed existing mobile user: refresh password and assign fresh OTP
+        userId = existingAuthUser.id;
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password,
+          user_metadata: {
+            phone: e164Phone,
+            country_code: selectedCode,
             display_name: displayName,
             registration_method: 'mobile',
-            country_code: selectedCode,
+            otp_code: otpCode,
+            otp_expires_at: otpExpiresAt,
           },
-        },
-      });
+        });
+      } else {
+        // Create user with bridge email to bypass disabled phone provider
+        const { data: createData, error: createError } =
+          await supabaseAdmin.auth.admin.createUser({
+            email: bridgeEmail,
+            password,
+            email_confirm: false,
+            phone_confirm: false,
+            user_metadata: {
+              phone: e164Phone,
+              country_code: selectedCode,
+              display_name: displayName,
+              registration_method: 'mobile',
+              otp_code: otpCode,
+              otp_expires_at: otpExpiresAt,
+            },
+          });
 
-      if (authError && !authError.message.includes('fetch') && !authError.message.includes('placeholder')) {
-        return NextResponse.json({ error: authError.message }, { status: 400 });
+        if (createError) {
+          if (
+            createError.message.includes('already') ||
+            createError.message.includes('registered')
+          ) {
+            return NextResponse.json(
+              { error: 'An account with this mobile number already exists. Please sign in.' },
+              { status: 409 }
+            );
+          }
+          return NextResponse.json({ error: createError.message }, { status: 400 });
+        }
+
+        userId = createData?.user?.id || null;
       }
 
-      const userId = authData?.user?.id;
-
+      // Upsert into admin_users safely
       if (userId) {
-        await supabaseAdmin.from('admin_users').upsert({
+        await safeUpsertAdminUser(supabaseAdmin, {
           id: userId,
+          email: bridgeEmail,
           phone: e164Phone,
           country_code: selectedCode,
           display_name: displayName,
@@ -210,11 +313,24 @@ export async function POST(request: NextRequest) {
         });
 
         // Record policy acceptance
-        await supabaseAdmin.from('policy_acceptances').insert({
-          user_id: userId,
-          terms_accepted: true,
-          terms_version: 'v1.0',
-          privacy_policy_version: 'v1.0',
+        try {
+          await supabaseAdmin.from('policy_acceptances').insert({
+            user_id: userId,
+            terms_accepted: true,
+            terms_version: 'v1.0',
+            privacy_policy_version: 'v1.0',
+            ip_address: ip,
+          });
+        } catch (policyErr) {
+          console.warn('Policy acceptance log note:', policyErr);
+        }
+
+        // Audit log in otp_verification_logs
+        await safeLogOtp(supabaseAdmin, {
+          destination: e164Phone,
+          destination_type: 'mobile',
+          action_type: 'signup',
+          expires_at: otpExpiresAt,
           ip_address: ip,
         });
       }

@@ -82,3 +82,23 @@ export function maskEmail(email: string): string {
   const last = localPart[localPart.length - 1];
   return `${first}***${last}@${domain}`;
 }
+
+/**
+ * Generates an internal synthetic bridge email for a mobile phone number.
+ * Allows mobile accounts to utilize standard Supabase Auth sessions without
+ * triggering 'Phone signups are disabled' or requiring external SMS providers.
+ * e.g. "+919876543210" => "919876543210@phone.dearyou.com"
+ */
+export function getPhoneBridgeEmail(phone: string): string {
+  const cleanDigits = phone.replace(/\D/g, '');
+  return `${cleanDigits}@phone.dearyou.com`;
+}
+
+/**
+ * Checks whether an email address is an internal phone bridge email.
+ */
+export function isPhoneBridgeEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return email.toLowerCase().endsWith('@phone.dearyou.com');
+}
+

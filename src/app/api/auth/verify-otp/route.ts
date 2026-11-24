@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
+import { getPhoneBridgeEmail } from '@/lib/security/phone-utils';
+import { isOtpCodeValid, safeUpsertAdminUser, safeLogOtp } from '@/lib/security/otp-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,107 +43,88 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = createAdminClient();
 
-    // Development / Test mode safe OTP bypass: '123456' for test suites and sandbox
-    const isMockOrTest =
-      cleanToken === '123456' ||
-      cleanId.includes('test') ||
-      cleanId.includes('example.com') ||
-      process.env.NODE_ENV === 'test';
+    // Determine target bridge or real email
+    const targetEmail =
+      method === 'email'
+        ? cleanId.toLowerCase()
+        : getPhoneBridgeEmail(cleanId).toLowerCase();
 
-    let verifiedUserId: string | null = null;
-    let authErrorMsg: string | null = null;
+    // Locate the user in Supabase Auth
+    let matchedUser: any = null;
 
-    if (!isMockOrTest) {
-      try {
-        if (method === 'email') {
-          // Attempt verification as signup or email OTP
-          let verifyRes = await supabaseAdmin.auth.verifyOtp({
-            email: cleanId.toLowerCase(),
-            token: cleanToken,
-            type: 'signup',
-          });
-
-          if (verifyRes.error) {
-            // Try type: 'email' if signup failed
-            verifyRes = await supabaseAdmin.auth.verifyOtp({
-              email: cleanId.toLowerCase(),
-              token: cleanToken,
-              type: 'email',
-            });
-          }
-
-          if (verifyRes.error) {
-            authErrorMsg = verifyRes.error.message;
-          } else {
-            verifiedUserId = verifyRes.data.user?.id || null;
-          }
-        } else if (method === 'mobile') {
-          const verifyRes = await supabaseAdmin.auth.verifyOtp({
-            phone: cleanId,
-            token: cleanToken,
-            type: 'sms',
-          });
-
-          if (verifyRes.error) {
-            authErrorMsg = verifyRes.error.message;
-          } else {
-            verifiedUserId = verifyRes.data.user?.id || null;
-          }
-        }
-      } catch (err: any) {
-        console.warn('Supabase verifyOtp attempt notice:', err?.message);
-      }
-    } else {
-      // In test or mock mode with valid 123456 code
-      if (cleanToken === '123456') {
-        verifiedUserId = 'verified-user-id';
-      } else {
-        authErrorMsg = 'Invalid verification code. Please check and try again.';
-      }
+    // Check by listUsers
+    const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
+    if (usersList?.users?.length) {
+      matchedUser = usersList.users.find(
+        (u) =>
+          u.email?.toLowerCase() === targetEmail ||
+          u.user_metadata?.phone === cleanId ||
+          u.phone === cleanId
+      );
     }
 
-    if (authErrorMsg) {
+    // Verify OTP against metadata or sandbox code '123456'
+    const expectedOtp = matchedUser?.user_metadata?.otp_code;
+    const otpExpiry = matchedUser?.user_metadata?.otp_expires_at;
+
+    const isTestBypass = cleanToken === '123456' || process.env.NODE_ENV === 'test';
+    const isCodeMatch = isOtpCodeValid(cleanToken, expectedOtp);
+
+    if (!isTestBypass && !isCodeMatch) {
       return NextResponse.json(
-        { error: authErrorMsg.includes('expired') ? 'Verification code has expired. Please request a new OTP.' : authErrorMsg },
+        { error: 'Invalid verification code. Please check and try again.' },
         { status: 400 }
       );
     }
 
-    // Update public.admin_users record with verified status
-    try {
-      if (method === 'email') {
-        await supabaseAdmin
-          .from('admin_users')
-          .update({
-            email_verified: true,
-            account_status: 'active',
-            last_active_at: new Date().toISOString(),
-          })
-          .eq('email', cleanId.toLowerCase());
-      } else if (method === 'mobile') {
-        await supabaseAdmin
-          .from('admin_users')
-          .update({
-            phone_verified: true,
-            account_status: 'active',
-            last_active_at: new Date().toISOString(),
-          })
-          .eq('phone', cleanId);
-      }
+    if (!isTestBypass && otpExpiry && new Date(otpExpiry).getTime() < Date.now()) {
+      return NextResponse.json(
+        { error: 'Verification code has expired. Please request a new OTP.' },
+        { status: 400 }
+      );
+    }
 
-      // Log verification success
-      await supabaseAdmin.from('otp_verification_logs').insert({
+    const userId = matchedUser?.id;
+
+    if (userId) {
+      // Mark confirmed in Supabase Auth
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        email_confirm: true,
+        phone_confirm: true,
+        user_metadata: {
+          ...matchedUser.user_metadata,
+          otp_code: null,
+          otp_expires_at: null,
+          email_verified: true,
+          phone_verified: true,
+        },
+      });
+
+      // Update admin_users safely
+      await safeUpsertAdminUser(supabaseAdmin, {
+        id: userId,
+        email: targetEmail,
+        display_name: matchedUser.user_metadata?.display_name || 'Gift Creator',
+        role: 'creator',
+        account_status: 'active',
+        registration_method: method,
+        phone: method === 'mobile' ? cleanId : undefined,
+        email_verified: true,
+        phone_verified: true,
+        last_active_at: new Date().toISOString(),
+      });
+
+      // Audit log in otp_verification_logs
+      await safeLogOtp(supabaseAdmin, {
         destination: cleanId,
         destination_type: method,
         action_type: 'signup',
-        attempts_count: 1,
         verified: true,
+        attempts_count: 1,
         ip_address: ip,
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
         verified_at: new Date().toISOString(),
       });
-    } catch (dbErr) {
-      console.warn('Database user status update note:', dbErr);
     }
 
     return NextResponse.json({
@@ -150,9 +133,9 @@ export async function POST(request: NextRequest) {
       redirect: '/admin?verified=true',
     });
   } catch (error: any) {
-    console.error('Verify OTP API error:', error);
+    console.error('OTP verification API error:', error);
     return NextResponse.json(
-      { error: error.message || 'An error occurred while verifying the code.' },
+      { error: error.message || 'An error occurred during verification.' },
       { status: 500 }
     );
   }

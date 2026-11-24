@@ -23,6 +23,7 @@ import {
   SUPPORTED_COUNTRY_CODES,
   normalizePhoneNumber,
   isValidE164Phone,
+  getPhoneBridgeEmail,
 } from '@/lib/security/phone-utils';
 import CaptchaWidget from '@/components/auth/CaptchaWidget';
 
@@ -158,8 +159,19 @@ export default function AuthPage() {
           password,
         });
 
-        if (error && !error.message.includes('fetch') && !error.message.includes('placeholder')) {
-          setErrorMessage(error.message);
+        if (error) {
+          if (
+            error.message.toLowerCase().includes('confirm') ||
+            error.message.toLowerCase().includes('not confirmed')
+          ) {
+            router.push(`/verify-otp?method=email&identifier=${encodeURIComponent(cleanEmail)}`);
+            return;
+          }
+          if (error.message.toLowerCase().includes('invalid login credentials')) {
+            setErrorMessage('Invalid email address or password. Please check your credentials.');
+          } else {
+            setErrorMessage(error.message);
+          }
           setIsLoading(false);
           return;
         }
@@ -178,19 +190,41 @@ export default function AuthPage() {
       } else {
         // Mobile Sign In
         const e164Phone = normalizePhoneNumber(countryCode, mobileNumber);
+        if (!isValidE164Phone(e164Phone)) {
+          setErrorMessage('Please enter a valid mobile number with correct digits.');
+          setIsLoading(false);
+          return;
+        }
+
+        const bridgeEmail = getPhoneBridgeEmail(e164Phone);
         const { data, error } = await supabase.auth.signInWithPassword({
-          phone: e164Phone,
+          email: bridgeEmail,
           password,
         });
 
-        if (error && !error.message.includes('fetch') && !error.message.includes('placeholder')) {
-          setErrorMessage(error.message);
+        if (error) {
+          if (
+            error.message.toLowerCase().includes('confirm') ||
+            error.message.toLowerCase().includes('not confirmed')
+          ) {
+            router.push(`/verify-otp?method=mobile&identifier=${encodeURIComponent(e164Phone)}`);
+            return;
+          }
+          if (error.message.toLowerCase().includes('invalid login credentials')) {
+            setErrorMessage('Invalid mobile number or password. Please check your credentials.');
+          } else {
+            setErrorMessage(error.message);
+          }
           setIsLoading(false);
           return;
         }
 
         // Check if phone is unconfirmed
-        if (data?.user && !data.user.phone_confirmed_at) {
+        if (
+          data?.user &&
+          !data.user.email_confirmed_at &&
+          !data.user.user_metadata?.phone_verified
+        ) {
           router.push(`/verify-otp?method=mobile&identifier=${encodeURIComponent(e164Phone)}`);
           return;
         }

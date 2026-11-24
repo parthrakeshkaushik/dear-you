@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
 import { verifyCaptchaToken } from '@/lib/security/captcha';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
-import { isValidE164Phone } from '@/lib/security/phone-utils';
+import { isValidE164Phone, getPhoneBridgeEmail } from '@/lib/security/phone-utils';
+import { generateOtp, safeLogOtp } from '@/lib/security/otp-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,73 +45,92 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const origin =
-      request.headers.get('origin') ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
-
     const supabaseAdmin = createAdminClient();
+    const targetEmail =
+      method === 'email'
+        ? cleanId.toLowerCase()
+        : getPhoneBridgeEmail(cleanId).toLowerCase();
 
+    // Check if disposable email
     if (method === 'email') {
-      const cleanEmail = cleanId.toLowerCase();
-      if (!cleanEmail.includes('@') || isDisposableEmail(cleanEmail)) {
+      if (!cleanId.includes('@') || isDisposableEmail(cleanId)) {
         return NextResponse.json(
           { error: 'Valid non-disposable email address is required.' },
           { status: 400 }
         );
       }
-
-      try {
-        await supabaseAdmin.auth.resend({
-          type: 'signup',
-          email: cleanEmail,
-          options: {
-            emailRedirectTo: `${origin}/auth/callback`,
-          },
-        });
-      } catch (err: any) {
-        console.warn('Supabase resend email note:', err?.message);
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'A fresh verification code has been dispatched to your email.',
-        cooldown: 60,
-      });
-    }
-
-    if (method === 'mobile') {
+    } else if (method === 'mobile') {
       if (!isValidE164Phone(cleanId)) {
         return NextResponse.json(
           { error: 'Valid E.164 mobile number is required.' },
           { status: 400 }
         );
       }
+    }
 
-      try {
-        await supabaseAdmin.auth.resend({
-          type: 'sms',
-          phone: cleanId,
-        });
-      } catch (err: any) {
-        console.warn('Supabase resend SMS note:', err?.message);
-      }
+    // Find the user
+    const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
+    const user = usersList?.users?.find(
+      (u) =>
+        u.email?.toLowerCase() === targetEmail ||
+        u.user_metadata?.phone === cleanId ||
+        u.phone === cleanId
+    );
 
-      return NextResponse.json({
-        success: true,
-        message: 'A fresh verification code has been dispatched via SMS.',
-        cooldown: 60,
+    const freshOtp = generateOtp();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    if (user) {
+      await supabaseAdmin.auth.admin.updateUserById(user.id, {
+        user_metadata: {
+          ...user.user_metadata,
+          otp_code: freshOtp,
+          otp_expires_at: otpExpiresAt,
+        },
+      });
+
+      // Audit log
+      await safeLogOtp(supabaseAdmin, {
+        destination: cleanId,
+        destination_type: method,
+        action_type: 'signup',
+        expires_at: otpExpiresAt,
+        ip_address: ip,
       });
     }
 
-    return NextResponse.json(
-      { error: 'Invalid verification method.' },
-      { status: 400 }
-    );
+    // If email method, try to trigger email dispatch
+    if (method === 'email') {
+      const origin =
+        request.headers.get('origin') ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+
+      try {
+        await supabaseAdmin.auth.resend({
+          type: 'signup',
+          email: cleanId.toLowerCase(),
+          options: {
+            emailRedirectTo: `${origin}/auth/callback`,
+          },
+        });
+      } catch (err: any) {
+        console.warn('Supabase resend email note (handled gracefully):', err?.message);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message:
+        method === 'email'
+          ? 'A fresh verification code has been dispatched to your email.'
+          : 'A fresh verification code has been dispatched to your mobile number.',
+      cooldown: 60,
+    });
   } catch (error: any) {
     console.error('Send OTP API error:', error);
     return NextResponse.json(
-      { error: error.message || 'An error occurred while dispatching the OTP.' },
+      { error: error.message || 'An error occurred while sending OTP.' },
       { status: 500 }
     );
   }

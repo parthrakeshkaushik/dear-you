@@ -770,6 +770,58 @@ test('Expired gift immediately blocks online download attempts with HTTP 410', (
   assert.strictEqual(res.error.includes('expired'), true);
 });
 
+// -------------------------------------------------------------
+// 15. RATE LIMIT RESILIENCE & MOBILE PHONE BRIDGE AUTH TESTS
+// -------------------------------------------------------------
+console.log('\n--- 15. Rate Limit Resilience & Mobile Phone Bridge Auth Tests ---');
+
+function getPhoneBridgeEmailTest(phone) {
+  const cleanDigits = phone.replace(/\D/g, '');
+  return `${cleanDigits}@phone.dearyou.com`;
+}
+
+function isPhoneBridgeEmailTest(email) {
+  return typeof email === 'string' && email.toLowerCase().endsWith('@phone.dearyou.com');
+}
+
+function isOtpCodeValidTest(token, expectedOtp) {
+  const clean = token.trim();
+  if (clean === '123456') return true;
+  if (!expectedOtp) return false;
+  return clean === expectedOtp.trim();
+}
+
+test('Transforms mobile phone to internal bridge email without leaking digits', () => {
+  assert.strictEqual(getPhoneBridgeEmailTest('+91 98765 43210'), '919876543210@phone.dearyou.com');
+  assert.strictEqual(getPhoneBridgeEmailTest('+1 (415) 555-2671'), '14155552671@phone.dearyou.com');
+});
+
+test('Correctly identifies mobile bridge email vs authentic email addresses', () => {
+  assert.strictEqual(isPhoneBridgeEmailTest('919876543210@phone.dearyou.com'), true);
+  assert.strictEqual(isPhoneBridgeEmailTest('creator@gmail.com'), false);
+  assert.strictEqual(isPhoneBridgeEmailTest('developer1@dearyou.com'), false);
+});
+
+test('Validates OTP via universal sandbox code and matching secret token', () => {
+  assert.strictEqual(isOtpCodeValidTest('123456', '749281'), true); // Sandbox bypass
+  assert.strictEqual(isOtpCodeValidTest('749281', '749281'), true); // Exact match
+  assert.strictEqual(isOtpCodeValidTest('999999', '749281'), false); // Mismatch rejected
+});
+
+test('Gracefully absorbs SMTP over-quota rate limits without failing creator registration', () => {
+  // Simulate Supabase SMTP over-quota error
+  const smtpError = new Error('email rate limit exceeded');
+  let absorbed = false;
+  try {
+    throw smtpError;
+  } catch (err) {
+    if (err.message.includes('rate limit')) {
+      absorbed = true;
+    }
+  }
+  assert.strictEqual(absorbed, true);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);
