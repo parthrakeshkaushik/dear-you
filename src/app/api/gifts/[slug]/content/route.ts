@@ -100,7 +100,7 @@ export async function GET(
           requiresPassword: true,
           passwordRevoked: isPasswordRevoked,
           isDemo,
-          hint: isDemo ? 'show' : undefined,
+          hint: isDemo ? 'special' : undefined,
         },
         { status: 401 }
       );
@@ -116,11 +116,11 @@ export async function GET(
     // Strip password hash from public delivery
     const { password_hash, ...safeGiftData } = gift;
 
-    // Secure password hint policy: Only the designated demo card exposes a hint ("show")
+    // Secure password hint policy: Only the designated demo card exposes a hint ("special")
     if (!isDemo) {
       safeGiftData.password_hint = undefined;
     } else {
-      safeGiftData.password_hint = 'show';
+      safeGiftData.password_hint = 'special';
     }
 
     return NextResponse.json({

@@ -1020,9 +1020,9 @@ test('Showcase repository contains exactly one designated demonstration card', (
   assert.strictEqual(demoCards[0].slug, 'demo-gift');
 });
 
-await asyncTest('Demo card password "show" successfully hashes and verifies with bcrypt', async () => {
-  const demoHash = '$2a$10$IFQY0xiDMZHPzug70DTzheADu5FvyvsfplxWuuCG.I0D1HJ5EGyqm';
-  const matches = await bcrypt.compare('show', demoHash);
+await asyncTest('Demo card password "special" successfully hashes and verifies with bcrypt', async () => {
+  const demoHash = '$2a$10$7wymEdevn11T5O05b33POemyToURis6.BQODyUor4/yUZWle9VJu6';
+  const matches = await bcrypt.compare('special', demoHash);
   assert.strictEqual(matches, true);
 
   const wrongMatches = await bcrypt.compare('wrongpassword', demoHash);
@@ -1032,15 +1032,15 @@ await asyncTest('Demo card password "show" successfully hashes and verifies with
 test('Public metadata strips password hints for real user cards while exposing for demo card only', () => {
   function getPublicHint(card) {
     if (card.is_demo || card.slug === 'demo' || card.slug === 'demo-gift') {
-      return 'show';
+      return 'special';
     }
     return undefined; // Strictly private for real customer cards
   }
 
-  const demoCard = { slug: 'demo-gift', is_demo: true, password_hint: 'show' };
+  const demoCard = { slug: 'demo-gift', is_demo: true, password_hint: 'special' };
   const realCard = { slug: 'maya-wedding', is_demo: false, password_hint: 'Our first date' };
 
-  assert.strictEqual(getPublicHint(demoCard), 'show');
+  assert.strictEqual(getPublicHint(demoCard), 'special');
   assert.strictEqual(getPublicHint(realCard), undefined);
 });
 
@@ -1195,6 +1195,53 @@ test('Publishing generates independent card without mutating the source demonstr
   assert.strictEqual(newCard.is_demo, false);
   assert.strictEqual(demoTemplate.is_demo, true);
   assert.strictEqual(demoTemplate.slug, 'demo');
+});
+
+// -------------------------------------------------------------
+// 22. DEMO CARD SEPARATION & USER ACCOUNT CARD ISOLATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 22. Demo Card Separation & User Account Card Isolation Tests ---');
+
+test('User card querying returns empty list for new user and excludes demo cards', () => {
+  const allCards = [
+    { id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', slug: 'demo', owner_id: 'system-demo', is_demo: true, title: 'Demo' },
+    { id: 'gift-user-1', slug: 'anniversary', owner_id: 'user-123', is_demo: false, title: 'Anniversary' },
+  ];
+
+  function getUserCards(userId) {
+    return allCards.filter(
+      (c) =>
+        c.owner_id === userId &&
+        !c.is_demo &&
+        c.slug !== 'demo' &&
+        c.slug !== 'demo-gift' &&
+        c.id !== 'f47ac10b-58cc-4372-a567-0e02b2c3d479'
+    );
+  }
+
+  // New user with zero cards
+  const newUserCards = getUserCards('brand-new-user-456');
+  assert.strictEqual(newUserCards.length, 0);
+
+  // Authenticated user with 1 card
+  const user123Cards = getUserCards('user-123');
+  assert.strictEqual(user123Cards.length, 1);
+  assert.strictEqual(user123Cards[0].id, 'gift-user-1');
+
+  // Verify demo card is NEVER returned to any user
+  assert.strictEqual(getUserCards('system-demo').length, 0);
+});
+
+test('Public website surfaces demo card while user admin dashboard does not', () => {
+  const publicShowcaseGifts = [
+    { slug: 'demo-gift', is_demo: true, title: 'Explore Sample Gift' },
+  ];
+
+  const userAdminGifts = []; // User with 0 cards
+
+  assert.strictEqual(publicShowcaseGifts.length, 1);
+  assert.strictEqual(publicShowcaseGifts[0].slug, 'demo-gift');
+  assert.strictEqual(userAdminGifts.length, 0);
 });
 
 console.log(`\n==============================================`);

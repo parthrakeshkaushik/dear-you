@@ -16,7 +16,7 @@ envContent.split('\n').forEach(line => {
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
 const DEMO_GIFT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-const DEMO_PASSWORD = 'show';
+const DEMO_PASSWORD = 'special';
 const DEMO_PASSWORD_HASH = bcrypt.hashSync(DEMO_PASSWORD, 10);
 
 async function cleanupAndSeedDemo() {

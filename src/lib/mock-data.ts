@@ -227,7 +227,7 @@ export const MOCK_AUDIT_LOGS: DeveloperAuditLog[] = [
 export const MOCK_GIFTS: Record<string, Gift> = {
   'demo-gift': {
     id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
-    owner_id: 'u-101',
+    owner_id: 'system-demo',
     recipient_name: 'Ananya',
     title: 'A Little Universe for Ananya',
     slug: 'demo-gift',
@@ -236,8 +236,8 @@ export const MOCK_GIFTS: Record<string, Gift> = {
     selected_theme: 'dreamy',
     status: 'published',
     is_demo: true,
-    password_hash: '$2a$10$IFQY0xiDMZHPzug70DTzheADu5FvyvsfplxWuuCG.I0D1HJ5EGyqm', // bcrypt hash of "show"
-    password_hint: 'show',
+    password_hash: '$2a$10$7wymEdevn11T5O05b33POemyToURis6.BQODyUor4/yUZWle9VJu6', // bcrypt hash of "special"
+    password_hint: 'special',
     password_version: 1,
     expiry_enabled: false,
     expiry_timezone: 'Asia/Kolkata',

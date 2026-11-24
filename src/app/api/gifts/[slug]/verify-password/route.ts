@@ -71,13 +71,15 @@ export async function POST(
 
     // Password verification logic
     let isMatch = false;
-    if (isDemo && password === 'show') {
+    const cleanPassword = (password || '').trim();
+
+    if (isDemo && (cleanPassword.toLowerCase() === 'special' || cleanPassword === 'special')) {
       isMatch = true;
     } else if (gift.password_hash) {
-      isMatch = await verifyPassword(password, gift.password_hash);
+      isMatch = await verifyPassword(cleanPassword, gift.password_hash);
     } else {
       // Fallback for demo cards without explicit hash
-      isMatch = isDemo && (password === 'show' || password === 'special');
+      isMatch = isDemo && (cleanPassword.toLowerCase() === 'special');
     }
 
     if (!isMatch) {

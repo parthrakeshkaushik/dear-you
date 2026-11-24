@@ -32,10 +32,32 @@ import { Gift as GiftType } from '@/types/gift';
 type FilterTab = 'all' | 'published' | 'draft' | 'expired' | 'paused';
 
 export default function AdminGiftsManagementPage() {
-  const [gifts, setGifts] = useState<GiftType[]>(Object.values(MOCK_GIFTS));
+  const [gifts, setGifts] = useState<GiftType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Fetch strictly the authenticated user's genuine cards (excludes demo and other users' cards)
+  React.useEffect(() => {
+    async function fetchUserCards() {
+      try {
+        const res = await fetch('/api/gifts');
+        if (res.ok) {
+          const data = await res.json();
+          setGifts(data.gifts || []);
+        } else {
+          setGifts([]);
+        }
+      } catch {
+        setGifts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchUserCards();
+  }, []);
 
   // Modal States
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -348,201 +370,219 @@ export default function AdminGiftsManagementPage() {
 
       {/* Gifts List */}
       <div className="space-y-4">
-        {filteredGifts.map((gift) => {
-          const themeDef =
-            gift.selected_theme !== 'custom'
-              ? THEME_PRESETS[gift.selected_theme]
-              : null;
-
-          const isExpired = checkIsExpired(gift);
-
-          return (
-            <div
-              key={gift.id}
-              className={`p-5 sm:p-6 rounded-2xl bg-white border transition-all flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-sm ${
-                isExpired ? 'border-rose-200/80 bg-rose-50/15' : 'border-black/5 shadow-xs'
-              }`}
-            >
-              {/* Left Details */}
-              <div className="space-y-2 max-w-xl">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-100">
-                    {gift.event_type}
-                  </span>
-
-                  {/* Status Badges */}
-                  <span
-                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                      isExpired
-                        ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold'
-                        : gift.moderation_status === 'paused'
-                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                        : gift.status === 'published'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-stone-100 text-stone-700 border border-stone-200'
-                    }`}
-                  >
-                    {isExpired
-                      ? 'EXPIRED'
-                      : gift.moderation_status === 'paused'
-                      ? 'PAUSED'
-                      : gift.status.toUpperCase()}
-                  </span>
-
-                  {(gift.is_demo === true || gift.slug === 'demo' || gift.slug === 'demo-gift') && (
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                      OFFICIAL DEMO
-                    </span>
-                  )}
-
-                  <span className="text-xs text-platform-muted">
-                    Theme: <strong className="text-platform-dark font-medium">{themeDef?.name || 'Custom'}</strong>
-                  </span>
-
-                  {/* Download count if recipient downloaded */}
-                  {gift.download_count && gift.download_count > 0 ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      <Download className="w-3 h-3" />
-                      <span>{gift.download_count} offline saves</span>
-                    </span>
-                  ) : null}
-
-                  {/* Provenance badge if copied */}
-                  {gift.source_gift_id && (
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
-                      Duplicated Copy
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="font-serif text-lg sm:text-xl font-medium text-platform-dark">
-                  {gift.title}
-                </h3>
-
-                <div className="flex flex-wrap items-center gap-3 text-xs text-platform-muted">
-                  <span>Recipient: <strong className="text-platform-dark font-medium">{gift.recipient_name}</strong></span>
-                  <span>•</span>
-                  <span>URL Slug: <code className="bg-black/5 px-1.5 py-0.5 rounded text-[11px]">/g/{gift.slug}</code></span>
-                  {gift.expiry_enabled && gift.expires_at && (
-                    <>
-                      <span>•</span>
-                      <span className={`flex items-center gap-1 font-medium ${isExpired ? 'text-rose-700' : 'text-amber-700'}`}>
-                        <Clock className="w-3 h-3" />
-                        <span>
-                          {isExpired ? 'Expired on: ' : 'Expires: '}
-                          {formatDateTimeZone(gift.expires_at, gift.expiry_timezone)}
-                        </span>
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Action Buttons */}
-              <div className="flex items-center flex-wrap gap-2 pt-4 md:pt-0 border-t md:border-t-0 border-black/5">
-                {/* 1. REPUBLISH OPTION (Prominently surfaced for Expired cards) */}
-                {isExpired && (
-                  <button
-                    onClick={() => openRepublishModal(gift)}
-                    className="px-3.5 py-2 rounded-xl bg-platform-violet text-white text-xs font-semibold hover:bg-platform-violet/90 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-98"
-                    title="Republish Expired Gift"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Republish Card</span>
-                  </button>
-                )}
-
-                {/* 2. DUPLICATE / COPY CARD OPTION */}
-                <button
-                  onClick={() => openDuplicateModal(gift)}
-                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
-                  title="Duplicate as New Independent Card"
-                >
-                  <Copy className="w-4 h-4 text-platform-muted" />
-                  <span className="hidden sm:inline">Duplicate</span>
-                </button>
-
-                {/* 2.5 CHANGE PASSWORD WITH IMMEDIATE RECIPIENT SESSION REVOCATION */}
-                <button
-                  onClick={() => openChangePasswordModal(gift)}
-                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
-                  title="Change Password & Invalidate Recipient Sessions"
-                >
-                  <Lock className="w-4 h-4 text-platform-muted" />
-                  <span className="hidden sm:inline">Password</span>
-                </button>
-
-                {/* 3. COPY LINK */}
-                <button
-                  onClick={() => handleCopyUrl(gift.slug)}
-                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
-                  title="Copy Gift Link"
-                >
-                  {copiedSlug === gift.slug ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-600" />
-                      <span className="text-emerald-600">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink className="w-4 h-4 text-platform-muted" />
-                      <span className="hidden sm:inline">Copy Link</span>
-                    </>
-                  )}
-                </button>
-
-                {/* 4. PREVIEW */}
-                <Link
-                  href={`/g/${gift.slug}/preview`}
-                  target="_blank"
-                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium"
-                  title="Creator Preview"
-                >
-                  <Eye className="w-4 h-4 text-platform-muted" />
-                  <span className="hidden sm:inline">Preview</span>
-                </Link>
-
-                {/* 5. EDIT CARD */}
-                <Link
-                  href={`/admin/create?edit=${gift.id}`}
-                  className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium"
-                  title="Edit Card"
-                >
-                  <Edit3 className="w-4 h-4 text-platform-muted" />
-                  <span className="hidden sm:inline">Edit</span>
-                </Link>
-
-                {/* 6. PUBLISH / UNPUBLISH TOGGLE (Only for non-expired cards) */}
-                {!isExpired && (
-                  <button
-                    onClick={() => handleTogglePublish(gift.id)}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                      gift.status === 'published'
-                        ? 'bg-amber-100/70 text-amber-900 hover:bg-amber-200'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                    }`}
-                  >
-                    {gift.status === 'published' ? 'Unpublish' : 'Publish'}
-                  </button>
-                )}
-
-                {/* 7. DELETE */}
-                <button
-                  onClick={() => setDeleteConfirmId(gift.id)}
-                  className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                  title="Delete Gift"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-
-        {filteredGifts.length === 0 && (
-          <div className="p-12 text-center rounded-2xl bg-white border border-black/5 text-platform-muted text-xs">
-            No gifts found in "{activeTab}" view.
+        {isLoading ? (
+          <div className="p-16 text-center bg-white rounded-3xl border border-black/5">
+            <div className="w-8 h-8 rounded-full border-2 border-platform-violet border-t-transparent animate-spin mx-auto mb-2" />
+            <p className="text-xs text-platform-muted">Loading your cards...</p>
           </div>
+        ) : gifts.length === 0 ? (
+          <div className="text-center py-16 px-4 bg-white rounded-3xl border border-black/5 shadow-xs">
+            <div className="w-16 h-16 rounded-2xl bg-purple-50 text-platform-violet mx-auto flex items-center justify-center mb-4 shadow-2xs">
+              <Gift className="w-8 h-8" />
+            </div>
+            <h2 className="font-serif text-2xl font-normal text-platform-dark mb-2">
+              My Cards
+            </h2>
+            <p className="text-xs sm:text-sm text-platform-muted max-w-md mx-auto mb-6 leading-relaxed">
+              You haven&apos;t created any cards yet. Start with our editable sample and create something special.
+            </p>
+            <Link
+              href="/admin/create"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-platform-dark text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Create Your First Card</span>
+            </Link>
+          </div>
+        ) : filteredGifts.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-white border border-black/5 text-platform-muted text-xs">
+            No gifts found in &quot;{activeTab}&quot; view.
+          </div>
+        ) : (
+          filteredGifts.map((gift) => {
+            const themeDef =
+              gift.selected_theme !== 'custom'
+                ? THEME_PRESETS[gift.selected_theme]
+                : null;
+
+            const isExpired = checkIsExpired(gift);
+
+            return (
+              <div
+                key={gift.id}
+                className={`p-5 sm:p-6 rounded-2xl bg-white border transition-all flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-sm ${
+                  isExpired ? 'border-rose-200/80 bg-rose-50/15' : 'border-black/5 shadow-xs'
+                }`}
+              >
+                {/* Left Details */}
+                <div className="space-y-2 max-w-xl">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-100">
+                      {gift.event_type}
+                    </span>
+
+                    {/* Status Badges */}
+                    <span
+                      className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                        isExpired
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300 font-bold'
+                          : gift.moderation_status === 'paused'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : gift.status === 'published'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-stone-100 text-stone-700 border border-stone-200'
+                      }`}
+                    >
+                      {isExpired
+                        ? 'EXPIRED'
+                        : gift.moderation_status === 'paused'
+                        ? 'PAUSED'
+                        : gift.status.toUpperCase()}
+                    </span>
+
+                    <span className="text-xs text-platform-muted">
+                      Theme: <strong className="text-platform-dark font-medium">{themeDef?.name || 'Custom'}</strong>
+                    </span>
+
+                    {/* Download count if recipient downloaded */}
+                    {gift.download_count && gift.download_count > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <Download className="w-3 h-3" />
+                        <span>{gift.download_count} offline saves</span>
+                      </span>
+                    ) : null}
+
+                    {/* Provenance badge if copied */}
+                    {gift.source_gift_id && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
+                        Duplicated Copy
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="font-serif text-lg sm:text-xl font-medium text-platform-dark">
+                    {gift.title}
+                  </h3>
+
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-platform-muted">
+                    <span>Recipient: <strong className="text-platform-dark font-medium">{gift.recipient_name}</strong></span>
+                    <span>•</span>
+                    <span>URL Slug: <code className="bg-black/5 px-1.5 py-0.5 rounded text-[11px]">/g/{gift.slug}</code></span>
+                    {gift.expiry_enabled && gift.expires_at && (
+                      <>
+                        <span>•</span>
+                        <span className={`flex items-center gap-1 font-medium ${isExpired ? 'text-rose-700' : 'text-amber-700'}`}>
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            {isExpired ? 'Expired on: ' : 'Expires: '}
+                            {formatDateTimeZone(gift.expires_at, gift.expiry_timezone)}
+                          </span>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Action Buttons */}
+                <div className="flex items-center flex-wrap gap-2 pt-4 md:pt-0 border-t md:border-t-0 border-black/5">
+                  {/* 1. REPUBLISH OPTION (Prominently surfaced for Expired cards) */}
+                  {isExpired && (
+                    <button
+                      onClick={() => openRepublishModal(gift)}
+                      className="px-3.5 py-2 rounded-xl bg-platform-violet text-white text-xs font-semibold hover:bg-platform-violet/90 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-98"
+                      title="Republish Expired Gift"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Republish Card</span>
+                    </button>
+                  )}
+
+                  {/* 2. DUPLICATE / COPY CARD OPTION */}
+                  <button
+                    onClick={() => openDuplicateModal(gift)}
+                    className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                    title="Duplicate as New Independent Card"
+                  >
+                    <Copy className="w-4 h-4 text-platform-muted" />
+                    <span className="hidden sm:inline">Duplicate</span>
+                  </button>
+
+                  {/* 2.5 CHANGE PASSWORD WITH IMMEDIATE RECIPIENT SESSION REVOCATION */}
+                  <button
+                    onClick={() => openChangePasswordModal(gift)}
+                    className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                    title="Change Password & Invalidate Recipient Sessions"
+                  >
+                    <Lock className="w-4 h-4 text-platform-muted" />
+                    <span className="hidden sm:inline">Password</span>
+                  </button>
+
+                  {/* 3. COPY LINK */}
+                  <button
+                    onClick={() => handleCopyUrl(gift.slug)}
+                    className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                    title="Copy Gift Link"
+                  >
+                    {copiedSlug === gift.slug ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span className="text-emerald-600">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="w-4 h-4 text-platform-muted" />
+                        <span className="hidden sm:inline">Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* 4. PREVIEW */}
+                  <Link
+                    href={`/g/${gift.slug}/preview`}
+                    target="_blank"
+                    className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium"
+                    title="Creator Preview"
+                  >
+                    <Eye className="w-4 h-4 text-platform-muted" />
+                    <span className="hidden sm:inline">Preview</span>
+                  </Link>
+
+                  {/* 5. EDIT CARD */}
+                  <Link
+                    href={`/admin/create?edit=${gift.id}`}
+                    className="p-2.5 rounded-xl border border-black/10 hover:bg-black/5 text-platform-dark transition-colors inline-flex items-center gap-1.5 text-xs font-medium"
+                    title="Edit Card"
+                  >
+                    <Edit3 className="w-4 h-4 text-platform-muted" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Link>
+
+                  {/* 6. PUBLISH / UNPUBLISH TOGGLE (Only for non-expired cards) */}
+                  {!isExpired && (
+                    <button
+                      onClick={() => handleTogglePublish(gift.id)}
+                      className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                        gift.status === 'published'
+                          ? 'bg-amber-100/70 text-amber-900 hover:bg-amber-200'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      }`}
+                    >
+                      {gift.status === 'published' ? 'Unpublish' : 'Publish'}
+                    </button>
+                  )}
+
+                  {/* 7. DELETE */}
+                  <button
+                    onClick={() => setDeleteConfirmId(gift.id)}
+                    className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Delete Gift"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 

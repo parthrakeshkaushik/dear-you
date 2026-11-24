@@ -99,10 +99,10 @@ export function PasswordGate({
           <div className="mt-4 p-3.5 rounded-2xl bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/25 text-xs text-[var(--theme-text)]">
             <div className="font-semibold text-[var(--theme-primary)] flex items-center justify-center gap-1.5 mb-1">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Showcase Demonstration Card</span>
+              <span>Public Demonstration Card</span>
             </div>
             <p className="text-xs">
-              <strong>Password hint: <code className="bg-black/10 dark:bg-white/10 px-2 py-0.5 rounded font-mono font-bold text-[var(--theme-primary)]">show</code></strong>
+              <strong>Demo password: <code className="bg-black/10 dark:bg-white/10 px-2 py-0.5 rounded font-mono font-bold text-[var(--theme-primary)]">special</code></strong>
             </p>
           </div>
         )}
