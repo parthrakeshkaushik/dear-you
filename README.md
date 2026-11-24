@@ -40,6 +40,16 @@ Every gift has its own aesthetic universe defined via CSS design tokens:
 - The recipient sees a graceful, theme-matching farewell closing screen with custom administrator notes.
 - Administrator can extend, republish, or edit expired gifts at any time.
 
+### 5. Live Creator Preview & Memory Wall
+- **Live Creator Preview System (`/admin/create`)**: Two-panel split-screen studio on desktop (42% form editor / 58% live synchronized recipient preview) and persistent drawer on mobile with viewport simulation (desktop, tablet, mobile) and instant reactivity.
+- **Memory Wall (`/g/[slug]`)**: Interactive hanging photo wall with 7 custom decorative frame styles (Polaroid, Vintage Wood, Modern Minimal, Golden Luxury, Pastel Elegance, Scrapbook Craft, Theme Custom), realistic physics-inspired sway, pushpins, and shared-element lightbox viewer (`PhotoViewerModal`) with keyboard, swipe, and scroll restoration.
+
+### 6. Developer Dashboard & Owner Console (`/developer/*`)
+- **Role-Based Access Control**: Strict multi-tier separation between Developers, Gift Creators, and Recipients.
+- **Platform Analytics**: Aggregate user growth, category distribution, theme adoption, retention funnels, and device breakdown.
+- **Audit-Logged Content Inspection**: Legally compliant, un-truncated gift content and photograph inspection under explicit user consent.
+- **Developer Audit Trail**: Immutable log of developer inspection and user management actions.
+
 ---
 
 ## 🛡️ Security Architecture
@@ -118,7 +128,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ### 4. Database Setup (Supabase)
-Run the SQL migration located at `supabase/migrations/20261124000000_create_dear_you_schema.sql` in the Supabase SQL Editor. This initializes all tables, foreign keys, RLS policies, and storage bucket settings.
+Run the SQL migrations in order in your Supabase SQL Editor:
+1. `supabase/migrations/20261124000000_create_dear_you_schema.sql` (Core tables, RLS policies, storage bucket)
+2. `supabase/migrations/20261124000001_memory_wall_enhancements.sql` (Frame styles, memory wall configs)
+3. `supabase/migrations/20261124000002_developer_console_and_audit_logs.sql` (RBAC, audit logs, policy acceptance, platform activity)
 
 ### 5. Running the Application
 ```bash
