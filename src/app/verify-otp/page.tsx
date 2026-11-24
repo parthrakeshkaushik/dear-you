@@ -278,9 +278,6 @@ function VerifyOtpContent() {
           <p className="text-[11px] text-stone-600 mt-2 font-mono">
             Enter 6 digits or paste complete code
           </p>
-          <p className="text-[10px] text-stone-400 mt-1 font-mono">
-            Sandbox test code: <span className="font-semibold text-platform-violet">123456</span>
-          </p>
         </div>
 
         {/* Messages */}

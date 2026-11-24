@@ -11,6 +11,9 @@ import {
   Lock,
   FileText,
   AlertCircle,
+  Mail,
+  Smartphone,
+  Server,
 } from 'lucide-react';
 import { AUTHORIZED_DEVELOPERS } from '@/lib/mock-data';
 
@@ -136,6 +139,45 @@ export default function DeveloperSettingsPage() {
             )}
           </div>
         </form>
+
+        {/* Live OTP Delivery Gateway Status */}
+        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
+              <Server className="w-4 h-4 text-emerald-400" />
+              <span>Real-World OTP Delivery Gateways (Email & SMS)</span>
+            </h3>
+            <span className="text-[11px] font-mono text-indigo-300 font-medium">
+              Multi-Provider Active
+            </span>
+          </div>
+
+          <p className="text-xs text-stone-400 leading-relaxed">
+            Dear You supports authentic OTP delivery to user inboxes and cellular devices through direct SMTP (Gmail, Brevo, Resend) and SMS Gateways (Fast2SMS, Twilio).
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+            <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1.5">
+              <div className="flex items-center gap-2 text-white font-semibold">
+                <Mail className="w-4 h-4 text-purple-400" />
+                <span>Email OTP Delivery (SMTP / Resend)</span>
+              </div>
+              <p className="text-stone-400 text-[11px] leading-relaxed">
+                Configure <code>SMTP_HOST</code> and <code>SMTP_PASS</code> (e.g. Gmail App Password or Brevo) in <code>.env.local</code> or enable Custom SMTP in Supabase Dashboard to deliver real emails to user inboxes.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-1.5">
+              <div className="flex items-center gap-2 text-white font-semibold">
+                <Smartphone className="w-4 h-4 text-amber-400" />
+                <span>Mobile SMS Delivery (Fast2SMS / Twilio)</span>
+              </div>
+              <p className="text-stone-400 text-[11px] leading-relaxed">
+                Add <code>FAST2SMS_API_KEY</code> for Indian cellular networks or <code>TWILIO_ACCOUNT_SID</code> for global telecom SMS.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

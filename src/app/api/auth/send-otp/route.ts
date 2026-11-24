@@ -5,6 +5,7 @@ import { verifyCaptchaToken } from '@/lib/security/captcha';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
 import { isValidE164Phone, getPhoneBridgeEmail } from '@/lib/security/phone-utils';
 import { generateOtp, safeLogOtp } from '@/lib/security/otp-store';
+import { dispatchEmailOtp, dispatchSmsOtp } from '@/lib/security/otp-dispatcher';
 
 export async function POST(request: NextRequest) {
   try {
@@ -99,24 +100,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // If email method, try to trigger email dispatch
+    // Dispatch authentic email or SMS OTP
     if (method === 'email') {
-      const origin =
-        request.headers.get('origin') ||
-        process.env.NEXT_PUBLIC_APP_URL ||
-        'http://localhost:3000';
-
-      try {
-        await supabaseAdmin.auth.resend({
-          type: 'signup',
-          email: cleanId.toLowerCase(),
-          options: {
-            emailRedirectTo: `${origin}/auth/callback`,
-          },
-        });
-      } catch (err: any) {
-        console.warn('Supabase resend email note (handled gracefully):', err?.message);
-      }
+      await dispatchEmailOtp(
+        cleanId,
+        freshOtp,
+        user?.user_metadata?.display_name || 'Gift Creator'
+      );
+    } else if (method === 'mobile') {
+      await dispatchSmsOtp(cleanId, freshOtp);
     }
 
     return NextResponse.json({

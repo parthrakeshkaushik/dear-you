@@ -11,6 +11,7 @@ import {
 } from '@/lib/security/phone-utils';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
 import { generateOtp, safeUpsertAdminUser, safeLogOtp } from '@/lib/security/otp-store';
+import { dispatchEmailOtp, dispatchSmsOtp } from '@/lib/security/otp-dispatcher';
 
 export async function POST(request: NextRequest) {
   try {
@@ -146,23 +147,8 @@ export async function POST(request: NextRequest) {
         userId = createData?.user?.id || null;
       }
 
-      // Attempt Supabase email dispatch; catch and ignore SMTP rate limits safely
-      const origin =
-        request.headers.get('origin') ||
-        process.env.NEXT_PUBLIC_APP_URL ||
-        'http://localhost:3000';
-
-      try {
-        await supabaseAdmin.auth.resend({
-          type: 'signup',
-          email: cleanEmail,
-          options: {
-            emailRedirectTo: `${origin}/auth/callback`,
-          },
-        });
-      } catch (smtpErr: any) {
-        console.warn('Supabase SMTP send notice (handled gracefully):', smtpErr?.message);
-      }
+      // Dispatch authentic verification email with 6-digit OTP
+      await dispatchEmailOtp(cleanEmail, otpCode, displayName);
 
       // Upsert into admin_users safely with schema resilience
       if (userId) {
@@ -334,6 +320,9 @@ export async function POST(request: NextRequest) {
           ip_address: ip,
         });
       }
+
+      // Dispatch authentic SMS with 6-digit OTP
+      await dispatchSmsOtp(e164Phone, otpCode);
 
       return NextResponse.json({
         success: true,
