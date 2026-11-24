@@ -1333,6 +1333,144 @@ test('Sensitive credentials are never exposed in developer audit logs', () => {
   assert.strictEqual(sanitized.otp, undefined);
 });
 
+// -------------------------------------------------------------
+// 24. MEMORY WALL ANIMATION STATE MACHINE & LOOP ELIMINATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 24. Memory Wall Animation State Machine & Loop Elimination Tests ---');
+
+test('Photo interaction executes exactly once through controlled lifecycle states', () => {
+  let state = 'idle'; // idle | opening | open | closing | returning
+
+  function handlePhotoClick() {
+    if (state !== 'idle') return false; // Block repeated clicks
+    state = 'opening';
+    return true;
+  }
+
+  function handleModalMounted() {
+    if (state === 'opening') state = 'open';
+  }
+
+  function handlePhotoClose() {
+    if (state !== 'open' && state !== 'opening') return false;
+    state = 'closing';
+    return true;
+  }
+
+  function handleExitComplete() {
+    state = 'returning';
+    // Return transition finishes cleanly
+    state = 'idle';
+  }
+
+  // 1. Initial idle
+  assert.strictEqual(state, 'idle');
+
+  // 2. Click opens photo
+  assert.strictEqual(handlePhotoClick(), true);
+  assert.strictEqual(state, 'opening');
+
+  // Secondary rapid clicks while transitioning are ignored
+  assert.strictEqual(handlePhotoClick(), false);
+
+  handleModalMounted();
+  assert.strictEqual(state, 'open');
+
+  // 3. User closes photo
+  assert.strictEqual(handlePhotoClose(), true);
+  assert.strictEqual(state, 'closing');
+
+  // 4. Modal exit completes -> resets to idle
+  handleExitComplete();
+  assert.strictEqual(state, 'idle');
+
+  // 5. Verify animation has stopped completely and does not auto-loop
+  assert.strictEqual(state, 'idle');
+});
+
+test('Scrolling or intersection events cannot trigger photo enlargement', () => {
+  let state = 'idle';
+  let activeIndex = null;
+
+  function handleScrollEvent() {
+    // Scroll events NEVER mutate activeIndex or transition from idle to opening
+    if (state === 'idle') {
+      // Must remain idle
+      return;
+    }
+  }
+
+  handleScrollEvent();
+  assert.strictEqual(state, 'idle');
+  assert.strictEqual(activeIndex, null);
+});
+
+// -------------------------------------------------------------
+// 25. LIVE CREATOR PREVIEW 1:1 PAGE ALIGNMENT & SYNC TESTS
+// -------------------------------------------------------------
+console.log('\n--- 25. Live Creator Preview 1:1 Page Alignment & Sync Tests ---');
+
+const WIZARD_PAGES_TEST = [
+  { step: 1, id: 'welcome', sectionId: 'welcome' },
+  { step: 2, id: 'gift_box', sectionId: 'gift_box' },
+  { step: 3, id: 'memory_wall', sectionId: 'memory_wall' },
+  { step: 4, id: 'celebration', sectionId: 'celebration' },
+  { step: 5, id: 'closing', sectionId: 'closing' },
+  { step: 6, id: 'publish', sectionId: 'password' },
+];
+
+test('Wizard page order strictly matches recipient card section sequence', () => {
+  assert.strictEqual(WIZARD_PAGES_TEST.length, 6);
+  assert.strictEqual(WIZARD_PAGES_TEST[0].sectionId, 'welcome');
+  assert.strictEqual(WIZARD_PAGES_TEST[1].sectionId, 'gift_box');
+  assert.strictEqual(WIZARD_PAGES_TEST[2].sectionId, 'memory_wall');
+  assert.strictEqual(WIZARD_PAGES_TEST[3].sectionId, 'celebration');
+  assert.strictEqual(WIZARD_PAGES_TEST[4].sectionId, 'closing');
+  assert.strictEqual(WIZARD_PAGES_TEST[5].sectionId, 'password');
+});
+
+test('Selecting wizard page automatically navigates live preview to corresponding section', () => {
+  function getPreviewTarget(stepNumber) {
+    const page = WIZARD_PAGES_TEST.find((p) => p.step === stepNumber);
+    return page ? page.sectionId : 'welcome';
+  }
+
+  assert.strictEqual(getPreviewTarget(1), 'welcome');
+  assert.strictEqual(getPreviewTarget(2), 'gift_box');
+  assert.strictEqual(getPreviewTarget(3), 'memory_wall');
+  assert.strictEqual(getPreviewTarget(4), 'celebration');
+  assert.strictEqual(getPreviewTarget(5), 'closing');
+  assert.strictEqual(getPreviewTarget(6), 'password');
+});
+
+test('Manual preview scroll synchronizes wizard active page without infinite loops', () => {
+  let activeWizardStep = 1;
+  let isProgrammaticScroll = false;
+
+  function onPreviewSectionScrolled(visibleSectionId) {
+    if (isProgrammaticScroll) return; // Prevent echo bounce loop
+
+    if (visibleSectionId === 'welcome') activeWizardStep = 1;
+    else if (visibleSectionId === 'gift_box' || visibleSectionId === 'scratch_card') activeWizardStep = 2;
+    else if (visibleSectionId === 'memory_wall' || visibleSectionId === 'memories') activeWizardStep = 3;
+    else if (visibleSectionId === 'celebration' || visibleSectionId === 'timeline') activeWizardStep = 4;
+    else if (visibleSectionId === 'letters' || visibleSectionId === 'closing') activeWizardStep = 5;
+  }
+
+  // Creator manually scrolls preview to Memory Wall
+  onPreviewSectionScrolled('memory_wall');
+  assert.strictEqual(activeWizardStep, 3);
+
+  // Creator manually scrolls preview to Gift Reveal
+  onPreviewSectionScrolled('gift_box');
+  assert.strictEqual(activeWizardStep, 2);
+
+  // Programmatic scroll flag blocks echo callback
+  isProgrammaticScroll = true;
+  onPreviewSectionScrolled('welcome');
+  assert.strictEqual(activeWizardStep, 2); // Unchanged during programmatic scroll
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

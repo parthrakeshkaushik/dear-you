@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Laptop,
   Tablet,
@@ -12,8 +11,8 @@ import {
   Sparkles,
   ExternalLink,
   RotateCcw,
-  Maximize2,
   X,
+  Radio,
 } from 'lucide-react';
 import { Gift as GiftType } from '@/types/gift';
 import { RecipientExperience } from '@/components/recipient/RecipientExperience';
@@ -23,6 +22,8 @@ import { ThemeContainer } from '@/components/recipient/ThemeContainer';
 
 interface LivePreviewPaneProps {
   gift: GiftType;
+  activeSectionId?: string;
+  onSectionVisible?: (sectionId: string) => void;
   onCloseMobilePreview?: () => void;
   isMobileDrawer?: boolean;
 }
@@ -32,16 +33,141 @@ export type PreviewStateMode = 'unlocked' | 'password_gate' | 'expired_closing';
 
 export function LivePreviewPane({
   gift,
+  activeSectionId = 'welcome',
+  onSectionVisible,
   onCloseMobilePreview,
   isMobileDrawer = false,
 }: LivePreviewPaneProps) {
   const [device, setDevice] = useState<PreviewDevice>('desktop');
   const [stateMode, setStateMode] = useState<PreviewStateMode>('unlocked');
-  const [previewKey, setPreviewKey] = useState(0); // For resetting interactions inside preview
+  const [previewKey, setPreviewKey] = useState(0);
+
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScrollRef = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleResetPreview = () => {
     setPreviewKey((k) => k + 1);
+    if (viewportRef.current) {
+      viewportRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
+
+  // Programmatic smooth scroll to target section inside the preview viewport
+  const scrollToSection = useCallback((sectionId: string) => {
+    if (!viewportRef.current) return;
+
+    // Handle special preview state modes
+    if (sectionId === 'password' || sectionId === 'password_gate') {
+      setStateMode('password_gate');
+      viewportRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (sectionId === 'closing_screen' || sectionId === 'expired_closing') {
+      setStateMode('expired_closing');
+      viewportRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Normal unlocked section navigation
+    if (stateMode !== 'unlocked') {
+      setStateMode('unlocked');
+    }
+
+    // Allow React a tick to render if stateMode was switched
+    setTimeout(() => {
+      if (!viewportRef.current) return;
+
+      const target =
+        (viewportRef.current.querySelector(`#${sectionId}`) as HTMLElement) ||
+        (viewportRef.current.querySelector(`[data-section-id="${sectionId}"]`) as HTMLElement);
+
+      if (target) {
+        isProgrammaticScrollRef.current = true;
+        const containerTop = viewportRef.current.getBoundingClientRect().top;
+        const targetTop = target.getBoundingClientRect().top;
+        const scrollOffset = targetTop - containerTop + viewportRef.current.scrollTop;
+
+        viewportRef.current.scrollTo({
+          top: Math.max(0, scrollOffset - 16),
+          behavior: 'smooth',
+        });
+
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 800);
+      }
+    }, 60);
+  }, [stateMode]);
+
+  // Synchronize preview when creator navigates active section in editor
+  useEffect(() => {
+    if (activeSectionId) {
+      scrollToSection(activeSectionId);
+    }
+  }, [activeSectionId, scrollToSection]);
+
+  // Bidirectional Synchronization: Detect currently visible section when creator scrolls preview
+  useEffect(() => {
+    const container = viewportRef.current;
+    if (!container || !onSectionVisible) return;
+
+    let throttleTimer: NodeJS.Timeout | null = null;
+
+    const handleScroll = () => {
+      if (isProgrammaticScrollRef.current) return;
+      if (stateMode !== 'unlocked') return;
+
+      if (throttleTimer) return;
+      throttleTimer = setTimeout(() => {
+        throttleTimer = null;
+        if (!container || isProgrammaticScrollRef.current) return;
+
+        const candidateSections = [
+          'welcome',
+          'gift_box',
+          'celebration',
+          'memory_wall',
+          'memories',
+          'timeline',
+          'quiz',
+          'scratch_card',
+          'secret_messages',
+          'future_wishes',
+          'letters',
+          'closing',
+        ];
+
+        const containerRect = container.getBoundingClientRect();
+        const probeY = containerRect.top + containerRect.height * 0.35;
+
+        let visibleSectionId: string | null = null;
+
+        for (const secId of candidateSections) {
+          const el = container.querySelector(`#${secId}`) as HTMLElement | null;
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            if (rect.top <= probeY && rect.bottom >= probeY) {
+              visibleSectionId = secId;
+              break;
+            }
+          }
+        }
+
+        if (visibleSectionId && onSectionVisible) {
+          onSectionVisible(visibleSectionId);
+        }
+      }, 100);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (throttleTimer) clearTimeout(throttleTimer);
+    };
+  }, [onSectionVisible, stateMode]);
 
   // Compute container dimensions based on selected device preview mode
   const getDeviceFrameStyles = () => {
@@ -70,8 +196,7 @@ export function LivePreviewPane({
               giftTitle={gift.title}
               recipientName={gift.recipient_name}
               passwordHint={gift.password_hint}
-              onSubmit={async (pwd) => {
-                // In preview mode: any password unlocks or informs creator
+              onSubmit={async () => {
                 return { success: true };
               }}
               onSuccess={() => setStateMode('unlocked')}
@@ -110,14 +235,17 @@ export function LivePreviewPane({
         {/* Left: Status Indicator & Mode Switcher */}
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-            <span>Live Sync Preview</span>
+            <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+            <span>Auto Sync Live</span>
           </div>
 
           {/* Experience View Switcher */}
           <div className="inline-flex items-center p-0.5 rounded-lg bg-black/40 border border-white/10 text-xs">
             <button
-              onClick={() => setStateMode('unlocked')}
+              onClick={() => {
+                setStateMode('unlocked');
+                if (activeSectionId) scrollToSection(activeSectionId);
+              }}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                 stateMode === 'unlocked'
                   ? 'bg-platform-violet text-white shadow-xs'
@@ -125,7 +253,7 @@ export function LivePreviewPane({
               }`}
               title="Preview main unlocked gift journey"
             >
-              Unlocked Gift
+              Gift Journey
             </button>
             <button
               onClick={() => setStateMode('password_gate')}
@@ -219,6 +347,7 @@ export function LivePreviewPane({
       {/* Main Preview Viewing Canvas Area */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 flex items-start justify-center bg-stone-950/80 relative">
         <div
+          ref={viewportRef}
           className={`${getDeviceFrameStyles()} bg-[var(--theme-bg)] transition-all duration-300 overflow-y-auto relative scroll-smooth`}
         >
           {renderPreviewContent()}

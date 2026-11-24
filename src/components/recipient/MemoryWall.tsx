@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Calendar, ZoomIn, Pin } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { ZoomIn } from 'lucide-react';
 import { MemoryItem, FrameStyle, FrameSize, MemoryWallConfig } from '@/types/gift';
 import { formatDate } from '@/lib/utils';
 import { PhotoViewerModal } from './PhotoViewerModal';
@@ -12,8 +12,37 @@ interface MemoryWallProps {
   wallConfig?: MemoryWallConfig;
 }
 
+export type MemoryAnimationState = 'idle' | 'opening' | 'open' | 'closing' | 'returning';
+
 export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
   const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
+  const [animationState, setAnimationState] = useState<MemoryAnimationState>('idle');
+  const shouldReduceMotion = useReducedMotion();
+
+  // Intentional click handler: only triggers from idle state
+  const handleOpenPhoto = useCallback((index: number) => {
+    if (animationState !== 'idle') return;
+    setAnimationState('opening');
+    setActivePhotoIndex(index);
+    requestAnimationFrame(() => {
+      setAnimationState('open');
+    });
+  }, [animationState]);
+
+  // Intentional close handler
+  const handleClosePhoto = useCallback(() => {
+    if (animationState !== 'open' && animationState !== 'opening') return;
+    setAnimationState('closing');
+  }, [animationState]);
+
+  // Clean exit transition completion: resets state to idle
+  const handleExitComplete = useCallback(() => {
+    setAnimationState('returning');
+    setActivePhotoIndex(null);
+    requestAnimationFrame(() => {
+      setAnimationState('idle');
+    });
+  }, []);
 
   if (!memories || memories.length === 0) return null;
 
@@ -117,7 +146,7 @@ export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
           const styling = getFrameStyling(frameStyle);
           const sizeClass = getSizeClasses(frameSize);
 
-          // Calculate natural rotation angle: honors configured rotation or assigns alternating organic tilt
+          // Calculate natural rotation angle
           const naturalRotation =
             photo.rotation !== undefined && photo.rotation !== null
               ? photo.rotation
@@ -133,14 +162,10 @@ export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
           const swingDuration = 4.5 + (index % 3) * 0.8;
 
           return (
-            <motion.div
+            <div
               key={photo.id || index}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.7, delay: index * 0.08 }}
               className="relative flex flex-col items-center group cursor-pointer"
-              onClick={() => setActivePhotoIndex(index)}
+              onClick={() => handleOpenPhoto(index)}
             >
               {/* Hanging String & Pushpin Anchor */}
               <div className="flex flex-col items-center -mb-2 z-20 pointer-events-none">
@@ -159,26 +184,33 @@ export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
 
               {/* Framed Photo Container with Physics-Inspired Hanging Swing */}
               <motion.div
-                layoutId={`photo-frame-${photo.id}`}
                 style={{
                   originX: 0.5,
                   originY: 0,
                   rotate: naturalRotation,
                 }}
-                whileHover={{
-                  scale: 1.05,
-                  rotate: naturalRotation > 0 ? naturalRotation + 2 : naturalRotation - 2,
-                  y: -6,
-                  transition: { duration: 0.25 },
-                }}
-                animate={{
-                  rotate: [
-                    naturalRotation,
-                    naturalRotation + 0.9,
-                    naturalRotation - 0.9,
-                    naturalRotation,
-                  ],
-                }}
+                whileHover={
+                  animationState === 'idle'
+                    ? {
+                        scale: 1.05,
+                        rotate: naturalRotation > 0 ? naturalRotation + 2 : naturalRotation - 2,
+                        y: -6,
+                        transition: { duration: 0.25 },
+                      }
+                    : undefined
+                }
+                animate={
+                  animationState === 'idle' && !shouldReduceMotion
+                    ? {
+                        rotate: [
+                          naturalRotation,
+                          naturalRotation + 0.9,
+                          naturalRotation - 0.9,
+                          naturalRotation,
+                        ],
+                      }
+                    : { rotate: naturalRotation }
+                }
                 transition={{
                   repeat: Infinity,
                   duration: swingDuration,
@@ -218,18 +250,19 @@ export function MemoryWall({ memories = [], wallConfig }: MemoryWallProps) {
                   )}
                 </div>
               </motion.div>
-            </motion.div>
+            </div>
           );
         })}
       </div>
 
-      {/* Shared Interactive Photo Lightbox Modal */}
+      {/* Shared Interactive Photo Lightbox Modal with Predictable Lifecycle */}
       <PhotoViewerModal
-        isOpen={activePhotoIndex !== null}
+        isOpen={activePhotoIndex !== null && animationState !== 'returning' && animationState !== 'idle'}
         photos={memories}
         currentIndex={activePhotoIndex ?? 0}
-        onClose={() => setActivePhotoIndex(null)}
+        onClose={handleClosePhoto}
         onNavigate={(newIdx) => setActivePhotoIndex(newIdx)}
+        onExitComplete={handleExitComplete}
       />
     </section>
   );
