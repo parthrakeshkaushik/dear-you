@@ -3722,6 +3722,115 @@ test('Printable PDF export eliminates modal overlay repetition and formats dedic
   );
 });
 
+// -------------------------------------------------------------
+// 46. SCRATCH CARD CONTRAST & DYNAMIC THEME-AWARE PALETTE TESTS
+// -------------------------------------------------------------
+console.log('\n--- 46. Scratch Card Contrast & Dynamic Theme-Aware Palette Tests ---');
+
+test('Scratch Card contrast calculation and dynamic surface adaptation', async () => {
+  const { getRelativeLuminance, getContrastRatio, getScratchCardPalette } = await import(
+    '../src/lib/theme/scratch-card-theme.ts'
+  );
+
+  // 1. Pale cream / ivory reveal surface (e.g. Ananya Dreamy demo card)
+  const creamPalette = getScratchCardPalette({ themeId: 'dreamy' });
+  assert.strictEqual(creamPalette.isDarkSurface, false);
+  assert.strictEqual(creamPalette.textColor, '#2E1065', 'Cream surface must use deep violet text');
+  assert.strictEqual(creamPalette.contrastRatio >= 12, true, 'Contrast on cream surface must exceed 12:1');
+  // Never white or pale lavender on cream!
+  assert.strictEqual(creamPalette.textColor !== '#F5F3FF', true);
+  assert.strictEqual(creamPalette.textColor !== '#FFFFFF', true);
+
+  // 2. White reveal surface
+  const whitePalette = getScratchCardPalette({ customRevealBg: '#FFFFFF' });
+  assert.strictEqual(whitePalette.isDarkSurface, false);
+  assert.strictEqual(whitePalette.textColor, '#111827', 'White surface must use charcoal text');
+  assert.strictEqual(whitePalette.contrastRatio >= 15, true, 'Contrast on white surface must exceed 15:1');
+
+  // 3. Dark purple reveal surface
+  const darkPurplePalette = getScratchCardPalette({ customRevealBg: '#1E1138', themeId: 'dreamy' });
+  assert.strictEqual(darkPurplePalette.isDarkSurface, true);
+  assert.strictEqual(darkPurplePalette.textColor, '#F5F3FF', 'Dark purple surface must use soft lavender/white text');
+  assert.strictEqual(darkPurplePalette.contrastRatio >= 12, true, 'Contrast on dark purple must exceed 12:1');
+
+  // 4. Black / midnight reveal surface
+  const midnightPalette = getScratchCardPalette({ customRevealBg: '#090D16' });
+  assert.strictEqual(midnightPalette.isDarkSurface, true);
+  assert.strictEqual(
+    midnightPalette.textColor === '#FFFFFF' || midnightPalette.textColor === '#F5F3FF',
+    true,
+    'Midnight surface must use white or light lavender text'
+  );
+  assert.strictEqual(midnightPalette.contrastRatio >= 15, true, 'Contrast on midnight must exceed 15:1');
+
+  // 5. Pastel pink reveal surface
+  const pinkPalette = getScratchCardPalette({ customRevealBg: '#FDF2F4' });
+  assert.strictEqual(pinkPalette.isDarkSurface, false);
+  assert.strictEqual(pinkPalette.textColor, '#3B1220', 'Pastel pink surface must use deep plum text');
+  assert.strictEqual(pinkPalette.contrastRatio >= 10, true, 'Contrast on pink must exceed 10:1');
+
+  // 6. Gold / yellow reveal surface
+  const goldPalette = getScratchCardPalette({ customRevealBg: '#FEF08A' });
+  assert.strictEqual(goldPalette.isDarkSurface, false);
+  assert.strictEqual(goldPalette.textColor, '#2A1810', 'Gold surface must use dark espresso text');
+  assert.strictEqual(goldPalette.contrastRatio >= 10, true, 'Contrast on gold must exceed 10:1');
+});
+
+test('ScratchCardSection component and recipient experience integration', () => {
+  const scratchCardCode = fs.readFileSync('src/components/recipient/ScratchCardSection.tsx', 'utf8');
+  const recipientExpCode = fs.readFileSync('src/components/recipient/RecipientExperience.tsx', 'utf8');
+  const offlineCardCode = fs.readFileSync('src/lib/download/generate-offline-card.ts', 'utf8');
+  const printKeepsakeCode = fs.readFileSync('src/components/recipient/PrintKeepsakeView.tsx', 'utf8');
+
+  // Verify ScratchCardSection uses dynamic palette
+  assert.strictEqual(
+    scratchCardCode.includes('getScratchCardPalette') &&
+    scratchCardCode.includes('palette.revealBg') &&
+    scratchCardCode.includes('palette.textColor'),
+    true,
+    'ScratchCardSection must apply dynamic theme-aware palette colors'
+  );
+
+  // Verify no hardcoded text-[var(--theme-text)] on cream surface
+  assert.strictEqual(
+    scratchCardCode.includes('dark:from-zinc-900'),
+    false,
+    'ScratchCardSection must not use Tailwind dark: prefixes that conflict with gift themes'
+  );
+
+  // Verify state persistence across reloads via sessionStorage
+  assert.strictEqual(
+    scratchCardCode.includes('sessionStorage.getItem(storageKey)') &&
+    scratchCardCode.includes('sessionStorage.setItem(storageKey'),
+    true,
+    'ScratchCardSection must persist revealed state in sessionStorage across page refreshes'
+  );
+
+  // Verify RecipientExperience passes themeId and isPreview
+  assert.strictEqual(
+    recipientExpCode.includes('themeId={gift.selected_theme}') &&
+    recipientExpCode.includes('themeConfig={gift.theme_config}'),
+    true,
+    'RecipientExperience must pass gift theme information to ScratchCardSection'
+  );
+
+  // Verify offline card generator applies contrasting palette
+  assert.strictEqual(
+    offlineCardCode.includes('getScratchCardPalette') &&
+    offlineCardCode.includes('scratchPalette.textColor') &&
+    offlineCardCode.includes('scratchPalette.revealBg'),
+    true,
+    'Offline card generator must use dynamic scratchPalette with readable contrast'
+  );
+
+  // Verify printable PDF export renders high-contrast text
+  assert.strictEqual(
+    printKeepsakeCode.includes('text-[#2E1065] print:text-black'),
+    true,
+    'PrintKeepsakeView must render revealed scratch message with high contrast'
+  );
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

@@ -195,10 +195,10 @@ export function PrintKeepsakeView({ gift, autoPrint = false }: PrintKeepsakeView
 
               {gift.scratch_card_hidden_text && (
                 <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200 print:bg-stone-50 print:border-stone-300">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-800 block mb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-900 block mb-1">
                     Scratch Card Secret Message
                   </span>
-                  <p className="font-serif text-sm italic text-stone-800 leading-relaxed">
+                  <p className="font-serif text-sm font-medium italic text-[#2E1065] print:text-black leading-relaxed">
                     &ldquo;{gift.scratch_card_hidden_text}&rdquo;
                   </p>
                 </div>

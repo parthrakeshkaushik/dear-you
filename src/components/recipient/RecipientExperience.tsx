@@ -466,7 +466,14 @@ export function RecipientExperience({
             case 'scratch_card':
               return (
                 <div key="scratch_card" id="scratch_card">
-                  <ScratchCardSection hiddenMessage={gift.scratch_card_hidden_text} />
+                  <ScratchCardSection
+                    hiddenMessage={gift.scratch_card_hidden_text}
+                    themeId={gift.selected_theme}
+                    themeConfig={gift.theme_config}
+                    giftId={gift.id}
+                    slug={gift.slug}
+                    isPreview={isPreview}
+                  />
                 </div>
               );
 

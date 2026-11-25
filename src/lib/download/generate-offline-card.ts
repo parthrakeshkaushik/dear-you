@@ -1,5 +1,6 @@
 import { Gift } from '@/types/gift';
 import { THEME_PRESETS } from '@/config/themes';
+import { getScratchCardPalette } from '@/lib/theme/scratch-card-theme';
 
 /**
  * Escapes HTML characters to prevent XSS in generated offline HTML.
@@ -32,6 +33,11 @@ export function generateOfflineCardHtml(gift: Gift): string {
   const giftBoxMessage = escapeHtml(gift.gift_box_message || 'May your journey ahead be filled with laughter, wonder, and dreams taking flight.');
   const scratchMessage = escapeHtml(gift.scratch_card_hidden_text || 'You bring so much light into the lives of everyone around you. Never stop shining!');
   const closingMessage = escapeHtml(gift.closing_message || 'Some connections and memories are too special to ever fade. Thank you for being in this story.');
+
+  const scratchPalette = getScratchCardPalette({
+    themeId: gift.selected_theme,
+    themeConfig: gift.theme_config,
+  });
 
   // Pre-render memories
   const memories = gift.memories || [];
@@ -347,27 +353,40 @@ export function generateOfflineCardHtml(gift: Gift): string {
       max-width: 460px;
       margin: 0 auto;
       text-align: center;
-      border-radius: 20px;
-      background: rgba(0,0,0,0.02);
-      border: 2px dashed var(--border);
-      padding: 28px 20px;
+      border-radius: 24px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      padding: 24px;
       cursor: pointer;
       position: relative;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.06);
     }
     .scratch-cover {
-      background: var(--primary);
-      color: #fff;
-      padding: 24px;
-      border-radius: 16px;
-      font-weight: 500;
-      transition: opacity 0.4s;
+      background: linear-gradient(135deg, #D4AF37 0%, #E8E8E8 25%, #C0C0C0 50%, #F5E6AB 75%, #A9A9A9 100%);
+      color: #261938;
+      padding: 28px 20px;
+      border-radius: 18px;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      transition: all 0.3s ease;
+    }
+    .scratch-cover:hover {
+      filter: brightness(1.05);
+      transform: scale(0.995);
     }
     .scratch-hidden-content {
       display: none;
-      font-size: 15px;
-      line-height: 1.7;
-      color: var(--text);
-      padding: 10px;
+      font-family: var(--font-handwriting);
+      font-size: 22px;
+      font-weight: 600;
+      line-height: 1.6;
+      background: ${scratchPalette.revealBg};
+      color: ${scratchPalette.textColor};
+      border: 1px solid ${scratchPalette.revealBorder};
+      border-radius: 18px;
+      padding: 28px 24px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);
     }
     .scratch-container.scratched .scratch-cover {
       display: none;
@@ -788,15 +807,15 @@ export function generateOfflineCardHtml(gift: Gift): string {
     <!-- Scratch Card Experience -->
     <section class="section-block">
       <div class="section-header">
-        <span class="section-subtitle">Scratch Card</span>
-        <h2 class="section-title">Scratch for a Secret Wish</h2>
+        <span class="section-subtitle">A Playful Mystery</span>
+        <h2 class="section-title">Golden Scratch Card</h2>
       </div>
       <div class="scratch-container" onclick="this.classList.add('scratched')">
         <div class="scratch-cover">
-          <span>✨ Click to scratch and reveal your secret message ✨</span>
+          <span>✨ Click to scratch and reveal your secret note ✨</span>
         </div>
         <div class="scratch-hidden-content">
-          <p>"${scratchMessage}"</p>
+          <p style="color: ${scratchPalette.textColor};">&ldquo;${scratchMessage}&rdquo;</p>
         </div>
       </div>
     </section>
