@@ -89,9 +89,13 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
     <div className="min-h-screen bg-[#090D16] text-[#E2E8F0] flex flex-col md:flex-row antialiased">
       {/* Mobile Header */}
       <header className="md:hidden flex items-center justify-between px-5 py-4 bg-[#0F172A] border-b border-white/10 sticky top-0 z-40">
-        <Link href="/developer" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-mono font-bold text-sm">
-            DY
+        <Link href="/developer" className="flex items-center gap-2.5 group">
+          <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center overflow-hidden p-1">
+            <img
+              src="/brand/logo.png"
+              alt="Dear You"
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <span className="font-serif text-base font-semibold tracking-tight text-white block leading-none">
@@ -119,9 +123,17 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
       >
         <div>
           {/* Logo & Platform Info */}
-          <div className="hidden md:flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center font-mono font-bold text-base shadow-inner">
-              <Code2 className="w-5 h-5" />
+          <Link
+            href="/"
+            title="Return to Homepage"
+            className="hidden md:flex items-center gap-3 mb-8 group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shadow-inner overflow-hidden p-1">
+              <img
+                src="/brand/logo.png"
+                alt="Dear You"
+                className="w-full h-full object-contain transition-transform group-hover:scale-105"
+              />
             </div>
             <div>
               <span className="font-serif text-lg font-semibold tracking-tight text-white block leading-tight">
@@ -131,7 +143,7 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
                 Developer Console
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Developer Authorization Badge */}
           <div className="mb-6 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center gap-2.5">

@@ -135,10 +135,12 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-4 sm:p-6">
       {/* Top Header */}
       <header className="max-w-6xl w-full mx-auto flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-platform-violet/15 flex items-center justify-center text-platform-violet shadow-xs">
-            <Gift className="w-4 h-4" />
-          </div>
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
+          />
           <span className="font-serif text-xl font-semibold tracking-tight">Dear You</span>
         </Link>
         <Link
@@ -157,9 +159,13 @@ export default function SignUpPage() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative overflow-hidden"
         >
-          {/* Header Icon */}
-          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-platform-violet mx-auto flex items-center justify-center mb-4 shadow-xs">
-            <Sparkles className="w-6 h-6" />
+          {/* Official Brand Logo */}
+          <div className="w-16 h-16 mx-auto flex items-center justify-center mb-3">
+            <img
+              src="/brand/logo.png"
+              alt="Dear You"
+              className="w-14 h-14 object-contain"
+            />
           </div>
 
           <h2 className="font-serif text-2xl font-normal text-platform-dark mb-1">

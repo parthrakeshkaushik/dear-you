@@ -2,10 +2,64 @@ import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "Dear You — A Personalized Digital Gifting Platform",
-  description: "Create, customize, and share immersive, password-protected digital gifts for birthdays, anniversaries, and special moments.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes('localhost')
+      ? process.env.NEXT_PUBLIC_APP_URL
+      : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'https://dear-you-wine.vercel.app'
+  ),
+  title: {
+    default: "Dear You",
+    template: "%s | Dear You",
+  },
+  description: "One platform. Unlimited gifts. Every gift tells a different story.",
+  applicationName: "Dear You",
+  authors: [{ name: "Dear You Team" }],
+  generator: "Next.js",
+  keywords: [
+    "digital gifts",
+    "keepsake",
+    "memory wall",
+    "personalized gift",
+    "virtual gift",
+    "interactive letter",
+  ],
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-48x48.png", sizes: "48x48", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: ["/favicon.ico"],
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://dearyou.me",
+    siteName: "Dear You",
+    title: "Dear You",
+    description: "One platform. Unlimited gifts. Every gift tells a different story.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Dear You — One platform. Unlimited gifts. Every gift tells a different story.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Dear You",
+    description: "One platform. Unlimited gifts. Every gift tells a different story.",
+    images: ["/og-image.png"],
   },
 };
 
@@ -24,6 +78,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>

@@ -104,7 +104,12 @@ function VerifyEmailContent() {
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-6">
       {/* Top Header */}
       <div className="max-w-md w-full mx-auto flex items-center justify-between">
-        <Link href="/" className="inline-flex items-center gap-2 group">
+        <Link href="/" className="inline-flex items-center gap-2.5 group">
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
+          />
           <span className="font-serif text-xl text-[#1A1625] font-semibold tracking-tight">
             Dear You
           </span>

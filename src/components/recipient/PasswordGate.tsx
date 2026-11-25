@@ -62,9 +62,11 @@ export function PasswordGate({
           className="inline-flex items-center gap-2 sm:gap-2.5 group cursor-pointer active:scale-95 transition-transform"
           title="Dear You Homepage"
         >
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[var(--theme-primary)]/15 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-primary)] shadow-2xs group-hover:scale-105 group-hover:bg-[var(--theme-primary)]/25 transition-all">
-            <Gift className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-          </div>
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-8 h-8 sm:w-9 sm:h-9 object-contain group-hover:scale-105 transition-transform"
+          />
           <span className="font-serif text-lg sm:text-xl font-semibold tracking-tight text-[var(--theme-text)] group-hover:opacity-85 transition-opacity">
             Dear You
           </span>

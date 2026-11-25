@@ -13,14 +13,20 @@ export default function LandingPage() {
 
       {/* Navigation Header */}
       <header className="relative z-10 w-full max-w-6xl mx-auto px-6 py-8 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-platform-violet/15 flex items-center justify-center text-platform-violet shadow-sm">
-            <Gift className="w-4 h-4" />
-          </div>
+        <Link
+          href="/"
+          className="flex items-center gap-3 group transition-transform active:scale-98"
+          title="Dear You"
+        >
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-8 h-8 sm:w-9 sm:h-9 object-contain transition-transform group-hover:scale-105"
+          />
           <span className="font-serif text-2xl tracking-tight text-[#1A1625] font-semibold">
             Dear You
           </span>
-        </div>
+        </Link>
 
         <nav className="flex items-center gap-3">
           <Link

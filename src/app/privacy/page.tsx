@@ -11,10 +11,12 @@ export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-6">
       <header className="max-w-4xl w-full mx-auto flex items-center justify-between pb-8 border-b border-black/5">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-platform-violet/15 flex items-center justify-center text-platform-violet shadow-xs">
-            <Gift className="w-4 h-4" />
-          </div>
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
+          />
           <span className="font-serif text-xl font-semibold tracking-tight">Dear You</span>
         </Link>
         <Link

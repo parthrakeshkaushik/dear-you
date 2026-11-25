@@ -93,8 +93,13 @@ function ForgotPasswordContent() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-6">
       <div className="max-w-md w-full mx-auto flex items-center justify-between">
-        <Link href="/" className="font-serif text-xl font-semibold tracking-tight">
-          Dear You
+        <Link href="/" className="inline-flex items-center gap-2.5 group">
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
+          />
+          <span className="font-serif text-xl font-semibold tracking-tight">Dear You</span>
         </Link>
         <Link
           href="/login"
@@ -110,8 +115,12 @@ function ForgotPasswordContent() {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full mx-auto my-8 p-7 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center"
       >
-        <div className="w-14 h-14 rounded-2xl bg-purple-50 text-platform-violet border border-purple-100 flex items-center justify-center mx-auto mb-4 shadow-xs">
-          <KeyRound className="w-7 h-7 text-platform-violet" />
+        <div className="w-14 h-14 mx-auto mb-3 flex items-center justify-center">
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-12 h-12 object-contain"
+          />
         </div>
 
         <span className="text-[10px] font-semibold tracking-wider text-platform-violet uppercase font-mono bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">

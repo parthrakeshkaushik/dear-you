@@ -26,9 +26,9 @@ export function CreateYourOwnGiftSection() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-[var(--theme-primary)] to-transparent opacity-70" />
 
           {/* Dear You Brand Badge */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 text-xs font-medium text-[var(--theme-primary)] mb-5">
-            <Gift className="w-3.5 h-3.5" />
-            <span>Dear You</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 text-xs font-medium text-[var(--theme-primary)] mb-5">
+            <img src="/brand/logo.png" alt="Dear You" className="w-4 h-4 object-contain" />
+            <span className="font-serif font-semibold">Dear You</span>
           </div>
 
           {/* Main Heading */}

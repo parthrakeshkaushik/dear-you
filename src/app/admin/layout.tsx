@@ -344,10 +344,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     <div className="min-h-screen bg-[#F6F5F2] text-[#1A1625] flex flex-col md:flex-row">
       {/* Mobile Header */}
       <header className="md:hidden flex items-center justify-between px-5 py-4 bg-white border-b border-black/5 sticky top-0 z-40">
-        <Link href="/admin" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-platform-violet/20 text-platform-violet flex items-center justify-center">
-            <Gift className="w-4 h-4" />
-          </div>
+        <Link href="/admin" className="flex items-center gap-2.5 group">
+          <img
+            src="/brand/logo.png"
+            alt="Dear You"
+            className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
+          />
           <span className="font-serif text-lg font-semibold tracking-tight">Dear You</span>
         </Link>
         <button
@@ -367,19 +369,25 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       >
         <div>
           {/* Logo & Platform Info */}
-          <div className="hidden md:flex items-center gap-2.5 mb-8">
-            <div className="w-9 h-9 rounded-xl bg-platform-violet/15 text-platform-violet flex items-center justify-center shadow-xs">
-              <Gift className="w-5 h-5" />
-            </div>
+          <Link
+            href="/"
+            title="Return to Homepage"
+            className="hidden md:flex items-center gap-2.5 mb-8 group"
+          >
+            <img
+              src="/brand/logo.png"
+              alt="Dear You"
+              className="w-9 h-9 object-contain transition-transform group-hover:scale-105"
+            />
             <div>
-              <span className="font-serif text-xl font-semibold tracking-tight block leading-tight">
+              <span className="font-serif text-xl font-semibold tracking-tight block leading-tight text-platform-dark">
                 Dear You
               </span>
               <span className="text-[10px] text-platform-muted uppercase tracking-wider font-medium">
                 Admin Console
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Navigation Links */}
           <nav className="space-y-1">

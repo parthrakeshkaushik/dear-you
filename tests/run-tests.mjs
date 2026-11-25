@@ -2626,6 +2626,92 @@ test('Admin layout renders profile card in sidebar with clickable dropdown optio
   assert.strictEqual(layoutCode.includes('truncate'), true, 'Long email and name must truncate gracefully in sidebar');
 });
 
+// -------------------------------------------------------------
+// 36. BRAND IDENTITY, FAVICON & ASSET INTEGRATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 36. Brand Identity, Favicon & Asset Integration Tests ---');
+
+test('All required brand assets exist in public and public/brand with non-zero byte size', () => {
+  const requiredPublicFiles = [
+    'public/favicon.ico',
+    'public/favicon.svg',
+    'public/favicon-16x16.png',
+    'public/favicon-32x32.png',
+    'public/favicon-48x48.png',
+    'public/apple-touch-icon.png',
+    'public/android-chrome-192x192.png',
+    'public/android-chrome-512x512.png',
+    'public/site.webmanifest',
+    'public/og-image.png',
+    'public/logo.png',
+    'public/brand/logo.png',
+    'public/brand/logo-full.png',
+    'public/brand/og-image.png',
+    'src/app/favicon.ico',
+    'src/app/icon.png',
+    'src/app/apple-icon.png',
+    'src/app/opengraph-image.png',
+  ];
+
+  for (const filePath of requiredPublicFiles) {
+    assert.strictEqual(fs.existsSync(filePath), true, `Missing expected brand asset: ${filePath}`);
+    const stats = fs.statSync(filePath);
+    assert.strictEqual(stats.size > 0, true, `Asset must not be empty (0 bytes): ${filePath}`);
+  }
+});
+
+test('Root layout configures complete icons, OpenGraph, Twitter and PWA metadata', () => {
+  const layoutCode = fs.readFileSync('src/app/layout.tsx', 'utf8');
+
+  assert.strictEqual(layoutCode.includes('One platform. Unlimited gifts. Every gift tells a different story.'), true);
+  assert.strictEqual(layoutCode.includes('/favicon.ico'), true);
+  assert.strictEqual(layoutCode.includes('/favicon.svg'), true);
+  assert.strictEqual(layoutCode.includes('/favicon-32x32.png'), true);
+  assert.strictEqual(layoutCode.includes('/favicon-16x16.png'), true);
+  assert.strictEqual(layoutCode.includes('/apple-touch-icon.png'), true);
+  assert.strictEqual(layoutCode.includes('/site.webmanifest'), true);
+  assert.strictEqual(layoutCode.includes('/og-image.png'), true);
+});
+
+test('Website header and navigation integrates clickable brand logo navigating to /', () => {
+  const pageCode = fs.readFileSync('src/app/page.tsx', 'utf8');
+
+  assert.strictEqual(pageCode.includes('/brand/logo.png'), true, 'Landing page header must reference brand logo');
+  assert.strictEqual(pageCode.includes('href="/"'), true, 'Logo must navigate to homepage');
+});
+
+test('Authentication pages render consistent brand identity', () => {
+  const loginCode = fs.readFileSync('src/app/login/page.tsx', 'utf8');
+  const signupCode = fs.readFileSync('src/app/signup/page.tsx', 'utf8');
+  const forgotCode = fs.readFileSync('src/app/forgot-password/page.tsx', 'utf8');
+  const verifyEmailCode = fs.readFileSync('src/app/verify-email/page.tsx', 'utf8');
+  const verifyOtpCode = fs.readFileSync('src/app/verify-otp/page.tsx', 'utf8');
+
+  assert.strictEqual(loginCode.includes('/brand/logo.png'), true, 'Login page must display logo');
+  assert.strictEqual(signupCode.includes('/brand/logo.png'), true, 'Signup page must display logo');
+  assert.strictEqual(forgotCode.includes('/brand/logo.png'), true, 'Forgot password must display logo');
+  assert.strictEqual(verifyEmailCode.includes('/brand/logo.png'), true, 'Verify email must display logo');
+  assert.strictEqual(verifyOtpCode.includes('/brand/logo.png'), true, 'Verify OTP must display logo');
+});
+
+test('Creator dashboard and Developer console sidebars feature brand logo', () => {
+  const adminLayout = fs.readFileSync('src/app/admin/layout.tsx', 'utf8');
+  const devLayout = fs.readFileSync('src/app/developer/layout.tsx', 'utf8');
+
+  assert.strictEqual(adminLayout.includes('/brand/logo.png'), true, 'Admin layout must display brand logo');
+  assert.strictEqual(devLayout.includes('/brand/logo.png'), true, 'Developer layout must display brand logo');
+});
+
+test('Recipient experience features brand identity and clickable home navigation', () => {
+  const passwordGate = fs.readFileSync('src/components/recipient/PasswordGate.tsx', 'utf8');
+  const ctaSection = fs.readFileSync('src/components/recipient/CreateYourOwnGiftSection.tsx', 'utf8');
+  const expiryScreen = fs.readFileSync('src/components/recipient/ExpiryScreen.tsx', 'utf8');
+
+  assert.strictEqual(passwordGate.includes('/brand/logo.png'), true, 'Password gate must display logo');
+  assert.strictEqual(ctaSection.includes('/brand/logo.png'), true, 'Create gift CTA must display logo');
+  assert.strictEqual(expiryScreen.includes('/brand/logo.png'), true, 'Expiry screen must display logo');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);
