@@ -60,7 +60,7 @@ function ForgotPasswordContent() {
         }
       } else {
         setSuccessMessage(
-          data.message || 'If an account exists with this email address, a password reset link will be sent.'
+          data.message || 'If an account exists with this email address, password reset instructions will be sent.'
         );
       }
     } catch {

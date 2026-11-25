@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyCaptchaToken } from '@/lib/security/captcha';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
 import { isValidE164Phone, normalizePhoneNumber } from '@/lib/security/phone-utils';
+import { dispatchRecoveryEmail } from '@/lib/security/recovery-email';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,43 +56,115 @@ export async function POST(request: NextRequest) {
 
       const genericConfirmationResponse = {
         success: true,
-        message: 'If an account exists with this email address, a password reset link will be sent.',
+        message: 'If an account exists with this email address, password reset instructions will be sent.',
+      };
+
+      const maskEmail = (str: string) => {
+        const [u, d] = str.split('@');
+        if (!u || !d) return '***';
+        return `${u[0]}***${u[u.length - 1]}@${d}`;
       };
 
       try {
-        // Check account eligibility in admin_users table
-        const { data: dbUser } = await supabaseAdmin
-          .from('admin_users')
-          .select('id, email, status')
-          .ilike('email', email)
-          .maybeSingle();
+        const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
+        const redirectUrl = isLocal
+          ? `${origin}/reset-password`
+          : origin.includes('dear-you')
+          ? `${origin}/reset-password`
+          : 'https://dear-you-wine.vercel.app/reset-password';
 
-        // Account is eligible if present and not permanently suspended
-        const isEligible = Boolean(dbUser?.id && dbUser?.status !== 'suspended');
+        // 1. Check account suspension in admin_users table (correct column: account_status)
+        let isSuspended = false;
+        try {
+          const { data: dbUser } = await supabaseAdmin
+            .from('admin_users')
+            .select('id, email, account_status')
+            .ilike('email', email)
+            .maybeSingle();
 
-        if (isEligible) {
-          // Direct users to the dedicated /reset-password route on the active domain
-          const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
-          const redirectUrl = isLocal
-            ? `${origin}/reset-password`
-            : origin.includes('dear-you')
-            ? `${origin}/reset-password`
-            : 'https://dear-you-wine.vercel.app/reset-password';
+          if (dbUser && dbUser.account_status === 'suspended') {
+            isSuspended = true;
+          }
+        } catch (dbErr: any) {
+          console.warn('[AUTH_DIAGNOSTIC] admin_users lookup note:', dbErr?.message);
+        }
 
-          const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+        if (isSuspended) {
+          console.log(`[AUTH_DIAGNOSTIC] Recovery skipped for suspended account: ${maskEmail(email)}`);
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          return NextResponse.json(genericConfirmationResponse, { status: 200 });
+        }
+
+        // 2. Generate cryptographically signed recovery action link via Supabase Auth admin API
+        // If the email is UNREGISTERED, generateLink returns 404 (User with this email not found)
+        const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email,
+          options: {
+            redirectTo: redirectUrl,
+          },
+        });
+
+        if (linkErr) {
+          // If user does not exist: do not send email, do not create user or session
+          if (
+            linkErr.message?.toLowerCase().includes('not found') ||
+            (linkErr as any)?.status === 404
+          ) {
+            console.log(
+              `[AUTH_DIAGNOSTIC] Recovery requested for UNREGISTERED email: ${maskEmail(email)}. Skipped dispatch.`
+            );
+            // Simulate standard cryptographic delay to eliminate timing side-channel attacks
+            await new Promise((resolve) => setTimeout(resolve, 350));
+            return NextResponse.json(genericConfirmationResponse, { status: 200 });
+          }
+
+          console.error('[AUTH_DIAGNOSTIC] Recovery link generation error:', linkErr.message);
+          // Fallback: attempt standard Supabase recovery
+          await supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+          return NextResponse.json(genericConfirmationResponse, { status: 200 });
+        }
+
+        const actionLink = linkData?.properties?.action_link;
+        if (!actionLink) {
+          console.error('[AUTH_DIAGNOSTIC] No action_link returned by Supabase Auth for registered user');
+          await supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+          return NextResponse.json(genericConfirmationResponse, { status: 200 });
+        }
+
+        console.log(`[AUTH_DIAGNOSTIC] Verified registered account: ${maskEmail(email)}. Dispatching recovery email...`);
+
+        // 3. Dispatch recovery email via configured SMTP (Gmail / Custom SMTP)
+        const dispatchResult = await dispatchRecoveryEmail(email, actionLink);
+
+        // Record diagnostic audit log
+        try {
+          await supabaseAdmin.from('developer_audit_logs').insert({
+            action_type: 'password_recovery_requested',
+            details: {
+              targetEmailMasked: maskEmail(email),
+              provider: dispatchResult.provider,
+              deliveryStatus: dispatchResult.deliveryStatus,
+              messageId: dispatchResult.messageId || null,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        } catch {}
+
+        if (!dispatchResult.success) {
+          console.warn(
+            '[AUTH_DIAGNOSTIC] Primary SMTP dispatch failed. Attempting secondary Supabase Auth fallback...'
+          );
+          // Secondary fallback
+          const { error: fallbackErr } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
             redirectTo: redirectUrl,
           });
-
-          if (resetErr) {
-            console.error('[AUTH_DIAGNOSTIC] Supabase resetPasswordForEmail error:', resetErr.message);
+          if (fallbackErr) {
+            console.error('[AUTH_DIAGNOSTIC] Secondary resetPasswordForEmail error:', fallbackErr.message);
           }
-        } else {
-          // Simulate standard processing time to prevent timing side-channel enumeration attacks
-          await new Promise((resolve) => setTimeout(resolve, 350));
         }
       } catch (err: any) {
-        // Securely log technical diagnostics without leaking details to public caller
-        console.error('[AUTH_DIAGNOSTIC] Error during password reset lookup:', err?.message || err);
+        console.error('[AUTH_DIAGNOSTIC] Error during password reset processing:', err?.message || err);
       }
 
       // Mandatory security requirement: Return the exact same generic message for both registered and unregistered accounts

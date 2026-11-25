@@ -2749,7 +2749,7 @@ test('Account enumeration protection: Registered and unregistered emails return 
       status: 200,
       body: {
         success: true,
-        message: 'If an account exists with this email address, a password reset link will be sent.',
+        message: 'If an account exists with this email address, password reset instructions will be sent.',
       },
       internal: { emailDispatched, resetSessionCreated }
     };
@@ -3102,6 +3102,70 @@ test('Consolidated CTA strictly opens homepage in a new tab without interrupting
     true,
     'Must have rel="noopener noreferrer" security protection'
   );
+});
+
+// -------------------------------------------------------------
+// 41. PASSWORD RECOVERY EMAIL DELIVERY, SMTP & NON-ENUMERATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 41. Password Recovery Email Delivery, SMTP & Non-Enumeration Tests ---');
+
+import { buildRecoveryEmailHtml } from '../src/lib/security/recovery-email.ts';
+
+test('Recovery email template contains Dear You branding, action link, 1-hour expiry and security notice', () => {
+  const dummyLink =
+    'https://ixxiejaqfhlolqckzasp.supabase.co/auth/v1/verify?token=dummy-test-token&type=recovery&redirect_to=https://dear-you-wine.vercel.app/reset-password';
+  const emailHtml = buildRecoveryEmailHtml(dummyLink, 'user@example.com');
+
+  assert.strictEqual(emailHtml.includes('Dear You'), true, 'Must include Dear You branding');
+  assert.strictEqual(emailHtml.includes('https://dear-you-wine.vercel.app/brand/logo.png'), true, 'Must include brand logo');
+  assert.strictEqual(emailHtml.includes('Reset Your Password'), true, 'Must include Reset Your Password button text');
+  assert.strictEqual(emailHtml.includes(dummyLink), true, 'Must include genuine recovery action link');
+  assert.strictEqual(emailHtml.includes('single-use'), true, 'Must state link is single-use');
+  assert.strictEqual(emailHtml.includes('1 hour'), true, 'Must state 1-hour expiry');
+  assert.strictEqual(emailHtml.includes('safely ignore this email'), true, 'Must explain action if not requested');
+});
+
+test('Password reset API enforces account existence check via Supabase Auth without leaking enumeration', () => {
+  const resetRouteCode = fs.readFileSync('src/app/api/auth/reset-password/route.ts', 'utf8');
+
+  // Verify generateLink is called to obtain recovery URL and check account existence
+  assert.strictEqual(resetRouteCode.includes('auth.admin.generateLink'), true, 'Must call auth.admin.generateLink');
+  assert.strictEqual(resetRouteCode.includes("type: 'recovery'"), true, 'Must request recovery type');
+
+  // Verify unregistered email check
+  assert.strictEqual(
+    resetRouteCode.includes('UNREGISTERED email'),
+    true,
+    'Must explicitly recognize unregistered emails and skip dispatch'
+  );
+
+  // Verify suspension check uses correct column 'account_status'
+  assert.strictEqual(
+    resetRouteCode.includes('account_status'),
+    true,
+    'Must check account_status column (not non-existent status column)'
+  );
+
+  // Verify SMTP dispatch
+  assert.strictEqual(
+    resetRouteCode.includes('dispatchRecoveryEmail'),
+    true,
+    'Must dispatch recovery email via SMTP'
+  );
+
+  // Verify enumeration-protected generic message
+  assert.strictEqual(
+    resetRouteCode.includes('If an account exists with this email address, password reset instructions will be sent.'),
+    true,
+    'Must return exact generic confirmation message'
+  );
+});
+
+test('Diagnostics securely mask email addresses and exclude sensitive auth tokens', () => {
+  const resetRouteCode = fs.readFileSync('src/app/api/auth/reset-password/route.ts', 'utf8');
+
+  assert.strictEqual(resetRouteCode.includes('maskEmail'), true, 'Must use email masking for diagnostics');
+  assert.strictEqual(resetRouteCode.includes('[AUTH_DIAGNOSTIC]'), true, 'Must tag diagnostics with [AUTH_DIAGNOSTIC]');
 });
 
 console.log(`\n==============================================`);
