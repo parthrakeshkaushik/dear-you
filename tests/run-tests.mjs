@@ -2647,7 +2647,6 @@ test('All required brand assets exist in public and public/brand with non-zero b
     'public/brand/logo.png',
     'public/brand/logo-full.png',
     'public/brand/og-image.png',
-    'src/app/favicon.ico',
     'src/app/icon.png',
     'src/app/apple-icon.png',
     'src/app/opengraph-image.png',

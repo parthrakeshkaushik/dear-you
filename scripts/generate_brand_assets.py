@@ -132,12 +132,10 @@ def generate_assets():
 
     ico_path_public = os.path.join(public_dir, 'favicon.ico')
     ico_path_brand = os.path.join(brand_dir, 'favicon.ico')
-    ico_path_app = os.path.join(app_dir, 'favicon.ico')
 
     # Pillow supports saving true multi-resolution ICO files
     ico_32.save(ico_path_public, format='ICO', sizes=[(16, 16), (32, 32), (48, 48)])
     shutil.copyfile(ico_path_public, ico_path_brand)
-    shutil.copyfile(ico_path_public, ico_path_app)
     print("Generated multi-resolution favicon.ico (16, 32, 48)")
 
     # 6. Generate SVG Favicon wrapper
