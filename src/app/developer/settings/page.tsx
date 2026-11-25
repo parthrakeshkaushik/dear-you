@@ -19,11 +19,11 @@ import {
   Sliders,
   Sparkles,
 } from 'lucide-react';
-import { AUTHORIZED_DEVELOPERS } from '@/lib/mock-data';
+import { AUTHORIZED_DEVELOPER_EMAILS } from '@/lib/auth/roles';
 import { DEFAULT_CONTENT_LIMITS, PlatformContentLimits } from '@/lib/config/content-limits';
 
 export default function DeveloperSettingsPage() {
-  const [developers, setDevelopers] = useState(AUTHORIZED_DEVELOPERS);
+  const [developers, setDevelopers] = useState<string[]>([...AUTHORIZED_DEVELOPER_EMAILS]);
   const [newDevEmail, setNewDevEmail] = useState('');
   const [termsVersion, setTermsVersion] = useState('v1.0');
   const [privacyVersion, setPrivacyVersion] = useState('v1.0');

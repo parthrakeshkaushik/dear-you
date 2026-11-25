@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper, logDeveloperAction } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
 import { getGiftWithChildCollections } from '@/lib/gifts/fetch-gift';
 
 interface RouteContext {
@@ -51,7 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         .select('id, email, display_name, account_status')
         .eq('id', gift.owner_id)
         .maybeSingle();
-      owner = ownerData || MOCK_USERS.find((u) => u.id === gift.owner_id);
+      owner = ownerData || null;
     }
 
     // Log the inspection action

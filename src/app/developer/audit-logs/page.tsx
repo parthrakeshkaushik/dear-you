@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   FileSearch,
   Search,
@@ -12,29 +12,41 @@ import {
   Camera,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
-import { MOCK_AUDIT_LOGS } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
+import { DeveloperAuditLog } from '@/types/user';
 
 export default function DeveloperAuditLogsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
-  const [logs, setLogs] = useState(MOCK_AUDIT_LOGS);
+  const [logs, setLogs] = useState<DeveloperAuditLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    async function fetchAuditLogs() {
-      try {
-        const res = await fetch('/api/developer/audit-logs');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.logs && data.logs.length > 0) {
-            setLogs(data.logs);
-          }
-        }
-      } catch {}
+  const fetchAuditLogs = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch('/api/developer/audit-logs');
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data.logs || []);
+      } else {
+        const errData = await res.json().catch(() => null);
+        setFetchError(errData?.error || 'Failed to load audit logs.');
+      }
+    } catch {
+      setFetchError('Unable to connect to the audit logs server.');
+    } finally {
+      setIsLoading(false);
     }
-    fetchAuditLogs();
   }, []);
+
+  useEffect(() => {
+    fetchAuditLogs();
+  }, [fetchAuditLogs]);
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =
@@ -110,7 +122,42 @@ export default function DeveloperAuditLogsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 font-sans">
-              {filteredLogs.map((log) => (
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <tr key={`log-skeleton-${idx}`} className="animate-pulse border-b border-white/5">
+                    <td className="py-4 px-4"><div className="h-3 bg-white/10 rounded w-24" /></td>
+                    <td className="py-4 px-4"><div className="h-3 bg-white/10 rounded w-36" /></td>
+                    <td className="py-4 px-4"><div className="h-5 bg-white/10 rounded-md w-28" /></td>
+                    <td className="py-4 px-4"><div className="h-3 bg-white/10 rounded w-32" /></td>
+                    <td className="py-4 px-4"><div className="h-3 bg-white/5 rounded w-20" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-4 bg-white/10 rounded-full w-16 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : fetchError ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <AlertCircle className="w-8 h-8 text-rose-400" />
+                      <p className="text-rose-300 text-xs font-mono">{fetchError}</p>
+                      <button
+                        onClick={fetchAuditLogs}
+                        type="button"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Retry</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-stone-500 text-xs font-mono">
+                    {searchQuery ? 'No audit records matching query.' : 'No audit records logged yet.'}
+                  </td>
+                </tr>
+              ) : (
+                filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-white/[0.02] transition-colors text-stone-300">
                   <td className="py-3.5 px-4 font-mono text-[11px] text-stone-400">
                     {formatDate(log.created_at)}
@@ -142,15 +189,7 @@ export default function DeveloperAuditLogsPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
-
-              {filteredLogs.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-stone-500 text-xs font-mono">
-                    No audit records matching query.
-                  </td>
-                </tr>
-              )}
+              )))}
             </tbody>
           </table>
         </div>

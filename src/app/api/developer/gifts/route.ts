@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
 
 export async function GET(request: NextRequest) {
   const authCheck = await getAuthenticatedDeveloper(request);
@@ -21,6 +20,10 @@ export async function GET(request: NextRequest) {
       .select('*')
       .order('created_at', { ascending: false });
 
+    if (gErr) {
+      console.error('[DEV_GIFTS_API] Error querying gifts:', gErr.message);
+    }
+
     // 2. Fetch users to map owner details
     const { data: usersData } = await supabaseAdmin
       .from('admin_users')
@@ -32,16 +35,8 @@ export async function GET(request: NextRequest) {
         usersMap.set(u.id, u);
       }
     }
-    for (const mu of MOCK_USERS) {
-      if (!usersMap.has(mu.id)) {
-        usersMap.set(mu.id, mu);
-      }
-    }
 
-    let gifts = giftsData || [];
-    if (gifts.length === 0) {
-      gifts = Object.values(MOCK_GIFTS);
-    }
+    const gifts = giftsData || [];
 
     const enhancedGifts = gifts.map((g: any) => {
       const owner = usersMap.get(g.owner_id);

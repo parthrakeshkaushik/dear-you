@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper, logDeveloperAction } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { MOCK_AUDIT_LOGS } from '@/lib/mock-data';
 
 export async function GET(request: NextRequest) {
   const authCheck = await getAuthenticatedDeveloper(request);
@@ -21,10 +20,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(200);
 
-    let logs = logsData || [];
-    if (logs.length === 0) {
-      logs = MOCK_AUDIT_LOGS as any;
-    }
+    const logs = logsData || [];
 
     return NextResponse.json({ logs });
   } catch (err: any) {

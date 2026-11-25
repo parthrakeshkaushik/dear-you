@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { notFound, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   ArrowLeft,
   User,
@@ -18,43 +18,175 @@ import {
   Sparkles,
   Camera,
   ExternalLink,
+  AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
-import { MOCK_USERS, MOCK_GIFTS } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
-import { AccountStatus } from '@/types/user';
+import { AccountStatus, PlatformUser } from '@/types/user';
+import { Gift as GiftType } from '@/types/gift';
+
+type ProfileViewState = 'idle' | 'loading' | 'success' | 'not_found' | 'error';
 
 export default function UserDetailPage() {
   const params = useParams();
-  const userId = params?.id as string;
+  const userId = (params?.id as string) || '';
 
-  const [user, setUser] = useState(MOCK_USERS.find((u) => u.id === userId));
-  const [userGifts, setUserGifts] = useState(Object.values(MOCK_GIFTS).filter((g) => g.owner_id === userId));
+  const [viewState, setViewState] = useState<ProfileViewState>('loading');
+  const [user, setUser] = useState<PlatformUser | null>(null);
+  const [userGifts, setUserGifts] = useState<GiftType[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusActionReason, setStatusActionReason] = useState('');
   const [actionSuccessNotice, setActionSuccessNotice] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  React.useEffect(() => {
-    async function fetchUserDetail() {
-      try {
-        const res = await fetch(`/api/developer/users/${userId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) setUser(data.user);
-          if (data.gifts) setUserGifts(data.gifts);
-        }
-      } catch {}
+  const fetchUserDetail = useCallback(async (targetUserId: string, signal?: AbortSignal) => {
+    if (!targetUserId) {
+      setViewState('not_found');
+      return;
     }
-    if (userId) fetchUserDetail();
-  }, [userId]);
 
-  if (!user) {
+    setViewState('loading');
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch(`/api/developer/users/${encodeURIComponent(targetUserId)}`, { signal });
+      if (res.status === 404) {
+        setViewState('not_found');
+        return;
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUser(data.user);
+          setUserGifts(data.gifts || []);
+          setViewState('success');
+          return;
+        } else {
+          setViewState('not_found');
+          return;
+        }
+      }
+
+      const errData = await res.json().catch(() => null);
+      setErrorMessage(errData?.error || `Server responded with HTTP ${res.status}.`);
+      setViewState('error');
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setErrorMessage('Network connection error while fetching user profile.');
+      setViewState('error');
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchUserDetail(userId, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [userId, fetchUserDetail]);
+
+  // 1. Loading State: Display skeleton indicator without premature not-found flash
+  if (viewState === 'loading' || viewState === 'idle') {
     return (
-      <div className="p-8 text-center space-y-4">
-        <p className="text-stone-400 text-sm">User record not found.</p>
-        <Link href="/developer/users" className="text-indigo-400 underline text-xs">
-          ← Back to Users Directory
-        </Link>
+      <div className="space-y-8 max-w-5xl animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+          <div>
+            <div className="h-3.5 bg-white/10 rounded w-36 mb-3" />
+            <div className="flex items-center gap-3">
+              <div className="h-8 bg-white/15 rounded-lg w-52" />
+              <div className="h-5 bg-white/10 rounded-full w-20" />
+            </div>
+            <div className="h-3 bg-white/5 rounded w-64 mt-2" />
+          </div>
+          <div className="h-9 bg-white/10 rounded-xl w-36" />
+        </div>
+
+        {/* Loading Indicator Pill */}
+        <div className="flex items-center justify-center p-6 rounded-2xl bg-[#0F172A] border border-white/10 text-stone-400 text-xs font-mono">
+          <Clock className="w-4 h-4 mr-2 animate-spin text-indigo-400" />
+          <span>Loading user profile...</span>
+        </div>
+
+        {/* Overview Grid Skeletons */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4">
+            <div className="h-5 bg-white/10 rounded w-32" />
+            <div className="space-y-3">
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+            </div>
+          </div>
+          <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 space-y-4">
+            <div className="h-5 bg-white/10 rounded w-32" />
+            <div className="space-y-3">
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+              <div className="h-3.5 bg-white/5 rounded w-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Not Found State: Definitive 404 response confirmed from backend
+  if (viewState === 'not_found' || !user) {
+    return (
+      <div className="p-12 text-center space-y-4 bg-[#0F172A] rounded-2xl border border-white/10 max-w-lg mx-auto my-12">
+        <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-400">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <h2 className="font-serif text-xl text-white font-normal">User Record Not Found</h2>
+        <p className="text-stone-400 text-xs font-mono max-w-sm mx-auto">
+          No registered user account exists with ID: <span className="text-stone-300 font-semibold">{userId || 'unknown'}</span>.
+        </p>
+        <div className="pt-2">
+          <Link
+            href="/developer/users"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Users Directory</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Error State: Network or server error with Retry option
+  if (viewState === 'error') {
+    return (
+      <div className="p-12 text-center space-y-4 bg-[#0F172A] rounded-2xl border border-white/10 max-w-lg mx-auto my-12">
+        <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <h2 className="font-serif text-xl text-white font-normal">Unable to Load User Profile</h2>
+        <p className="text-rose-300 text-xs font-mono max-w-sm mx-auto">
+          {errorMessage || 'An error occurred while connecting to the user directory database.'}
+        </p>
+        <div className="pt-3 flex items-center justify-center gap-3">
+          <button
+            onClick={() => fetchUserDetail(userId)}
+            type="button"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
+          <Link
+            href="/developer/users"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 text-xs font-medium transition-colors"
+          >
+            <span>Back to Directory</span>
+          </Link>
+        </div>
       </div>
     );
   }

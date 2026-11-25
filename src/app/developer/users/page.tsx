@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -17,34 +17,41 @@ import {
   Smartphone,
   ShieldAlert,
   MinusCircle,
+  RotateCcw,
 } from 'lucide-react';
-import { MOCK_USERS } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
-import { AccountStatus, RegistrationMethod } from '@/types/user';
+import { AccountStatus, RegistrationMethod, PlatformUser } from '@/types/user';
 
 export default function DeveloperUsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus | 'pending'>('all');
   const [methodFilter, setMethodFilter] = useState<'all' | RegistrationMethod>('all');
-  const [users, setUsers] = useState(MOCK_USERS);
+  const [users, setUsers] = useState<PlatformUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const res = await fetch('/api/developer/users');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.users && data.users.length > 0) {
-            setUsers(data.users);
-          }
-        }
-      } catch {} finally {
-        setIsLoading(false);
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch('/api/developer/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+      } else {
+        const errData = await res.json().catch(() => null);
+        setFetchError(errData?.error || 'Failed to load user directory.');
       }
+    } catch {
+      setFetchError('Unable to connect to the user directory server. Please check your network.');
+    } finally {
+      setIsLoading(false);
     }
-    fetchUsers();
   }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Filter users
   const filteredUsers = users.filter((user) => {
@@ -151,7 +158,50 @@ export default function DeveloperUsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 font-sans">
-              {filteredUsers.map((user) => {
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <tr key={`skeleton-${idx}`} className="animate-pulse border-b border-white/5">
+                    <td className="py-4 px-4">
+                      <div className="h-4 bg-white/10 rounded w-28 mb-1.5" />
+                      <div className="h-2.5 bg-white/5 rounded w-44" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-3 bg-white/10 rounded w-24 mb-1" />
+                      <div className="h-3 bg-white/5 rounded w-36" />
+                    </td>
+                    <td className="py-4 px-4"><div className="h-4 bg-white/10 rounded-full w-16" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-white/10 rounded-full w-16" /></td>
+                    <td className="py-4 px-4"><div className="h-3 bg-white/10 rounded w-20" /></td>
+                    <td className="py-4 px-4 text-center"><div className="h-3 bg-white/10 rounded w-10 mx-auto" /></td>
+                    <td className="py-4 px-4"><div className="h-4 bg-white/10 rounded-full w-16" /></td>
+                    <td className="py-4 px-4 text-right"><div className="h-7 bg-white/10 rounded-lg w-24 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : fetchError ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <AlertCircle className="w-8 h-8 text-rose-400" />
+                      <p className="text-rose-300 text-xs font-mono">{fetchError}</p>
+                      <button
+                        onClick={fetchUsers}
+                        type="button"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Retry</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-stone-500 text-xs font-mono">
+                    {searchQuery ? `No users matching "${searchQuery}"` : 'No registered users found in database.'}
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => {
                 const isEmailMethod = user.registration_method === 'email';
                 const isMobileMethod = user.registration_method === 'mobile';
 
@@ -282,15 +332,7 @@ export default function DeveloperUsersPage() {
                     </td>
                   </tr>
                 );
-              })}
-
-              {filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-stone-500 text-xs font-mono">
-                    No users matching "{searchQuery}"
-                  </td>
-                </tr>
-              )}
+              }))}
             </tbody>
           </table>
         </div>

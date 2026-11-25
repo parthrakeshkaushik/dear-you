@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { MOCK_USERS } from '@/lib/mock-data';
 
 export async function GET(request: NextRequest) {
   const authCheck = await getAuthenticatedDeveloper(request);
@@ -19,6 +18,14 @@ export async function GET(request: NextRequest) {
       .from('admin_users')
       .select('*')
       .order('created_at', { ascending: false });
+
+    if (uErr) {
+      console.error('[DEV_USERS_API] Error querying admin_users:', uErr.message);
+      return NextResponse.json(
+        { error: 'Failed to retrieve registered users from database.' },
+        { status: 500 }
+      );
+    }
 
     // Also get gift counts per user
     const { data: giftsData } = await supabaseAdmin
@@ -38,10 +45,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let users = usersData || [];
-    if (users.length === 0) {
-      users = MOCK_USERS as any;
-    }
+    const users = usersData || [];
 
     const enhancedUsers = users.map((u: any) => {
       const counts = giftCountsByOwner[u.id] || {

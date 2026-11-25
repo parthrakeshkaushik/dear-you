@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper, logDeveloperAction } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { MOCK_USERS, MOCK_GIFTS } from '@/lib/mock-data';
 
 interface RouteContext {
   params: {
@@ -19,23 +18,53 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const userId = params.id;
+  if (!userId) {
+    return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+  }
 
   try {
     const supabaseAdmin = createAdminClient();
 
-    // 1. Fetch user record
-    const { data: userRecord } = await supabaseAdmin
+    // 1. Fetch user record from admin_users
+    let { data: userRecord, error: uErr } = await supabaseAdmin
       .from('admin_users')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
 
-    const fallbackUser = MOCK_USERS.find((u) => u.id === userId);
-    const user = userRecord || fallbackUser;
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (uErr) {
+      console.error('[DEV_USER_DETAIL_API] Error looking up admin_users:', uErr.message);
     }
+
+    // Fallback check against Supabase Auth users if not yet in admin_users
+    if (!userRecord) {
+      try {
+        const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(userId);
+        if (authUserData?.user) {
+          const authUser = authUserData.user;
+          userRecord = {
+            id: authUser.id,
+            email: authUser.email || '',
+            display_name: authUser.user_metadata?.full_name || authUser.user_metadata?.display_name || authUser.email?.split('@')[0] || 'Registered User',
+            role: 'creator',
+            registration_method: authUser.phone ? 'mobile' : 'email',
+            account_status: 'active',
+            email_verified: Boolean(authUser.email_confirmed_at),
+            phone_verified: Boolean(authUser.phone_confirmed_at),
+            created_at: authUser.created_at,
+            last_active_at: authUser.last_sign_in_at || authUser.created_at,
+          };
+        }
+      } catch (authErr: any) {
+        console.warn('[DEV_USER_DETAIL_API] Auth user lookup note:', authErr?.message);
+      }
+    }
+
+    if (!userRecord) {
+      return NextResponse.json({ error: 'User record not found.' }, { status: 404 });
+    }
+
+    const user = userRecord;
 
     // 2. Fetch gifts owned by this user
     const { data: userGiftsData } = await supabaseAdmin
@@ -43,10 +72,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       .select('*')
       .eq('owner_id', userId);
 
-    const userGifts =
-      userGiftsData && userGiftsData.length > 0
-        ? userGiftsData
-        : Object.values(MOCK_GIFTS).filter((g) => g.owner_id === userId);
+    const userGifts = userGiftsData || [];
 
     // 3. Fetch policy acceptances
     const { data: policyData } = await supabaseAdmin

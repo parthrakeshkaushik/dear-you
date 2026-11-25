@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { MOCK_USERS, MOCK_GIFTS, MOCK_AUDIT_LOGS } from '@/lib/mock-data';
 
 export async function GET(request: NextRequest) {
   const authCheck = await getAuthenticatedDeveloper(request);
@@ -34,9 +33,21 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    const users = usersData && usersData.length > 0 ? usersData : MOCK_USERS;
-    const gifts = giftsData && giftsData.length > 0 ? giftsData : Object.values(MOCK_GIFTS);
-    const auditLogs = auditData && auditData.length > 0 ? auditData : MOCK_AUDIT_LOGS;
+    const users = usersData || [];
+    const gifts = giftsData || [];
+    const auditLogs = auditData || [];
+
+    const usersMap = new Map<string, any>();
+    users.forEach((u: any) => usersMap.set(u.id, u));
+
+    const enhancedGifts = gifts.map((g: any) => {
+      const owner = usersMap.get(g.owner_id);
+      return {
+        ...g,
+        owner_name: owner?.display_name || 'Creator',
+        owner_email: owner?.email || '',
+      };
+    });
 
     const totalUsers = users.length;
     const activeUsers = users.filter((u: any) => u.account_status === 'active').length;
@@ -63,7 +74,7 @@ export async function GET(request: NextRequest) {
         expiredGifts,
         themeCounts,
       },
-      recentGifts: gifts.slice(0, 5),
+      recentGifts: enhancedGifts.slice(0, 5),
       recentAuditLogs: auditLogs.slice(0, 8),
       developerEmail: authCheck.email,
     });

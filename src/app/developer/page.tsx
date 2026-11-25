@@ -20,24 +20,22 @@ import {
   Eye,
   Layers,
 } from 'lucide-react';
-import { MOCK_USERS, MOCK_GIFTS, MOCK_AUDIT_LOGS } from '@/lib/mock-data';
 import { THEME_PRESETS } from '@/config/themes';
 import { formatDate } from '@/lib/utils';
 
 export default function DeveloperOverviewPage() {
+  const [isLoading, setIsLoading] = React.useState(true);
   const [metrics, setMetrics] = React.useState({
-    totalUsers: MOCK_USERS.length,
-    activeUsers: MOCK_USERS.filter((u) => u.account_status === 'active').length,
-    totalGifts: Object.values(MOCK_GIFTS).length,
-    publishedGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'published').length,
-    draftGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'draft').length,
-    expiredGifts: Object.values(MOCK_GIFTS).filter((g) => {
-      return g.expiry_enabled && g.expires_at && Date.now() > new Date(g.expires_at).getTime();
-    }).length,
+    totalUsers: 0,
+    activeUsers: 0,
+    totalGifts: 0,
+    publishedGifts: 0,
+    draftGifts: 0,
+    expiredGifts: 0,
     themeCounts: {} as Record<string, number>,
   });
-  const [recentGifts, setRecentGifts] = React.useState(Object.values(MOCK_GIFTS).slice(0, 5));
-  const [recentAuditLogs, setRecentAuditLogs] = React.useState(MOCK_AUDIT_LOGS.slice(0, 8));
+  const [recentGifts, setRecentGifts] = React.useState<any[]>([]);
+  const [recentAuditLogs, setRecentAuditLogs] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     async function fetchOverview() {
@@ -49,7 +47,9 @@ export default function DeveloperOverviewPage() {
           if (data.recentGifts) setRecentGifts(data.recentGifts);
           if (data.recentAuditLogs) setRecentAuditLogs(data.recentAuditLogs);
         }
-      } catch {}
+      } catch {} finally {
+        setIsLoading(false);
+      }
     }
     fetchOverview();
   }, []);
@@ -65,7 +65,6 @@ export default function DeveloperOverviewPage() {
   } = metrics;
   const gifts = recentGifts;
   const auditLogs = recentAuditLogs;
-  const users = MOCK_USERS;
   const totalPhotosUploaded = gifts.reduce((acc: number, g: any) => acc + (g.memories?.length || 0), 0);
 
   return (
@@ -301,7 +300,8 @@ export default function DeveloperOverviewPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {gifts.map((gift) => {
-            const owner = users.find((u) => u.id === gift.owner_id);
+            const creatorName = gift.owner_name || 'Creator';
+            const creatorEmail = gift.owner_email ? ` (${gift.owner_email})` : '';
 
             return (
               <div
@@ -330,7 +330,7 @@ export default function DeveloperOverviewPage() {
 
                   <div className="mt-2 text-xs text-stone-400 space-y-0.5">
                     <p>Recipient: <strong className="text-stone-200">{gift.recipient_name}</strong></p>
-                    <p>Creator: <span className="text-stone-300">{owner?.display_name || 'Creator'} ({owner?.email || 'N/A'})</span></p>
+                    <p>Creator: <span className="text-stone-300">{creatorName}{creatorEmail}</span></p>
                     <p>Theme: <span className="text-indigo-300 font-mono">{gift.selected_theme}</span></p>
                     <p>Photos: <span className="text-stone-200 font-mono">{gift.memories?.length || 0} framed images</span></p>
                   </div>

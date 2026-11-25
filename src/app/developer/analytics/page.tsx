@@ -15,15 +15,17 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
-import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
-
 export default function DeveloperAnalyticsPage() {
   const [analytics, setAnalytics] = React.useState({
-    totalGifts: Object.values(MOCK_GIFTS).length,
-    publishedGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'published').length,
-    draftGifts: Object.values(MOCK_GIFTS).filter((g) => g.status === 'draft').length,
+    totalUsers: 0,
+    totalGifts: 0,
+    publishedGifts: 0,
+    draftGifts: 0,
     pausedGifts: 0,
     expiredGifts: 0,
+    totalPhotos: 0,
+    themeCounts: {} as Record<string, number>,
+    eventCounts: {} as Record<string, number>,
   });
 
   React.useEffect(() => {
@@ -39,15 +41,12 @@ export default function DeveloperAnalyticsPage() {
     fetchAnalytics();
   }, []);
 
-  const gifts = Object.values(MOCK_GIFTS);
-  const users = MOCK_USERS;
-
   const totalGifts = analytics.totalGifts;
   const publishedGifts = analytics.publishedGifts;
   const draftGifts = analytics.draftGifts;
   const publishedConversion = Math.round((publishedGifts / Math.max(totalGifts, 1)) * 100);
 
-  const totalPhotos = gifts.reduce((acc, g) => acc + (g.memories?.length || 0), 0);
+  const totalPhotos = analytics.totalPhotos || 0;
   const avgPhotosPerGift = (totalPhotos / Math.max(totalGifts, 1)).toFixed(1);
 
   return (

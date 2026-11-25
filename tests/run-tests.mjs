@@ -3268,6 +3268,134 @@ test('Auth callback route attaches session cookies directly to redirect response
   );
 });
 
+console.log('\n--- 43. Developer Console User Management Data Flash & Profile Race Condition Tests ---');
+
+test('Developer User Management directory eliminates mock users and provides robust loading & error states', () => {
+  const usersPageCode = fs.readFileSync('src/app/developer/users/page.tsx', 'utf8');
+  const usersRouteCode = fs.readFileSync('src/app/api/developer/users/route.ts', 'utf8');
+
+  // Verify mock users are completely absent from user directory frontend and backend API
+  assert.strictEqual(usersPageCode.includes('MOCK_USERS'), false, 'Frontend must not import or use MOCK_USERS');
+  assert.strictEqual(usersRouteCode.includes('MOCK_USERS'), false, 'API route must not import or fall back to MOCK_USERS');
+
+  // Verify initial state is empty
+  assert.strictEqual(
+    usersPageCode.includes("useState<PlatformUser[]>([])"),
+    true,
+    'Initial users state must be an empty array'
+  );
+
+  // Verify loading skeleton is rendered during loading state
+  assert.strictEqual(usersPageCode.includes('isLoading ?'), true, 'Must check isLoading in render');
+  assert.strictEqual(usersPageCode.includes('animate-pulse'), true, 'Must render animated pulse skeleton');
+
+  // Verify error handling and retry button
+  assert.strictEqual(usersPageCode.includes('fetchError'), true, 'Must track fetch error state');
+  assert.strictEqual(usersPageCode.includes('Retry'), true, 'Must provide Retry button on error');
+
+  // Verify database source of truth in API
+  assert.strictEqual(usersRouteCode.includes("from('admin_users')"), true, 'Must query admin_users table in Supabase');
+});
+
+test('Developer User Profile page implements 5 distinct states and eliminates false not-found flashes', () => {
+  const profilePageCode = fs.readFileSync('src/app/developer/users/[id]/page.tsx', 'utf8');
+  const profileRouteCode = fs.readFileSync('src/app/api/developer/users/[id]/route.ts', 'utf8');
+
+  // Verify mock data is completely eliminated
+  assert.strictEqual(profilePageCode.includes('MOCK_USERS'), false, 'User profile page must not import MOCK_USERS');
+  assert.strictEqual(profileRouteCode.includes('MOCK_USERS'), false, 'User profile API must not import MOCK_USERS');
+  assert.strictEqual(profileRouteCode.includes('MOCK_GIFTS'), false, 'User profile API must not import MOCK_GIFTS');
+
+  // Verify 5 distinct states definition
+  assert.strictEqual(
+    profilePageCode.includes("'idle' | 'loading' | 'success' | 'not_found' | 'error'"),
+    true,
+    'Must define explicit 5-state machine for profile view'
+  );
+
+  // Verify initial state is loading
+  assert.strictEqual(
+    profilePageCode.includes("useState<ProfileViewState>('loading')"),
+    true,
+    'Initial viewState must be loading'
+  );
+
+  // Verify loading state indicator
+  assert.strictEqual(
+    profilePageCode.includes('Loading user profile...'),
+    true,
+    'Loading state must show Loading user profile... indicator'
+  );
+
+  // Verify not-found state is guarded by confirmed 404
+  assert.strictEqual(
+    profilePageCode.includes("res.status === 404"),
+    true,
+    'Must explicitly detect HTTP 404 status'
+  );
+  assert.strictEqual(
+    profilePageCode.includes("viewState === 'not_found'"),
+    true,
+    'User record not found must be guarded by not_found viewState'
+  );
+
+  // Verify error state and retry
+  assert.strictEqual(
+    profilePageCode.includes("viewState === 'error'"),
+    true,
+    'Must render dedicated error state'
+  );
+  assert.strictEqual(
+    profilePageCode.includes('Retry'),
+    true,
+    'Must provide Retry button in profile error state'
+  );
+
+  // Verify race condition protection via AbortController
+  assert.strictEqual(
+    profilePageCode.includes('AbortController'),
+    true,
+    'Must use AbortController to cancel stale in-flight requests'
+  );
+
+  // Verify API returns 404 when user is missing in database
+  assert.strictEqual(
+    profileRouteCode.includes("status: 404"),
+    true,
+    'API route must return HTTP 404 when user does not exist in Supabase'
+  );
+});
+
+test('Developer Console architecture across Overview, Gifts, Analytics and Audit Logs eliminates mock data fallbacks', () => {
+  const overviewPage = fs.readFileSync('src/app/developer/page.tsx', 'utf8');
+  const overviewRoute = fs.readFileSync('src/app/api/developer/overview/route.ts', 'utf8');
+  const giftsPage = fs.readFileSync('src/app/developer/gifts/page.tsx', 'utf8');
+  const giftsRoute = fs.readFileSync('src/app/api/developer/gifts/route.ts', 'utf8');
+  const giftDetailPage = fs.readFileSync('src/app/developer/gifts/[id]/page.tsx', 'utf8');
+  const giftDetailRoute = fs.readFileSync('src/app/api/developer/gifts/[id]/route.ts', 'utf8');
+  const analyticsPage = fs.readFileSync('src/app/developer/analytics/page.tsx', 'utf8');
+  const analyticsRoute = fs.readFileSync('src/app/api/developer/analytics/route.ts', 'utf8');
+  const auditLogsPage = fs.readFileSync('src/app/developer/audit-logs/page.tsx', 'utf8');
+  const auditLogsRoute = fs.readFileSync('src/app/api/developer/audit-logs/route.ts', 'utf8');
+
+  // None of the developer frontend pages or backend routes should use MOCK_USERS
+  assert.strictEqual(overviewPage.includes('MOCK_USERS'), false, 'Overview page must not import MOCK_USERS');
+  assert.strictEqual(overviewRoute.includes('MOCK_USERS'), false, 'Overview API must not import MOCK_USERS');
+  assert.strictEqual(giftsPage.includes('MOCK_USERS'), false, 'Gifts page must not import MOCK_USERS');
+  assert.strictEqual(giftsRoute.includes('MOCK_USERS'), false, 'Gifts API must not import MOCK_USERS');
+  assert.strictEqual(giftDetailPage.includes('MOCK_USERS'), false, 'Gift detail page must not import MOCK_USERS');
+  assert.strictEqual(giftDetailRoute.includes('MOCK_USERS'), false, 'Gift detail API must not import MOCK_USERS');
+  assert.strictEqual(analyticsPage.includes('MOCK_USERS'), false, 'Analytics page must not import MOCK_USERS');
+  assert.strictEqual(analyticsRoute.includes('MOCK_USERS'), false, 'Analytics API must not import MOCK_USERS');
+  assert.strictEqual(auditLogsPage.includes('MOCK_USERS'), false, 'Audit logs page must not import MOCK_USERS');
+  assert.strictEqual(auditLogsRoute.includes('MOCK_USERS'), false, 'Audit logs API must not import MOCK_USERS');
+
+  // Verify all developer pages have loading states
+  assert.strictEqual(giftsPage.includes('isLoading ?'), true, 'Gifts page must check isLoading');
+  assert.strictEqual(auditLogsPage.includes('isLoading ?'), true, 'Audit logs page must check isLoading');
+  assert.strictEqual(giftDetailPage.includes("viewState === 'loading'"), true, 'Gift detail must check loading state');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

@@ -19,13 +19,13 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   RotateCcw,
   LayoutGrid,
   Table as TableIcon,
   Check,
   X,
 } from 'lucide-react';
-import { MOCK_GIFTS, MOCK_USERS, MOCK_AUDIT_LOGS } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
 import { THEME_PRESETS } from '@/config/themes';
 import { ModerationStatus, Gift as GiftType } from '@/types/gift';
@@ -37,31 +37,40 @@ export default function DeveloperGiftsPage() {
   const [moderationFilter, setModerationFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
-  // Local state for interactive moderation testing in dashboard
-  const [giftsState, setGiftsState] = useState<Record<string, GiftType>>(MOCK_GIFTS);
+  // Reactive gifts state from database
+  const [giftsState, setGiftsState] = useState<Record<string, GiftType>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    async function fetchGifts() {
-      try {
-        const res = await fetch('/api/developer/gifts');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.gifts && data.gifts.length > 0) {
-            const map: Record<string, GiftType> = {};
-            data.gifts.forEach((g: GiftType) => {
-              map[g.slug || g.id] = g;
-            });
-            setGiftsState(map);
-          }
-        }
-      } catch {}
+  const fetchGifts = React.useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch('/api/developer/gifts');
+      if (res.ok) {
+        const data = await res.json();
+        const map: Record<string, GiftType> = {};
+        (data.gifts || []).forEach((g: GiftType) => {
+          map[g.slug || g.id] = g;
+        });
+        setGiftsState(map);
+      } else {
+        const errData = await res.json().catch(() => null);
+        setFetchError(errData?.error || 'Failed to load gifts directory.');
+      }
+    } catch {
+      setFetchError('Unable to connect to the gifts directory server.');
+    } finally {
+      setIsLoading(false);
     }
-    fetchGifts();
   }, []);
 
+  React.useEffect(() => {
+    fetchGifts();
+  }, [fetchGifts]);
+
   const gifts = Object.values(giftsState);
-  const users = MOCK_USERS;
 
   // Moderation Handlers
   const handleTogglePause = async (gift: GiftType) => {
@@ -146,15 +155,16 @@ export default function DeveloperGiftsPage() {
   };
 
   // Filter gifts
-  const filteredGifts = gifts.filter((gift) => {
-    const owner = users.find((u) => u.id === gift.owner_id);
+  const filteredGifts = gifts.filter((gift: any) => {
+    const ownerEmail = gift.owner_email || '';
+    const ownerName = gift.owner_name || '';
     const matchesSearch =
       gift.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       gift.recipient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       gift.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
       gift.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (owner && (owner.email?.toLowerCase().includes(searchQuery.toLowerCase()) || owner.phone?.includes(searchQuery))) ||
-      (owner && owner.display_name?.toLowerCase().includes(searchQuery.toLowerCase()));
+      ownerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ownerName.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesTheme = themeFilter === 'all' || gift.selected_theme === themeFilter;
     const matchesPub = pubStatusFilter === 'all' || gift.status === pubStatusFilter;
@@ -292,8 +302,51 @@ export default function DeveloperGiftsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filteredGifts.map((gift) => {
-                  const owner = users.find((u) => u.id === gift.owner_id);
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, idx) => (
+                    <tr key={`gift-skeleton-${idx}`} className="animate-pulse border-b border-white/5">
+                      <td className="py-4 px-4"><div className="h-4 bg-white/10 rounded w-36 mb-1.5" /><div className="h-2.5 bg-white/5 rounded w-48" /></td>
+                      <td className="py-4 px-4"><div className="h-3 bg-white/10 rounded w-28 mb-1" /><div className="h-2.5 bg-white/5 rounded w-36" /></td>
+                      <td className="py-4 px-4"><div className="h-3 bg-white/10 rounded w-24" /></td>
+                      <td className="py-4 px-4"><div className="h-4 bg-white/10 rounded-full w-20" /></td>
+                      <td className="py-4 px-4"><div className="h-4 bg-white/10 rounded-full w-20" /></td>
+                      <td className="py-4 px-4"><div className="h-3 bg-white/10 rounded w-24" /></td>
+                      <td className="py-4 px-4 text-right"><div className="h-7 bg-white/10 rounded-lg w-28 ml-auto" /></td>
+                    </tr>
+                  ))
+                ) : fetchError ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <AlertCircle className="w-8 h-8 text-rose-400" />
+                        <p className="text-rose-300 text-xs font-mono">{fetchError}</p>
+                        <button
+                          onClick={fetchGifts}
+                          type="button"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Retry</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredGifts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-stone-500 text-xs font-mono">
+                      {searchQuery ? `No gifts matching "${searchQuery}"` : 'No platform gifts found in database.'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredGifts.map((gift) => {
+                  const owner: any = {
+                    display_name: (gift as any).owner_name || 'Creator',
+                    email: (gift as any).owner_email || '',
+                    phone: (gift as any).owner_phone || '',
+                    registration_method: (gift as any).registration_method || 'email',
+                    email_verified: (gift as any).email_verified,
+                    phone_verified: (gift as any).phone_verified,
+                  };
                   const isExpired =
                     gift.expiry_enabled && gift.expires_at
                       ? Date.now() > new Date(gift.expires_at).getTime()
@@ -455,7 +508,7 @@ export default function DeveloperGiftsPage() {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>
@@ -463,8 +516,42 @@ export default function DeveloperGiftsPage() {
       ) : (
         /* GRID VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredGifts.map((gift) => {
-            const owner = users.find((u) => u.id === gift.owner_id);
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, idx) => (
+              <div key={`grid-skeleton-${idx}`} className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 animate-pulse space-y-4">
+                <div className="flex justify-between"><div className="h-4 bg-white/10 rounded w-20" /><div className="h-4 bg-white/10 rounded-full w-16" /></div>
+                <div className="h-6 bg-white/15 rounded w-48" />
+                <div className="space-y-2"><div className="h-3 bg-white/5 rounded w-36" /><div className="h-3 bg-white/5 rounded w-28" /></div>
+                <div className="h-8 bg-white/10 rounded-xl w-full pt-2" />
+              </div>
+            ))
+          ) : fetchError ? (
+            <div className="col-span-full p-12 text-center bg-[#0F172A] rounded-2xl border border-white/10 space-y-3">
+              <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
+              <p className="text-rose-300 text-xs font-mono">{fetchError}</p>
+              <button
+                onClick={fetchGifts}
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+            </div>
+          ) : filteredGifts.length === 0 ? (
+            <div className="col-span-full py-16 text-center text-stone-500 text-xs font-mono bg-[#0F172A] rounded-2xl border border-white/10">
+              {searchQuery ? `No gifts matching "${searchQuery}"` : 'No platform gifts found in database.'}
+            </div>
+          ) : (
+            filteredGifts.map((gift) => {
+            const owner: any = {
+              display_name: (gift as any).owner_name || 'Creator',
+              email: (gift as any).owner_email || '',
+              phone: (gift as any).owner_phone || '',
+              registration_method: (gift as any).registration_method || 'email',
+              email_verified: (gift as any).email_verified,
+              phone_verified: (gift as any).phone_verified,
+            };
             const isExpired =
               gift.expiry_enabled && gift.expires_at
                 ? Date.now() > new Date(gift.expires_at).getTime()
@@ -560,13 +647,7 @@ export default function DeveloperGiftsPage() {
                 </div>
               </div>
             );
-          })}
-        </div>
-      )}
-
-      {filteredGifts.length === 0 && (
-        <div className="p-12 text-center text-xs text-stone-500 font-mono bg-[#0F172A] rounded-2xl border border-white/10">
-          No gifts found matching your search and filter criteria.
+          }))}
         </div>
       )}
     </div>

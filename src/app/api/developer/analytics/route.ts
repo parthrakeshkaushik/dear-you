@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
 
 export async function GET(request: NextRequest) {
   const authCheck = await getAuthenticatedDeveloper(request);
@@ -18,8 +17,8 @@ export async function GET(request: NextRequest) {
     const { data: usersData } = await supabaseAdmin.from('admin_users').select('*');
     const { data: giftsData } = await supabaseAdmin.from('gifts').select('*');
 
-    const users = usersData && usersData.length > 0 ? usersData : MOCK_USERS;
-    const gifts = giftsData && giftsData.length > 0 ? giftsData : Object.values(MOCK_GIFTS);
+    const users = usersData || [];
+    const gifts = giftsData || [];
 
     const totalUsers = users.length;
     const totalGifts = gifts.length;
@@ -44,6 +43,8 @@ export async function GET(request: NextRequest) {
       eventCounts[evt] = (eventCounts[evt] || 0) + 1;
     });
 
+    const totalPhotos = gifts.reduce((acc: number, g: any) => acc + (Array.isArray(g.memories) ? g.memories.length : 0), 0);
+
     return NextResponse.json({
       analytics: {
         totalUsers,
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
         draftGifts,
         pausedGifts,
         expiredGifts,
+        totalPhotos,
         themeCounts,
         eventCounts,
       },

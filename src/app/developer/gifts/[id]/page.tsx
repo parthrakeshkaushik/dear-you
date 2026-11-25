@@ -32,7 +32,6 @@ import {
   X,
   AlertCircle,
 } from 'lucide-react';
-import { MOCK_GIFTS, MOCK_USERS, MOCK_AUDIT_LOGS } from '@/lib/mock-data';
 import { getThemeDefinition } from '@/config/themes';
 import { formatDate, formatDateTimeZone } from '@/lib/utils';
 import { MemoryWall } from '@/components/recipient/MemoryWall';
@@ -41,9 +40,11 @@ import { PhotoViewerModal } from '@/components/recipient/PhotoViewerModal';
 import { ModerationStatus, Gift as GiftType } from '@/types/gift';
 import { ModerationReasonCategory } from '@/types/user';
 
+type GiftViewState = 'idle' | 'loading' | 'success' | 'not_found' | 'error';
+
 export default function GiftInspectionPage() {
   const params = useParams();
-  const slugOrId = params?.id as string;
+  const slugOrId = (params?.id as string) || '';
 
   const [activeTab, setActiveTab] = useState<
     | 'overview'
@@ -55,12 +56,9 @@ export default function GiftInspectionPage() {
     | 'expiry'
   >('overview');
 
-  // Look up initial gift
-  const giftsList = Object.values(MOCK_GIFTS);
-  const initialGift = giftsList.find((g) => g.slug === slugOrId || g.id === slugOrId);
-
-  // Local reactive gift state for live moderation
-  const [gift, setGift] = useState<GiftType | undefined>(initialGift);
+  const [viewState, setViewState] = useState<GiftViewState>('loading');
+  const [gift, setGift] = useState<(GiftType & { owner?: any }) | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Moderation Modals State
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -68,22 +66,149 @@ export default function GiftInspectionPage() {
   const [showExpiryModal, setShowExpiryModal] = useState(false);
   const [moderationReason, setModerationReason] = useState<ModerationReasonCategory>('policy_violation');
   const [moderationNotes, setModerationNotes] = useState('');
-  const [newExpiryDate, setNewExpiryDate] = useState(gift?.expires_at ? gift.expires_at.split('T')[0] : '');
-  const [newExpiryEnabled, setNewExpiryEnabled] = useState(Boolean(gift?.expiry_enabled));
+  const [newExpiryDate, setNewExpiryDate] = useState('');
+  const [newExpiryEnabled, setNewExpiryEnabled] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
-  if (!gift) {
+  const fetchGift = React.useCallback(async (targetId: string, signal?: AbortSignal) => {
+    if (!targetId) {
+      setViewState('not_found');
+      return;
+    }
+
+    setViewState('loading');
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch(`/api/developer/gifts/${encodeURIComponent(targetId)}`, { signal });
+      if (res.status === 404) {
+        setViewState('not_found');
+        return;
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.gift) {
+          setGift(data.gift);
+          if (data.gift.expires_at) {
+            setNewExpiryDate(data.gift.expires_at.split('T')[0]);
+          }
+          setNewExpiryEnabled(Boolean(data.gift.expiry_enabled));
+          setViewState('success');
+          return;
+        } else {
+          setViewState('not_found');
+          return;
+        }
+      }
+
+      const errData = await res.json().catch(() => null);
+      setErrorMessage(errData?.error || `Server responded with HTTP ${res.status}.`);
+      setViewState('error');
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setErrorMessage('Network connection error while fetching gift details.');
+      setViewState('error');
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    fetchGift(slugOrId, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [slugOrId, fetchGift]);
+
+  // Loading skeleton state
+  if (viewState === 'loading' || viewState === 'idle') {
     return (
-      <div className="p-8 text-center space-y-4 font-mono">
-        <p className="text-stone-400 text-sm">Gift record not found.</p>
-        <Link href="/developer/gifts" className="text-indigo-400 underline text-xs">
-          ← Back to Platform Gifts Directory
-        </Link>
+      <div className="space-y-6 max-w-6xl animate-pulse">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+          <div>
+            <div className="h-3.5 bg-white/10 rounded w-44 mb-3" />
+            <div className="flex items-center gap-3">
+              <div className="h-8 bg-white/15 rounded-lg w-64" />
+              <div className="h-5 bg-white/10 rounded-full w-24" />
+            </div>
+            <div className="h-3 bg-white/5 rounded w-72 mt-2" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-9 bg-white/10 rounded-xl w-24" />
+            <div className="h-9 bg-white/10 rounded-xl w-24" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center p-6 rounded-2xl bg-[#0F172A] border border-white/10 text-stone-400 text-xs font-mono">
+          <Clock className="w-4 h-4 mr-2 animate-spin text-indigo-400" />
+          <span>Loading gift details and assets...</span>
+        </div>
+
+        <div className="h-11 bg-white/5 rounded-xl w-full" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="h-44 bg-[#0F172A] rounded-2xl border border-white/10" />
+          <div className="h-44 bg-[#0F172A] rounded-2xl border border-white/10" />
+          <div className="h-44 bg-[#0F172A] rounded-2xl border border-white/10" />
+        </div>
       </div>
     );
   }
 
-  const owner = MOCK_USERS.find((u) => u.id === gift.owner_id);
+  // Not found state
+  if (viewState === 'not_found' || !gift) {
+    return (
+      <div className="p-12 text-center space-y-4 bg-[#0F172A] rounded-2xl border border-white/10 max-w-lg mx-auto my-12">
+        <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto text-rose-400">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <h2 className="font-serif text-xl text-white font-normal">Gift Record Not Found</h2>
+        <p className="text-stone-400 text-xs font-mono max-w-sm mx-auto">
+          No platform gift exists matching: <span className="text-stone-300 font-semibold">{slugOrId || 'unknown'}</span>.
+        </p>
+        <div className="pt-2">
+          <Link
+            href="/developer/gifts"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors font-mono"
+          >
+            ← Back to Platform Gifts Directory
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (viewState === 'error') {
+    return (
+      <div className="p-12 text-center space-y-4 bg-[#0F172A] rounded-2xl border border-white/10 max-w-lg mx-auto my-12">
+        <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <h2 className="font-serif text-xl text-white font-normal">Unable to Load Gift Record</h2>
+        <p className="text-rose-300 text-xs font-mono max-w-sm mx-auto">
+          {errorMessage || 'A database or connection error occurred while loading this gift.'}
+        </p>
+        <div className="pt-3 flex items-center justify-center gap-3">
+          <button
+            onClick={() => fetchGift(slugOrId)}
+            type="button"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
+          <Link
+            href="/developer/gifts"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 text-xs font-medium transition-colors"
+          >
+            <span>Back to Gifts</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const owner = (gift as any).owner || null;
   const themeDef = getThemeDefinition(gift.selected_theme, gift.theme_config);
   const memories = gift.memories || [];
 
