@@ -7,7 +7,7 @@
  */
 
 import { SignJWT, jwtVerify } from 'jose';
-import { NextResponse } from 'next/server';
+import type { NextResponse } from 'next/server';
 
 export const SESSION_COOKIE_NAME = 'dearyou_session_expiry';
 export const DURATION_COOKIE_NAME = 'dearyou_remember_duration';
@@ -28,21 +28,33 @@ function getSessionSigningSecret(): Uint8Array {
 
 /**
  * Creates a cryptographically signed session token enforcing exact expiry.
+ * Optionally embeds user email and role for fast, resilient server verification.
  */
 export async function signSessionExpiryToken(
   userId: string,
-  days: SessionDurationDays = DEFAULT_SESSION_DAYS
+  days: SessionDurationDays = DEFAULT_SESSION_DAYS,
+  email?: string,
+  role?: string
 ): Promise<{ token: string; expiresAt: number; maxAgeSeconds: number }> {
   const secret = getSessionSigningSecret();
   const maxAgeSeconds = days * 24 * 60 * 60;
   const expiresAt = Date.now() + maxAgeSeconds * 1000;
 
-  const token = await new SignJWT({
+  const payload: Record<string, any> = {
     userId,
     days,
     expiresAt,
     issuedAt: Date.now(),
-  })
+  };
+
+  if (email && typeof email === 'string') {
+    payload.email = email.trim().toLowerCase();
+  }
+  if (role && typeof role === 'string') {
+    payload.role = role.trim().toLowerCase();
+  }
+
+  const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(Math.floor(expiresAt / 1000))
@@ -57,6 +69,8 @@ export async function signSessionExpiryToken(
 export async function verifySessionExpiryToken(token?: string | null): Promise<{
   valid: boolean;
   userId?: string;
+  email?: string;
+  role?: string;
   days?: number;
   expiresAt?: number;
   expired?: boolean;
@@ -71,13 +85,15 @@ export async function verifySessionExpiryToken(token?: string | null): Promise<{
 
     const expiresAt = Number(payload.expiresAt || 0);
     const userId = payload.userId as string;
+    const email = payload.email as string | undefined;
+    const role = payload.role as string | undefined;
     const days = Number(payload.days || DEFAULT_SESSION_DAYS);
 
     if (Date.now() > expiresAt) {
-      return { valid: false, expired: true, userId, days, expiresAt };
+      return { valid: false, expired: true, userId, email, role, days, expiresAt };
     }
 
-    return { valid: true, userId, days, expiresAt };
+    return { valid: true, userId, email, role, days, expiresAt };
   } catch (err: any) {
     const isExpired = err?.code === 'ERR_JWT_EXPIRED' || err?.message?.includes('expired');
     return { valid: false, expired: isExpired };

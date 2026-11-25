@@ -28,11 +28,13 @@ export async function getAuthenticatedDeveloper(
   // 1. Check custom persistent session cookie
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   let candidateUserId: string | null = null;
+  let candidateEmail: string | null = null;
 
   if (sessionCookie) {
     const sessionCheck = await verifySessionExpiryToken(sessionCookie);
     if (sessionCheck.valid && sessionCheck.userId) {
       candidateUserId = sessionCheck.userId;
+      candidateEmail = sessionCheck.email || null;
     }
   }
 
@@ -50,15 +52,19 @@ export async function getAuthenticatedDeveloper(
       const { data: authUser } = await supabaseAdmin.auth.getUser(authHeaderToken);
       if (authUser?.user?.id) {
         candidateUserId = authUser.user.id;
+        if (authUser.user.email) candidateEmail = authUser.user.email;
       }
     }
 
-    if (candidateUserId) {
-      const roleCheck = await verifyDeveloperRole({ userId: candidateUserId });
+    if (candidateUserId || candidateEmail) {
+      const roleCheck = await verifyDeveloperRole({
+        userId: candidateUserId || undefined,
+        email: candidateEmail || undefined,
+      });
       if (roleCheck.isDeveloper) {
         return {
           isDeveloper: true,
-          userId: candidateUserId,
+          userId: roleCheck.userId || candidateUserId || undefined,
           email: roleCheck.email,
         };
       }

@@ -42,16 +42,31 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
   const [developerEmail, setDeveloperEmail] = useState<string | null>(null);
 
   React.useEffect(() => {
+    let isMounted = true;
     async function loadDevIdentity() {
+      try {
+        const sessRes = await fetch('/api/auth/session');
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          if (sessData.authenticated && sessData.email && isMounted) {
+            setDeveloperEmail(sessData.email);
+            return;
+          }
+        }
+      } catch {}
+
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        if (user && isMounted) {
           setDeveloperEmail(user.email || null);
         }
       } catch {}
     }
     loadDevIdentity();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSignOut = async (global = false) => {

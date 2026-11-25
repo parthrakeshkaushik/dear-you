@@ -1,9 +1,16 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { DURATION_COOKIE_NAME, DEFAULT_SESSION_DAYS } from '@/lib/auth/persistent-session';
 
+let browserClientInstance: ReturnType<typeof createBrowserClient> | null = null;
+
 export function createClient(customMaxAgeSeconds?: number) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+
+  // In non-browser environments (SSR/Edge), return a new client instance
+  if (typeof window === 'undefined') {
+    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }
 
   // Determine lifetime from cookie or default to 14 days
   let maxAge = customMaxAgeSeconds;
@@ -13,7 +20,12 @@ export function createClient(customMaxAgeSeconds?: number) {
     maxAge = (days || DEFAULT_SESSION_DAYS) * 24 * 60 * 60;
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  // Reuse existing browser client singleton to prevent listener leaks and token desynchronization
+  if (browserClientInstance) {
+    return browserClientInstance;
+  }
+
+  browserClientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, {
     cookieOptions: {
       path: '/',
       sameSite: 'lax',
@@ -21,4 +33,6 @@ export function createClient(customMaxAgeSeconds?: number) {
       maxAge: maxAge || DEFAULT_SESSION_DAYS * 24 * 60 * 60,
     },
   });
+
+  return browserClientInstance;
 }

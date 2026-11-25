@@ -56,11 +56,32 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [isDeveloper, setIsDeveloper] = useState(false);
 
   React.useEffect(() => {
+    let isMounted = true;
     async function checkRole() {
+      // 1. Fast check from verified persistent session endpoint
+      try {
+        const sessRes = await fetch('/api/auth/session');
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          if (sessData.authenticated) {
+            const email = (sessData.email || '').toLowerCase();
+            if (
+              email === 'kaushikparth363@gmail.com' ||
+              email === 'kaushikparth353@gmail.com' ||
+              sessData.role === 'developer'
+            ) {
+              if (isMounted) setIsDeveloper(true);
+              return;
+            }
+          }
+        }
+      } catch {}
+
+      // 2. Check Supabase client user identity
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        if (user && isMounted) {
           const email = (user.email || '').toLowerCase();
           if (
             email === 'kaushikparth363@gmail.com' ||
@@ -73,6 +94,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       } catch {}
     }
     checkRole();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleLogout = async (global = false) => {

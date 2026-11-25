@@ -60,22 +60,30 @@ function AuthPageContent() {
     // Auto-restore check: If user already has an active, valid session, avoid showing login screen
     async function checkExistingSession() {
       try {
+        const sessRes = await fetch('/api/auth/session');
+        const sessData = await sessRes.json();
+        if (sessData.authenticated) {
+          const userEmail = (sessData.email || '').toLowerCase();
+          const isDev =
+            userEmail === 'kaushikparth363@gmail.com' ||
+            userEmail === 'kaushikparth353@gmail.com' ||
+            sessData.role === 'developer';
+          window.location.href = isDev ? '/developer' : '/admin';
+          return;
+        }
+
         const supabase = createClient();
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
         if (session?.user) {
-          const sessRes = await fetch('/api/auth/session');
-          const sessData = await sessRes.json();
-          if (sessData.authenticated) {
-            const userEmail = (session.user.email || '').toLowerCase();
-            const isDev =
-              userEmail === 'kaushikparth363@gmail.com' ||
-              userEmail === 'kaushikparth353@gmail.com' ||
-              session.user.app_metadata?.role === 'developer';
-            router.replace(isDev ? '/developer' : '/admin');
-          }
+          const userEmail = (session.user.email || '').toLowerCase();
+          const isDev =
+            userEmail === 'kaushikparth363@gmail.com' ||
+            userEmail === 'kaushikparth353@gmail.com' ||
+            session.user.app_metadata?.role === 'developer';
+          window.location.href = isDev ? '/developer' : '/admin';
         }
       } catch {
         // Fallback to presenting login form
@@ -169,6 +177,8 @@ function AuthPageContent() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 userId: finalUserId,
+                email: cleanEmail,
+                role: 'creator',
                 rememberDays: 14,
               }),
             });
@@ -178,8 +188,8 @@ function AuthPageContent() {
         }
 
         setTimeout(() => {
-          router.push('/admin?welcome=true');
-        }, 500);
+          window.location.href = '/admin?welcome=true';
+        }, 300);
       } catch {
         setErrorMessage('Network error during registration. Please try again.');
         setIsLoading(false);
@@ -264,6 +274,8 @@ function AuthPageContent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userId: data.user.id,
+              email: cleanEmail,
+              role: isDeveloperAccount ? 'developer' : 'creator',
               rememberDays: effectiveDays,
             }),
           });
@@ -272,22 +284,16 @@ function AuthPageContent() {
         }
       }
 
-      if (isDeveloperAccount) {
-        router.push('/developer');
-      } else {
-        router.push('/admin');
-      }
-    } catch {
-      // Local dev fallback
-      if (
-        cleanEmail === 'kaushikparth363@gmail.com' ||
-        cleanEmail === 'kaushikparth353@gmail.com'
-      ) {
-        router.push('/developer');
-      } else {
-        router.push('/admin');
-      }
-    } finally {
+      setSuccessMessage('Signing in...');
+
+      // Full document navigation guarantees all cookies are committed and transmitted in HTTP headers
+      window.location.href = isDeveloperAccount ? '/developer' : '/admin';
+      return;
+    } catch (err: any) {
+      console.error('Sign-in error:', err);
+      setErrorMessage(
+        err?.message || 'An unexpected error occurred during sign in. Please try again.'
+      );
       setIsLoading(false);
     }
   };

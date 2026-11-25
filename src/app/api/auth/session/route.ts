@@ -25,13 +25,48 @@ export async function POST(request: NextRequest) {
 
     const validatedDays: SessionDurationDays = rememberDays === 7 ? 7 : 14;
 
+    let userEmail = body.email ? String(body.email).trim().toLowerCase() : undefined;
+    let userRole = body.role ? String(body.role).trim().toLowerCase() : undefined;
+
+    // Resolve email and role if omitted
+    if (!userEmail || !userRole) {
+      try {
+        const supabaseAdmin = createAdminClient();
+        const { data: adminRecord } = await supabaseAdmin
+          .from('admin_users')
+          .select('email, role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (adminRecord) {
+          if (!userEmail && adminRecord.email) userEmail = adminRecord.email.toLowerCase();
+          if (!userRole && adminRecord.role) userRole = adminRecord.role.toLowerCase();
+        } else {
+          const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+          if (authData?.user) {
+            if (!userEmail && authData.user.email) userEmail = authData.user.email.toLowerCase();
+            if (!userRole) {
+              userRole = authData.user.app_metadata?.role || authData.user.user_metadata?.role || 'creator';
+            }
+          }
+        }
+      } catch (lookupErr) {
+        console.warn('Identity lookup note in session API:', lookupErr);
+      }
+    }
+
     const { token, expiresAt, maxAgeSeconds } = await signSessionExpiryToken(
       userId,
-      validatedDays
+      validatedDays,
+      userEmail,
+      userRole
     );
 
     const response = NextResponse.json({
       success: true,
+      userId,
+      email: userEmail,
+      role: userRole,
       rememberDays: validatedDays,
       expiresAt: new Date(expiresAt).toISOString(),
       message: `Persistent session established for ${validatedDays} days.`,
@@ -88,6 +123,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       authenticated: true,
       userId: check.userId,
+      email: check.email,
+      role: check.role,
       rememberDays: check.days,
       expiresAt: new Date(check.expiresAt || 0).toISOString(),
       daysRemaining,
