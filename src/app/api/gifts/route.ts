@@ -321,6 +321,8 @@ export async function POST(request: NextRequest) {
       secret_messages,
       letters,
       wishes,
+      password_page_config,
+      expiry_page_config,
       status = 'published',
     } = body;
 
@@ -373,6 +375,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const finalPasswordPageConfig =
+      password_page_config || theme_config?.password_page || existingGift?.password_page_config;
+    const finalExpiryPageConfig =
+      expiry_page_config || theme_config?.expiry_page || existingGift?.expiry_page_config;
+    const finalThemeConfig = {
+      ...(theme_config || existingGift?.theme_config || {}),
+      ...(finalPasswordPageConfig ? { password_page: finalPasswordPageConfig } : {}),
+      ...(finalExpiryPageConfig ? { expiry_page: finalExpiryPageConfig } : {}),
+    };
+
     const savedGift: Gift = {
       ...(existingGift || {}),
       id: finalId,
@@ -383,7 +395,9 @@ export async function POST(request: NextRequest) {
       event_type,
       event_date,
       selected_theme,
-      theme_config,
+      theme_config: finalThemeConfig,
+      password_page_config: finalPasswordPageConfig,
+      expiry_page_config: finalExpiryPageConfig,
       status,
       introduction,
       welcome_heading,
@@ -425,7 +439,7 @@ export async function POST(request: NextRequest) {
     // Persist to Supabase
     try {
       const supabaseAdmin = createAdminClient();
-      const payload = {
+      const payload: Record<string, any> = {
         id: finalId,
         owner_id: userId,
         recipient_name: savedGift.recipient_name,
@@ -434,6 +448,20 @@ export async function POST(request: NextRequest) {
         event_type: savedGift.event_type,
         event_date: savedGift.event_date || null,
         selected_theme: savedGift.selected_theme,
+        theme_config: savedGift.theme_config || null,
+        welcome_heading: savedGift.welcome_heading || null,
+        welcome_message: savedGift.welcome_message || null,
+        welcome_button_text: savedGift.welcome_button_text || null,
+        closing_message: savedGift.closing_message || null,
+        expiry_heading: savedGift.expiry_heading || null,
+        expiry_message: savedGift.expiry_message || null,
+        scratch_card_hidden_text: savedGift.scratch_card_hidden_text || null,
+        gift_box_message: savedGift.gift_box_message || null,
+        cover_image: savedGift.cover_image || null,
+        introduction: savedGift.introduction || null,
+        music_url: savedGift.music_url || null,
+        music_title: savedGift.music_title || null,
+        memory_wall_config: savedGift.memory_wall_config || null,
         status: savedGift.status,
         password_hash: savedGift.password_hash,
         password_hint: savedGift.password_hint,

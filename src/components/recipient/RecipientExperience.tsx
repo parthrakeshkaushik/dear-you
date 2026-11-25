@@ -287,13 +287,16 @@ export function RecipientExperience({
 
   // If expired, immediately render the elegant theme-consistent closing experience
   if (isExpired) {
+    const expiryCfg = gift.theme_config?.expiry_page || gift.expiry_page_config;
+    const expiryTheme = expiryCfg?.theme_id || gift.selected_theme;
     return (
-      <ThemeContainer themeId={gift.selected_theme} customConfig={gift.theme_config}>
+      <ThemeContainer themeId={expiryTheme} customConfig={gift.theme_config}>
         <ExpiryScreen
           recipientName={gift.recipient_name}
-          themeId={gift.selected_theme}
-          heading={gift.expiry_heading}
-          message={gift.expiry_message}
+          themeId={expiryTheme}
+          heading={expiryCfg?.heading || gift.expiry_heading}
+          message={expiryCfg?.message || gift.expiry_message}
+          config={expiryCfg}
         />
       </ThemeContainer>
     );
@@ -309,6 +312,7 @@ export function RecipientExperience({
           passwordHint={isDemo ? 'special' : gift.password_hint}
           isDemo={isDemo}
           revocationNotice={revocationNotice}
+          config={gift.theme_config?.password_page || gift.password_page_config}
           onSubmit={handleVerifyPassword}
           onSuccess={() => {
             setIsUnlocked(true);

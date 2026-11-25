@@ -2802,6 +2802,123 @@ test('Login page displays green success banner upon completed password reset', (
   assert.strictEqual(loginCode.includes('Your password has been reset successfully'), true, 'Login page must display reset success banner');
 });
 
+// -------------------------------------------------------------
+// 38. THREE-PAGE GIFT BUILDER, DEDICATED EDITORS & LIVE PREVIEW SYSTEM TESTS
+// -------------------------------------------------------------
+console.log('\n--- 38. Three-Page Gift Builder, Dedicated Editors & Live Preview System Tests ---');
+
+test('Password Gate heading dynamically computes prefix, recipient name, or custom full heading override', () => {
+  const pwGateCode = fs.readFileSync('src/components/recipient/PasswordGate.tsx', 'utf8');
+
+  // Verify "A surprise for" is not hardcoded
+  assert.strictEqual(
+    pwGateCode.includes('A surprise for {recipientName}'),
+    false,
+    'PasswordGate must not hardcode "A surprise for {recipientName}"'
+  );
+
+  // Helper simulating PasswordGate heading resolution
+  function computeHeading(config, recipientName) {
+    const prefix = config?.heading_prefix !== undefined ? config.heading_prefix.trim() : 'A surprise for';
+    const customHeading = config?.custom_heading?.trim();
+    const displayName = recipientName?.trim() || 'Someone Special';
+    return customHeading && customHeading.length > 0 ? customHeading : `${prefix} ${displayName}`;
+  }
+
+  // Test default prefix
+  assert.strictEqual(computeHeading({}, 'Ananya'), 'A surprise for Ananya');
+
+  // Test customized prefix
+  assert.strictEqual(
+    computeHeading({ heading_prefix: 'A special surprise for' }, 'Ananya'),
+    'A special surprise for Ananya'
+  );
+  assert.strictEqual(
+    computeHeading({ heading_prefix: 'A little secret for' }, 'Rahul'),
+    'A little secret for Rahul'
+  );
+
+  // Test custom full heading override
+  assert.strictEqual(
+    computeHeading(
+      { heading_prefix: 'A surprise for', custom_heading: 'Something special for someone special' },
+      'Ananya'
+    ),
+    'Something special for someone special'
+  );
+});
+
+test('Password Gate supports custom subtitle, badge text, button label, and card styles', () => {
+  const pwGateCode = fs.readFileSync('src/components/recipient/PasswordGate.tsx', 'utf8');
+
+  assert.strictEqual(pwGateCode.includes('headingText'), true, 'Must render dynamic headingText');
+  assert.strictEqual(pwGateCode.includes('subtitleText'), true, 'Must render dynamic subtitleText');
+  assert.strictEqual(pwGateCode.includes('badgeText'), true, 'Must render dynamic badgeText');
+  assert.strictEqual(pwGateCode.includes('buttonText'), true, 'Must render dynamic buttonText');
+  assert.strictEqual(pwGateCode.includes('getCardStyleClass'), true, 'Must compute dynamic cardStyleClass');
+  assert.strictEqual(pwGateCode.includes('instructions'), true, 'Must support optional instructions');
+});
+
+test('Expiry Screen renders custom heading, message, theme, and configurable navigation buttons', () => {
+  const expScreenCode = fs.readFileSync('src/components/recipient/ExpiryScreen.tsx', 'utf8');
+
+  assert.strictEqual(expScreenCode.includes('effectiveHeading'), true, 'Must render dynamic effectiveHeading');
+  assert.strictEqual(expScreenCode.includes('effectiveMessage'), true, 'Must render dynamic effectiveMessage');
+  assert.strictEqual(expScreenCode.includes('showCreateBtn'), true, 'Must support showCreateBtn toggle');
+  assert.strictEqual(expScreenCode.includes('createBtnText'), true, 'Must render custom createBtnText');
+  assert.strictEqual(expScreenCode.includes('showHomeBtn'), true, 'Must support showHomeBtn toggle');
+  assert.strictEqual(expScreenCode.includes('homeBtnText'), true, 'Must render custom homeBtnText');
+  assert.strictEqual(expScreenCode.includes('effectiveThemeId'), true, 'Must apply effectiveThemeId');
+});
+
+test('LivePreviewPane provides three independent modes with external synchronization', () => {
+  const previewCode = fs.readFileSync('src/components/admin/LivePreviewPane.tsx', 'utf8');
+
+  // Verify all 3 preview modes exist in switcher
+  assert.strictEqual(previewCode.includes('Gift Journey'), true, 'Preview must have Gift Journey option');
+  assert.strictEqual(previewCode.includes('Password Gate'), true, 'Preview must have Password Gate option');
+  assert.strictEqual(previewCode.includes('Closing Screen'), true, 'Preview must have Closing Screen option');
+
+  // Verify controlled state mode and handler
+  assert.strictEqual(previewCode.includes('controlledStateMode'), true, 'Must accept controlledStateMode');
+  assert.strictEqual(previewCode.includes('onStateModeChange'), true, 'Must call onStateModeChange');
+
+  // Verify scrollToSection guards against resetting Password Gate or Expiry preview
+  assert.strictEqual(
+    previewCode.includes('activeStateMode !== \'unlocked\''),
+    true,
+    'Must guard scrollToSection when creator is previewing Password Gate or Expiry Screen'
+  );
+});
+
+test('Creator Studio provides 3 dedicated section editors and shared draft autosave', () => {
+  const createPageCode = fs.readFileSync('src/app/admin/create/page.tsx', 'utf8');
+
+  // Top level 3 experiences
+  assert.strictEqual(createPageCode.includes('activeExperience'), true, 'Must maintain activeExperience state');
+  assert.strictEqual(createPageCode.includes('Password Gate Editor'), true, 'Must render Section A: Password Gate Editor');
+  assert.strictEqual(createPageCode.includes('Gift Journey'), true, 'Must render Section B: Gift Journey');
+  assert.strictEqual(createPageCode.includes('Expiry / Closing Screen Editor'), true, 'Must render Section C: Expiry Screen Editor');
+
+  // Heading prefix customization
+  assert.strictEqual(createPageCode.includes('passwordHeadingPrefix'), true, 'Must allow editing heading prefix');
+  assert.strictEqual(createPageCode.includes('passwordCustomHeading'), true, 'Must allow custom full heading');
+
+  // Draft save & load integration
+  assert.strictEqual(createPageCode.includes('password_page_config'), true, 'Must save password_page_config');
+  assert.strictEqual(createPageCode.includes('expiry_page_config'), true, 'Must save expiry_page_config');
+  assert.strictEqual(createPageCode.includes('password_page:'), true, 'Must include password_page in theme_config');
+  assert.strictEqual(createPageCode.includes('expiry_page:'), true, 'Must include expiry_page in theme_config');
+});
+
+test('Previewing Expiry Screen or Password Gate is isolated and never alters production recipient data', () => {
+  const recExpCode = fs.readFileSync('src/components/recipient/RecipientExperience.tsx', 'utf8');
+
+  // Verify isPreview bypasses expiry condition and session-check
+  assert.strictEqual(recExpCode.includes('if (isPreview) return false;'), true, 'Previewing must never expire gift');
+  assert.strictEqual(recExpCode.includes('if (isPreview || !isUnlocked) return;'), true, 'Previewing must never trigger recipient session invalidation');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

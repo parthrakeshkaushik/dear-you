@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyRound, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle, ShieldAlert, Gift } from 'lucide-react';
+import { PasswordPageConfig } from '@/types/gift';
 
 interface PasswordGateProps {
   giftTitle: string;
@@ -11,6 +12,7 @@ interface PasswordGateProps {
   passwordHint?: string;
   isDemo?: boolean;
   revocationNotice?: string | null;
+  config?: PasswordPageConfig;
   onSubmit: (password: string) => Promise<{ success: boolean; error?: string }>;
   onSuccess: () => void;
 }
@@ -21,6 +23,7 @@ export function PasswordGate({
   passwordHint,
   isDemo = false,
   revocationNotice = null,
+  config,
   onSubmit,
   onSuccess,
 }: PasswordGateProps) {
@@ -28,6 +31,48 @@ export function PasswordGate({
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Compute dynamic heading, subtitle, badge and button text from creator's configuration
+  const prefix = config?.heading_prefix !== undefined ? config.heading_prefix.trim() : 'A surprise for';
+  const customHeading = config?.custom_heading?.trim();
+  const displayName = recipientName?.trim() || 'Someone Special';
+  const headingText = customHeading && customHeading.length > 0 ? customHeading : `${prefix} ${displayName}`;
+
+  const subtitleText =
+    config?.subtitle !== undefined && config.subtitle.trim().length > 0
+      ? config.subtitle
+      : giftTitle || 'Someone special created a personal digital gift for you.';
+
+  const badgeText =
+    config?.badge_text && config.badge_text.trim().length > 0
+      ? config.badge_text.trim()
+      : isDemo
+      ? 'Demonstration Card'
+      : 'Dear You Experience';
+
+  const buttonText =
+    config?.button_text && config.button_text.trim().length > 0
+      ? config.button_text.trim()
+      : 'Unlock Experience';
+
+  const instructions = config?.instructions?.trim();
+  const cardStyle = config?.card_style || 'glass';
+
+  const getCardStyleClass = () => {
+    switch (cardStyle) {
+      case 'clean':
+        return 'bg-[var(--theme-surface)] border-2 border-[var(--theme-border)] shadow-xl';
+      case 'lavender':
+        return 'bg-gradient-to-b from-purple-500/10 via-[var(--theme-surface)] to-[var(--theme-surface)] border border-purple-500/30 shadow-2xl backdrop-blur-xl';
+      case 'minimal':
+        return 'bg-[var(--theme-surface)]/70 border border-[var(--theme-border)]/60 shadow-lg backdrop-blur-md';
+      case 'warm':
+        return 'bg-gradient-to-b from-amber-500/10 via-[var(--theme-surface)] to-[var(--theme-surface)] border border-amber-500/30 shadow-2xl backdrop-blur-xl';
+      case 'glass':
+      default:
+        return 'bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-2xl backdrop-blur-xl';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +131,7 @@ export function PasswordGate({
           initial={{ opacity: 0, scale: 0.96, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-md p-8 sm:p-10 rounded-3xl bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-2xl backdrop-blur-xl text-center relative overflow-hidden"
+          className={`w-full max-w-md p-8 sm:p-10 rounded-3xl ${getCardStyleClass()} text-center relative overflow-hidden`}
         >
         {/* Subtle accent glow top */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-[var(--theme-primary)] to-transparent opacity-80" />
@@ -99,16 +144,22 @@ export function PasswordGate({
         {/* Dear You platform branding */}
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 text-xs font-medium text-[var(--theme-primary)] mb-4">
           <Sparkles className="w-3 h-3" />
-          <span>{isDemo ? 'Demonstration Card' : 'Dear You Experience'}</span>
+          <span>{badgeText}</span>
         </div>
 
         <h1 className="font-serif text-2xl sm:text-3xl text-[var(--theme-text)] font-normal tracking-tight">
-          A surprise for {recipientName}
+          {headingText}
         </h1>
 
         <p className="mt-2 text-xs sm:text-sm text-[var(--theme-muted)] font-light leading-relaxed">
-          {giftTitle || 'Someone special created a personal digital gift for you.'}
+          {subtitleText}
         </p>
+
+        {instructions && (
+          <p className="mt-2 text-xs text-[var(--theme-secondary)] font-medium leading-relaxed">
+            {instructions}
+          </p>
+        )}
 
         {/* Immediate Session Revocation Notice (Displayed when password was updated by creator) */}
         {revocationNotice && (
@@ -209,7 +260,7 @@ export function PasswordGate({
               <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
             ) : (
               <>
-                <span>Unlock Experience</span>
+                <span>{buttonText}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

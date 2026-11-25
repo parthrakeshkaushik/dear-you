@@ -38,6 +38,28 @@ export type FrameStyle =
 
 export type FrameSize = 'small' | 'medium' | 'large';
 
+export interface PasswordPageConfig {
+  heading_prefix?: string;
+  custom_heading?: string;
+  subtitle?: string;
+  instructions?: string;
+  badge_text?: string;
+  button_text?: string;
+  card_style?: 'glass' | 'clean' | 'lavender' | 'minimal' | 'warm';
+  text_align?: 'center' | 'left';
+}
+
+export interface ExpiryPageConfig {
+  heading?: string;
+  message?: string;
+  theme_id?: ThemeId;
+  show_home_button?: boolean;
+  home_button_text?: string;
+  show_create_button?: boolean;
+  create_button_text?: string;
+  card_style?: 'glass' | 'clean' | 'minimal';
+}
+
 export interface MemoryItem {
   id: string;
   gift_id?: string;
@@ -138,6 +160,10 @@ export interface Gift {
   selected_theme: ThemeId;
   theme_config?: CustomThemeConfig;
   
+  // Independent Experience Configs
+  password_page_config?: PasswordPageConfig;
+  expiry_page_config?: ExpiryPageConfig;
+  
   // Status
   status: GiftStatus;
   
@@ -201,6 +227,8 @@ export interface PublicGiftMeta {
   event_type: EventType;
   selected_theme: ThemeId;
   theme_config?: CustomThemeConfig;
+  password_page_config?: PasswordPageConfig;
+  expiry_page_config?: ExpiryPageConfig;
   status: GiftStatus;
   moderation_status?: ModerationStatus;
   is_unavailable?: boolean;

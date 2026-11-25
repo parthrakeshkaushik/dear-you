@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Sparkles, Moon, Clock, Heart, BookOpen, Gift, ArrowRight } from 'lucide-react';
 import { ThemeId } from '@/types/theme';
+import { ExpiryPageConfig } from '@/types/gift';
 
 interface ExpiryScreenProps {
   recipientName: string;
   themeId?: ThemeId;
   heading?: string;
   message?: string;
+  config?: ExpiryPageConfig;
 }
 
 export function ExpiryScreen({
@@ -18,10 +20,28 @@ export function ExpiryScreen({
   themeId = 'dreamy',
   heading,
   message,
+  config,
 }: ExpiryScreenProps) {
+  const effectiveThemeId = config?.theme_id || themeId || 'dreamy';
+  const effectiveHeading =
+    config?.heading && config.heading.trim().length > 0
+      ? config.heading.trim()
+      : heading || 'This little surprise has reached its final page.';
+
+  const effectiveMessage =
+    config?.message && config.message.trim().length > 0
+      ? config.message.trim()
+      : message ||
+        'The little world created for you has now come to a close. But some moments and connections are too special to be limited by time. Thank you for being part of this little journey.';
+
+  const showCreateBtn = config?.show_create_button !== undefined ? config.show_create_button : true;
+  const createBtnText = config?.create_button_text?.trim() || 'Create Your Own Gift';
+  const showHomeBtn = config?.show_home_button !== undefined ? config.show_home_button : true;
+  const homeBtnText = config?.home_button_text?.trim() || 'Return to Home';
+
   // Render theme-tailored farewell iconography
   const renderThemeFarewellEmblem = () => {
-    switch (themeId) {
+    switch (effectiveThemeId) {
       case 'scrapbook':
         return (
           <div className="w-16 h-16 rounded-2xl bg-[var(--theme-primary)]/15 border border-[var(--theme-primary)]/30 flex items-center justify-center text-[var(--theme-primary)] mb-6 shadow-sm">
@@ -89,12 +109,11 @@ export function ExpiryScreen({
           </span>
 
           <h1 className="mt-3 font-serif text-2xl sm:text-3xl text-[var(--theme-text)] font-normal leading-snug">
-            {heading || 'This little surprise has reached its final page.'}
+            {effectiveHeading}
           </h1>
 
           <p className="mt-6 text-sm sm:text-base text-[var(--theme-muted)] font-light leading-relaxed">
-            {message ||
-              'The little world created for you has now come to a close. But some moments and connections are too special to be limited by time. Thank you for being part of this little journey.'}
+            {effectiveMessage}
           </p>
 
           {/* Offline Keepsake Notice */}
@@ -106,23 +125,29 @@ export function ExpiryScreen({
           </div>
 
           {/* Action Call to Action: Create Your Own Gift + Return to Home */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
-            <Link
-              href="/"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[var(--theme-primary)] text-white text-xs sm:text-sm font-semibold hover:brightness-110 active:scale-95 transition-all shadow-md cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Create Your Own Gift</span>
-              <ArrowRight className="w-4 h-4 ml-0.5" />
-            </Link>
+          {(showCreateBtn || showHomeBtn) && (
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+              {showCreateBtn && (
+                <Link
+                  href="/"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[var(--theme-primary)] text-white text-xs sm:text-sm font-semibold hover:brightness-110 active:scale-95 transition-all shadow-md cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{createBtnText}</span>
+                  <ArrowRight className="w-4 h-4 ml-0.5" />
+                </Link>
+              )}
 
-            <Link
-              href="/"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-medium text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all"
-            >
-              <span>Return to Home</span>
-            </Link>
-          </div>
+              {showHomeBtn && (
+                <Link
+                  href="/"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-medium text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all"
+                >
+                  <span>{homeBtnText}</span>
+                </Link>
+              )}
+            </div>
+          )}
 
           {/* Closing subtle note */}
           <div className="mt-8 pt-6 border-t border-[var(--theme-border)] w-full flex items-center justify-center gap-1.5 text-xs text-[var(--theme-muted)]/80">

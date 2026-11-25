@@ -23,6 +23,8 @@ import { ThemeContainer } from '@/components/recipient/ThemeContainer';
 interface LivePreviewPaneProps {
   gift: GiftType;
   activeSectionId?: string;
+  stateMode?: PreviewStateMode;
+  onStateModeChange?: (mode: PreviewStateMode) => void;
   onSectionVisible?: (sectionId: string) => void;
   onCloseMobilePreview?: () => void;
   isMobileDrawer?: boolean;
@@ -34,13 +36,26 @@ export type PreviewStateMode = 'unlocked' | 'password_gate' | 'expired_closing';
 export function LivePreviewPane({
   gift,
   activeSectionId = 'welcome',
+  stateMode: controlledStateMode,
+  onStateModeChange,
   onSectionVisible,
   onCloseMobilePreview,
   isMobileDrawer = false,
 }: LivePreviewPaneProps) {
   const [device, setDevice] = useState<PreviewDevice>('desktop');
-  const [stateMode, setStateMode] = useState<PreviewStateMode>('unlocked');
+  const [internalStateMode, setInternalStateMode] = useState<PreviewStateMode>('unlocked');
+  const activeStateMode = controlledStateMode || internalStateMode;
   const [previewKey, setPreviewKey] = useState(0);
+
+  const handleStateChange = useCallback(
+    (newMode: PreviewStateMode) => {
+      setInternalStateMode(newMode);
+      if (onStateModeChange) {
+        onStateModeChange(newMode);
+      }
+    },
+    [onStateModeChange]
+  );
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScrollRef = useRef(false);
@@ -59,23 +74,23 @@ export function LivePreviewPane({
 
     // Handle special preview state modes
     if (sectionId === 'password' || sectionId === 'password_gate') {
-      setStateMode('password_gate');
+      handleStateChange('password_gate');
       viewportRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     if (sectionId === 'closing_screen' || sectionId === 'expired_closing') {
-      setStateMode('expired_closing');
+      handleStateChange('expired_closing');
       viewportRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    // Normal unlocked section navigation
-    if (stateMode !== 'unlocked') {
-      setStateMode('unlocked');
+    // Only scroll within unlocked gift journey if the mode is unlocked
+    if (activeStateMode !== 'unlocked') {
+      return;
     }
 
-    // Allow React a tick to render if stateMode was switched
+    // Allow React a tick to render if needed
     setTimeout(() => {
       if (!viewportRef.current) return;
 
@@ -100,14 +115,14 @@ export function LivePreviewPane({
         }, 800);
       }
     }, 60);
-  }, [stateMode]);
+  }, [activeStateMode, handleStateChange]);
 
   // Synchronize preview when creator navigates active section in editor
   useEffect(() => {
-    if (activeSectionId) {
+    if (activeSectionId && activeStateMode === 'unlocked') {
       scrollToSection(activeSectionId);
     }
-  }, [activeSectionId, scrollToSection]);
+  }, [activeSectionId, activeStateMode, scrollToSection]);
 
   // Bidirectional Synchronization: Detect currently visible section when creator scrolls preview
   useEffect(() => {
@@ -118,7 +133,7 @@ export function LivePreviewPane({
 
     const handleScroll = () => {
       if (isProgrammaticScrollRef.current) return;
-      if (stateMode !== 'unlocked') return;
+      if (activeStateMode !== 'unlocked') return;
 
       if (throttleTimer) return;
       throttleTimer = setTimeout(() => {
@@ -167,7 +182,7 @@ export function LivePreviewPane({
       container.removeEventListener('scroll', handleScroll);
       if (throttleTimer) clearTimeout(throttleTimer);
     };
-  }, [onSectionVisible, stateMode]);
+  }, [onSectionVisible, activeStateMode]);
 
   // Compute container dimensions based on selected device preview mode
   const getDeviceFrameStyles = () => {
@@ -188,7 +203,7 @@ export function LivePreviewPane({
 
   // Render content according to stateMode (Unlocked vs Password Gate vs Expired Screen)
   const renderPreviewContent = () => {
-    switch (stateMode) {
+    switch (activeStateMode) {
       case 'password_gate':
         return (
           <ThemeContainer themeId={gift.selected_theme} customConfig={gift.theme_config}>
@@ -198,28 +213,33 @@ export function LivePreviewPane({
               passwordHint={gift.password_hint}
               isDemo={false}
               revocationNotice={null}
+              config={gift.theme_config?.password_page || gift.password_page_config}
               onSubmit={async (entered) => {
                 if (!entered.trim()) {
                   return { success: false, error: 'Please enter a password to test.' };
                 }
                 return { success: true };
               }}
-              onSuccess={() => setStateMode('unlocked')}
+              onSuccess={() => handleStateChange('unlocked')}
             />
           </ThemeContainer>
         );
 
       case 'expired_closing':
+        const expiryCfg = gift.theme_config?.expiry_page || gift.expiry_page_config;
+        const expiryTheme = expiryCfg?.theme_id || gift.selected_theme;
         return (
-          <ThemeContainer themeId={gift.selected_theme} customConfig={gift.theme_config}>
+          <ThemeContainer themeId={expiryTheme} customConfig={gift.theme_config}>
             <ExpiryScreen
               recipientName={gift.recipient_name}
-              themeId={gift.selected_theme}
-              heading={gift.expiry_heading || 'This Gift Has Concluded'}
+              themeId={expiryTheme}
+              heading={expiryCfg?.heading || gift.expiry_heading || 'This Gift Has Concluded'}
               message={
+                expiryCfg?.message ||
                 gift.expiry_message ||
                 'Thank you for being part of this special moment. This digital keepsake has reached its scheduled conclusion.'
               }
+              config={expiryCfg}
             />
           </ThemeContainer>
         );
@@ -252,11 +272,11 @@ export function LivePreviewPane({
           <div className="inline-flex items-center p-0.5 rounded-lg bg-black/40 border border-white/10 text-xs">
             <button
               onClick={() => {
-                setStateMode('unlocked');
+                handleStateChange('unlocked');
                 if (activeSectionId) scrollToSection(activeSectionId);
               }}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                stateMode === 'unlocked'
+                activeStateMode === 'unlocked'
                   ? 'bg-platform-violet text-white shadow-xs'
                   : 'text-stone-400 hover:text-white'
               }`}
@@ -265,9 +285,9 @@ export function LivePreviewPane({
               Gift Journey
             </button>
             <button
-              onClick={() => setStateMode('password_gate')}
+              onClick={() => handleStateChange('password_gate')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                stateMode === 'password_gate'
+                activeStateMode === 'password_gate'
                   ? 'bg-platform-violet text-white shadow-xs'
                   : 'text-stone-400 hover:text-white'
               }`}
@@ -276,9 +296,9 @@ export function LivePreviewPane({
               Password Gate
             </button>
             <button
-              onClick={() => setStateMode('expired_closing')}
+              onClick={() => handleStateChange('expired_closing')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                stateMode === 'expired_closing'
+                activeStateMode === 'expired_closing'
                   ? 'bg-platform-violet text-white shadow-xs'
                   : 'text-stone-400 hover:text-white'
               }`}

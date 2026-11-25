@@ -39,15 +39,17 @@ export interface ThemeDefinition {
 }
 
 export interface CustomThemeConfig {
-  primaryColor: string;
-  secondaryColor: string;
-  backgroundColor: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  backgroundColor?: string;
   surfaceColor?: string;
   textColor?: string;
-  accentColor: string;
-  headingFont: 'Playfair Display' | 'Inter' | 'Caveat' | 'Cinzel' | 'Outfit';
-  bodyFont: 'Inter' | 'Plus Jakarta Sans' | 'Lora' | 'System';
-  animationIntensity: 'gentle' | 'balanced' | 'festive';
-  backgroundStyle: 'mesh' | 'stars' | 'confetti' | 'paper' | 'gradient' | 'clean';
+  accentColor?: string;
+  headingFont?: 'Playfair Display' | 'Inter' | 'Caveat' | 'Cinzel' | 'Outfit';
+  bodyFont?: 'Inter' | 'Plus Jakarta Sans' | 'Lora' | 'System';
+  animationIntensity?: 'gentle' | 'balanced' | 'festive';
+  backgroundStyle?: 'mesh' | 'stars' | 'confetti' | 'paper' | 'gradient' | 'clean';
   coverImageUrl?: string;
+  password_page?: any;
+  expiry_page?: any;
 }

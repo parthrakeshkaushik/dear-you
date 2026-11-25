@@ -12,6 +12,7 @@ import {
   Clock,
   Palette,
   Eye,
+  EyeOff,
   Plus,
   Trash2,
   Upload,
@@ -55,10 +56,12 @@ import {
   Gift as GiftType,
   FrameStyle,
   FrameSize,
+  PasswordPageConfig,
+  ExpiryPageConfig,
 } from '@/types/gift';
 import { ThemeId, CustomThemeConfig } from '@/types/theme';
 import { THEME_PRESETS } from '@/config/themes';
-import { LivePreviewPane } from '@/components/admin/LivePreviewPane';
+import { LivePreviewPane, PreviewStateMode } from '@/components/admin/LivePreviewPane';
 
 interface WizardPageConfig {
   step: number;
@@ -306,6 +309,27 @@ function GiftBuilderInner() {
   const [password, setPassword] = useState('ananya2026');
   const [passwordHint, setPasswordHint] = useState('Our favourite rooftop cafe');
 
+  // Top-Level Three-Experience Builder State
+  const [activeExperience, setActiveExperience] = useState<'password_gate' | 'gift_journey' | 'expiry_screen'>('gift_journey');
+  const [previewStateMode, setPreviewStateMode] = useState<PreviewStateMode>('unlocked');
+
+  // Section A: Password Gate Editor State
+  const [passwordHeadingPrefix, setPasswordHeadingPrefix] = useState('A surprise for');
+  const [passwordCustomHeading, setPasswordCustomHeading] = useState('');
+  const [passwordSubtitle, setPasswordSubtitle] = useState('');
+  const [passwordInstructions, setPasswordInstructions] = useState('');
+  const [passwordBadgeText, setPasswordBadgeText] = useState('Dear You Experience');
+  const [passwordButtonText, setPasswordButtonText] = useState('Unlock Experience');
+  const [passwordCardStyle, setPasswordCardStyle] = useState<'glass' | 'clean' | 'lavender' | 'minimal' | 'warm'>('glass');
+  const [showBuilderPassword, setShowBuilderPassword] = useState(false);
+
+  // Section C: Expiry / Closing Screen Editor State
+  const [expiryThemeId, setExpiryThemeId] = useState<ThemeId>('dreamy');
+  const [expiryShowHomeBtn, setExpiryShowHomeBtn] = useState(true);
+  const [expiryHomeBtnText, setExpiryHomeBtnText] = useState('Return to Home');
+  const [expiryShowCreateBtn, setExpiryShowCreateBtn] = useState(true);
+  const [expiryCreateBtnText, setExpiryCreateBtnText] = useState('Create Your Own Gift');
+
   // Publishing State
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -467,6 +491,32 @@ function GiftBuilderInner() {
   };
 
   // Construct reactive Live Preview Gift object
+  const passwordPageConfig: PasswordPageConfig = {
+    heading_prefix: passwordHeadingPrefix,
+    custom_heading: passwordCustomHeading,
+    subtitle: passwordSubtitle,
+    instructions: passwordInstructions,
+    badge_text: passwordBadgeText,
+    button_text: passwordButtonText,
+    card_style: passwordCardStyle,
+  };
+
+  const expiryPageConfig: ExpiryPageConfig = {
+    heading: expiryHeading,
+    message: expiryMessage,
+    theme_id: expiryThemeId,
+    show_home_button: expiryShowHomeBtn,
+    home_button_text: expiryHomeBtnText,
+    show_create_button: expiryShowCreateBtn,
+    create_button_text: expiryCreateBtnText,
+  };
+
+  const combinedThemeConfig: CustomThemeConfig = {
+    ...customTheme,
+    password_page: passwordPageConfig,
+    expiry_page: expiryPageConfig,
+  };
+
   const previewGift: GiftType = {
     id: 'builder-preview',
     recipient_name: recipientName || 'Recipient',
@@ -476,7 +526,9 @@ function GiftBuilderInner() {
     event_date: eventDate,
     cover_image: coverImage || undefined,
     selected_theme: selectedTheme,
-    theme_config: selectedTheme === 'custom' ? customTheme : undefined,
+    theme_config: combinedThemeConfig,
+    password_page_config: passwordPageConfig,
+    expiry_page_config: expiryPageConfig,
     status: 'draft',
     introduction,
     welcome_heading: welcomeHeading,
@@ -568,6 +620,29 @@ function GiftBuilderInner() {
             if (g.expiry_timezone) setExpiryTimezone(g.expiry_timezone);
             setExpiryHeading(g.expiry_heading || '');
             setExpiryMessage(g.expiry_message || '');
+
+            const pwCfg = g.theme_config?.password_page || (g as any).password_page_config;
+            if (pwCfg) {
+              if (pwCfg.heading_prefix !== undefined) setPasswordHeadingPrefix(pwCfg.heading_prefix);
+              if (pwCfg.custom_heading !== undefined) setPasswordCustomHeading(pwCfg.custom_heading);
+              if (pwCfg.subtitle !== undefined) setPasswordSubtitle(pwCfg.subtitle);
+              if (pwCfg.instructions !== undefined) setPasswordInstructions(pwCfg.instructions);
+              if (pwCfg.badge_text !== undefined) setPasswordBadgeText(pwCfg.badge_text);
+              if (pwCfg.button_text !== undefined) setPasswordButtonText(pwCfg.button_text);
+              if (pwCfg.card_style !== undefined) setPasswordCardStyle(pwCfg.card_style);
+            }
+
+            const expCfg = g.theme_config?.expiry_page || (g as any).expiry_page_config;
+            if (expCfg) {
+              if (expCfg.heading !== undefined) setExpiryHeading(expCfg.heading);
+              if (expCfg.message !== undefined) setExpiryMessage(expCfg.message);
+              if (expCfg.theme_id !== undefined) setExpiryThemeId(expCfg.theme_id);
+              if (expCfg.show_home_button !== undefined) setExpiryShowHomeBtn(expCfg.show_home_button);
+              if (expCfg.home_button_text !== undefined) setExpiryHomeBtnText(expCfg.home_button_text);
+              if (expCfg.show_create_button !== undefined) setExpiryShowCreateBtn(expCfg.show_create_button);
+              if (expCfg.create_button_text !== undefined) setExpiryCreateBtnText(expCfg.create_button_text);
+            }
+
             setDraftId(g.id);
             setSaveStatus('saved');
           }
@@ -587,6 +662,32 @@ function GiftBuilderInner() {
     async (customStatus: 'draft' | 'published' = 'draft') => {
       setSaveStatus('saving');
       try {
+        const currentPasswordPageConfig: PasswordPageConfig = {
+          heading_prefix: passwordHeadingPrefix,
+          custom_heading: passwordCustomHeading,
+          subtitle: passwordSubtitle,
+          instructions: passwordInstructions,
+          badge_text: passwordBadgeText,
+          button_text: passwordButtonText,
+          card_style: passwordCardStyle,
+        };
+
+        const currentExpiryPageConfig: ExpiryPageConfig = {
+          heading: expiryHeading,
+          message: expiryMessage,
+          theme_id: expiryThemeId,
+          show_home_button: expiryShowHomeBtn,
+          home_button_text: expiryHomeBtnText,
+          show_create_button: expiryShowCreateBtn,
+          create_button_text: expiryCreateBtnText,
+        };
+
+        const currentCombinedThemeConfig: CustomThemeConfig = {
+          ...customTheme,
+          password_page: currentPasswordPageConfig,
+          expiry_page: currentExpiryPageConfig,
+        };
+
         const payload = {
           draft_id: draftId,
           recipient_name: recipientName,
@@ -596,7 +697,9 @@ function GiftBuilderInner() {
           event_date: eventDate,
           cover_image: coverImage || undefined,
           selected_theme: selectedTheme,
-          theme_config: selectedTheme === 'custom' ? customTheme : undefined,
+          theme_config: currentCombinedThemeConfig,
+          password_page_config: currentPasswordPageConfig,
+          expiry_page_config: currentExpiryPageConfig,
           introduction,
           welcome_heading: welcomeHeading,
           welcome_message: welcomeMessage,
@@ -701,6 +804,18 @@ function GiftBuilderInner() {
       secretMessages,
       letters,
       wishes,
+      passwordHeadingPrefix,
+      passwordCustomHeading,
+      passwordSubtitle,
+      passwordInstructions,
+      passwordBadgeText,
+      passwordButtonText,
+      passwordCardStyle,
+      expiryThemeId,
+      expiryShowHomeBtn,
+      expiryHomeBtnText,
+      expiryShowCreateBtn,
+      expiryCreateBtnText,
     ]
   );
 
@@ -873,8 +988,318 @@ function GiftBuilderInner() {
         {/* LEFT PANEL: CREATOR EDITOR (45% width on desktop)        */}
         {/* ======================================================== */}
         <div className="w-full lg:w-[45%] xl:w-[42%] space-y-6 pb-28 sm:pb-32 lg:pb-8">
-          {/* Step Progress Bar */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-black/5 shadow-xs">
+          {/* Top-Level Experience Selector: 3 Dedicated Pages */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-black/5 shadow-xs">
+            <div className="text-[11px] font-semibold text-platform-muted uppercase tracking-wider px-2 py-1 flex items-center justify-between">
+              <span>Gift Experience</span>
+              <span className="text-[10px] text-platform-violet font-normal">3 dedicated pages</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveExperience('password_gate');
+                  setPreviewStateMode('password_gate');
+                }}
+                className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
+                  activeExperience === 'password_gate'
+                    ? 'bg-platform-dark text-white shadow-sm font-semibold'
+                    : 'bg-stone-50 hover:bg-stone-100 text-platform-dark'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Password Gate</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveExperience('gift_journey');
+                  setPreviewStateMode('unlocked');
+                }}
+                className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
+                  activeExperience === 'gift_journey'
+                    ? 'bg-platform-dark text-white shadow-sm font-semibold'
+                    : 'bg-stone-50 hover:bg-stone-100 text-platform-dark'
+                }`}
+              >
+                <Gift className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Gift Journey</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveExperience('expiry_screen');
+                  setPreviewStateMode('expired_closing');
+                }}
+                className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
+                  activeExperience === 'expiry_screen'
+                    ? 'bg-platform-dark text-white shadow-sm font-semibold'
+                    : 'bg-stone-50 hover:bg-stone-100 text-platform-dark'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Expiry Screen</span>
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION A: Password Gate Editor */}
+          {activeExperience === 'password_gate' && (
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-black/5 shadow-xs space-y-6">
+              <div className="flex items-center justify-between border-b border-black/5 pb-4">
+                <div>
+                  <span className="text-[11px] font-semibold text-platform-violet uppercase tracking-wider">
+                    Section A • First Screen Recipients See
+                  </span>
+                  <h2 className="font-serif text-xl sm:text-2xl text-platform-dark font-normal">
+                    Password Gate Editor
+                  </h2>
+                  <p className="mt-1 text-xs text-platform-muted">
+                    Customise the opening heading prefix, recipient name, card appearance, instructions and access security.
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-platform-violet/10 border border-platform-violet/20 flex items-center justify-center text-platform-violet shrink-0">
+                  <Lock className="w-5 h-5" />
+                </div>
+              </div>
+
+              {/* Live Computed Heading Preview */}
+              <div className="p-4 rounded-2xl bg-platform-light border border-black/5">
+                <span className="text-[10px] uppercase font-semibold text-platform-muted block mb-1">
+                  Live Recipient Heading Preview
+                </span>
+                <div className="font-serif text-lg sm:text-xl text-platform-dark">
+                  {passwordCustomHeading && passwordCustomHeading.trim().length > 0
+                    ? passwordCustomHeading
+                    : `${passwordHeadingPrefix || 'A surprise for'} ${recipientName || 'Someone Special'}`}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Heading Prefix (The fix for "A surprise for"!) */}
+                <div>
+                  <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                    Heading Prefix * (Editable Prefix)
+                  </label>
+                  <input
+                    type="text"
+                    value={passwordHeadingPrefix}
+                    onChange={(e) => setPasswordHeadingPrefix(e.target.value)}
+                    placeholder="e.g. A surprise for, A little secret for, Specially crafted for"
+                    className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {[
+                      'A surprise for',
+                      'A little secret for',
+                      'Something special for',
+                      'Crafted with love for',
+                      'A digital keepsake for',
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setPasswordHeadingPrefix(preset)}
+                        className="text-[10px] px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 text-platform-dark transition-colors cursor-pointer"
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recipient Name */}
+                <div>
+                  <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                    Recipient Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    placeholder="e.g. Ananya, Rahul, Maya"
+                    className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                  />
+                </div>
+
+                {/* Custom Full Heading Override (Optional) */}
+                <div>
+                  <label className="block text-xs font-semibold text-platform-dark mb-1.5 flex items-center justify-between">
+                    <span>Custom Full Heading (Optional Override)</span>
+                    <span className="text-[10px] text-platform-muted font-normal">Replaces Prefix + Name</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={passwordCustomHeading}
+                    onChange={(e) => setPasswordCustomHeading(e.target.value)}
+                    placeholder="e.g. Something special for someone special"
+                    className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-platform-muted mt-1">
+                    Leave blank to use &ldquo;{passwordHeadingPrefix || 'A surprise for'} {recipientName || 'Someone Special'}&rdquo;.
+                  </p>
+                </div>
+
+                {/* Subtitle */}
+                <div>
+                  <LimitedInput
+                    label="Subtitle / Description"
+                    value={passwordSubtitle}
+                    onChange={(val) => setPasswordSubtitle(val)}
+                    maxWords={25}
+                    placeholder="e.g. Someone special created a personal digital keepsake for you."
+                  />
+                </div>
+
+                {/* Instructions */}
+                <div>
+                  <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                    Password Instructions (Optional Hint/Clue Prompt)
+                  </label>
+                  <input
+                    type="text"
+                    value={passwordInstructions}
+                    onChange={(e) => setPasswordInstructions(e.target.value)}
+                    placeholder="e.g. Enter the secret passcode shared with you"
+                    className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                  />
+                </div>
+
+                {/* Badge Text & Button Label */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                      Decorative Badge Text
+                    </label>
+                    <input
+                      type="text"
+                      value={passwordBadgeText}
+                      onChange={(e) => setPasswordBadgeText(e.target.value)}
+                      placeholder="Dear You Experience"
+                      className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                      Unlock Button Label
+                    </label>
+                    <input
+                      type="text"
+                      value={passwordButtonText}
+                      onChange={(e) => setPasswordButtonText(e.target.value)}
+                      placeholder="Unlock Experience"
+                      className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Card Style Appearance */}
+                <div>
+                  <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                    Card Container Appearance
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: 'glass', label: 'Frosted Glass', desc: 'Modern blur & accent glow' },
+                      { id: 'clean', label: 'Clean Ivory', desc: 'Crisp bordered card' },
+                      { id: 'lavender', label: 'Lavender Dream', desc: 'Soft romantic gradient' },
+                      { id: 'minimal', label: 'Minimalist', desc: 'Ultra-light frame' },
+                      { id: 'warm', label: 'Warm Glow', desc: 'Golden amber undertone' },
+                    ].map((style) => (
+                      <button
+                        key={style.id}
+                        type="button"
+                        onClick={() => setPasswordCardStyle(style.id as any)}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                          passwordCardStyle === style.id
+                            ? 'border-platform-violet bg-platform-violet/5 ring-1 ring-platform-violet'
+                            : 'border-black/10 hover:border-black/20 bg-stone-50/50'
+                        }`}
+                      >
+                        <div className="text-xs font-semibold text-platform-dark">{style.label}</div>
+                        <div className="text-[10px] text-platform-muted mt-0.5 leading-snug">{style.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Password & Security Configuration */}
+                <div className="pt-4 border-t border-black/5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-platform-dark" />
+                    <h3 className="text-xs font-semibold text-platform-dark uppercase tracking-wider">
+                      Password & Security Settings
+                    </h3>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                      Secret Access Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showBuilderPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Set gift password"
+                        className="w-full px-4 py-3 pr-10 rounded-xl border border-black/10 text-xs sm:text-sm font-mono focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowBuilderPassword(!showBuilderPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-platform-muted hover:text-platform-dark p-1"
+                        aria-label={showBuilderPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showBuilderPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                      Password Hint (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={passwordHint}
+                      onChange={(e) => setPasswordHint(e.target.value)}
+                      placeholder="e.g. Our favourite rooftop cafe, The year we met"
+                      className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-black/5 border border-black/5 text-[11px] text-platform-muted leading-relaxed">
+                    🔒 <strong>Security Guarantee:</strong> Passwords are cryptographically salted and hashed using bcrypt before storage. Plaintext passwords are never saved in draft JSON or exposed in public previews.
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation to next experience */}
+              <div className="pt-4 border-t border-black/5 flex items-center justify-between">
+                <span className="text-xs text-platform-muted">Autosaved to draft</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveExperience('gift_journey');
+                    setPreviewStateMode('unlocked');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all shadow-xs cursor-pointer"
+                >
+                  <span>Continue to Gift Journey</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* SECTION B: Gift Journey Wizard (Pages 1 to 6) */}
+          {activeExperience === 'gift_journey' && (
+            <>
+              {/* Step Progress Bar */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-black/5 shadow-xs">
             <div className="flex items-center justify-between text-xs text-platform-muted mb-3 font-medium">
               <span className="font-semibold text-platform-dark">
                 {activePageConfig.label}
@@ -1816,6 +2241,250 @@ function GiftBuilderInner() {
               )}
             </div>
           </div>
+          </>
+        )}
+
+        {/* SECTION C: Expiry / Closing Screen Editor */}
+        {activeExperience === 'expiry_screen' && (
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-black/5 shadow-xs space-y-6">
+            <div className="flex items-center justify-between border-b border-black/5 pb-4">
+              <div>
+                <span className="text-[11px] font-semibold text-platform-violet uppercase tracking-wider">
+                  Section C • Final Closing & Expiry Screen
+                </span>
+                <h2 className="font-serif text-xl sm:text-2xl text-platform-dark font-normal">
+                  Expiry / Closing Screen Editor
+                </h2>
+                <p className="mt-1 text-xs text-platform-muted">
+                  Customise the post-expiry farewell message, closing typography, navigation options, and expiration schedule.
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-2xl bg-platform-violet/10 border border-platform-violet/20 flex items-center justify-center text-platform-violet shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Expiry Heading */}
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                  Closing Heading *
+                </label>
+                <input
+                  type="text"
+                  value={expiryHeading}
+                  onChange={(e) => setExpiryHeading(e.target.value)}
+                  placeholder="e.g. This Little Universe Has Closed"
+                  className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    'This Little Universe Has Closed',
+                    'This Surprise Has Reached Its Final Chapter',
+                    'Our Special Journey Has Come to an End',
+                    'Until We Meet Again in Memory',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setExpiryHeading(preset)}
+                      className="text-[10px] px-2.5 py-1 rounded-lg bg-black/5 hover:bg-black/10 text-platform-dark transition-colors cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description / Closing Message */}
+              <div>
+                <LimitedTextarea
+                  label="Description & Farewell Message"
+                  required
+                  value={expiryMessage}
+                  onChange={(val) => setExpiryMessage(val)}
+                  maxWords={100}
+                  rows={4}
+                  placeholder="The little world created for you has now come to a close. But some moments and connections are too special to be limited by time. Thank you for being part of this little journey."
+                />
+              </div>
+
+              {/* Visual Theme Selector for Expiry Page */}
+              <div>
+                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                  Expiry Farewell Theme
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'dreamy', name: 'Dreamy Stars', desc: 'Gentle night sky & moon emblem' },
+                    { id: 'elegant', name: 'Classic Gold', desc: 'Timeless clock & gold accents' },
+                    { id: 'scrapbook', name: 'Scrapbook', desc: 'Warm paper & book emblem' },
+                    { id: 'celebration', name: 'Celebration', desc: 'Joyful glow & festivity' },
+                    { id: 'pastel', name: 'Pastel Whisper', desc: 'Soft dreamy lavender/rose' },
+                    { id: 'minimal', name: 'Modern Minimal', desc: 'Clean, understated serif' },
+                  ].map((th) => (
+                    <button
+                      key={th.id}
+                      type="button"
+                      onClick={() => setExpiryThemeId(th.id as ThemeId)}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                        expiryThemeId === th.id
+                          ? 'border-platform-violet bg-platform-violet/5 ring-1 ring-platform-violet'
+                          : 'border-black/10 hover:border-black/20 bg-stone-50/50'
+                      }`}
+                    >
+                      <div className="text-xs font-semibold text-platform-dark">{th.name}</div>
+                      <div className="text-[10px] text-platform-muted mt-0.5 leading-snug">{th.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Navigation Action Buttons */}
+              <div className="pt-4 border-t border-black/5 space-y-3">
+                <h3 className="text-xs font-semibold text-platform-dark uppercase tracking-wider">
+                  Navigation Controls
+                </h3>
+
+                {/* Toggle Create Your Own Gift */}
+                <div className="p-3.5 rounded-2xl bg-stone-50 border border-black/5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-medium text-platform-dark">
+                        &ldquo;Create Your Own Gift&rdquo; Call to Action
+                      </span>
+                      <p className="text-[11px] text-platform-muted">
+                        Invite the recipient to create a keepsake of their own
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={expiryShowCreateBtn}
+                      onChange={(e) => setExpiryShowCreateBtn(e.target.checked)}
+                      className="w-4 h-4 text-platform-violet rounded border-gray-300 focus:ring-platform-violet"
+                    />
+                  </div>
+                  {expiryShowCreateBtn && (
+                    <input
+                      type="text"
+                      value={expiryCreateBtnText}
+                      onChange={(e) => setExpiryCreateBtnText(e.target.value)}
+                      placeholder="Create Your Own Gift"
+                      className="w-full px-3 py-2 rounded-lg border border-black/10 text-xs focus:ring-1 focus:ring-platform-violet focus:outline-none"
+                    />
+                  )}
+                </div>
+
+                {/* Toggle Return to Home */}
+                <div className="p-3.5 rounded-2xl bg-stone-50 border border-black/5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-medium text-platform-dark">
+                        &ldquo;Return to Home&rdquo; Secondary Button
+                      </span>
+                      <p className="text-[11px] text-platform-muted">
+                        Provide a clean exit back to the Dear You homepage
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={expiryShowHomeBtn}
+                      onChange={(e) => setExpiryShowHomeBtn(e.target.checked)}
+                      className="w-4 h-4 text-platform-violet rounded border-gray-300 focus:ring-platform-violet"
+                    />
+                  </div>
+                  {expiryShowHomeBtn && (
+                    <input
+                      type="text"
+                      value={expiryHomeBtnText}
+                      onChange={(e) => setExpiryHomeBtnText(e.target.value)}
+                      placeholder="Return to Home"
+                      className="w-full px-3 py-2 rounded-lg border border-black/10 text-xs focus:ring-1 focus:ring-platform-violet focus:outline-none"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Expiry Schedule Settings */}
+              <div className="pt-4 border-t border-black/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-platform-dark">
+                      Automatic Expiry Schedule
+                    </span>
+                    <p className="text-[11px] text-platform-muted">
+                      Optionally schedule the exact moment this gift closes.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={expiryEnabled}
+                    onChange={(e) => setExpiryEnabled(e.target.checked)}
+                    className="w-4 h-4 text-platform-violet rounded border-gray-300 focus:ring-platform-violet"
+                  />
+                </div>
+
+                {expiryEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <div>
+                      <label className="block text-[11px] font-medium text-platform-dark mb-1">
+                        Expiry Date
+                      </label>
+                      <input
+                        type="date"
+                        value={expiryDate}
+                        onChange={(e) => setExpiryDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-platform-dark mb-1">
+                        Expiry Time
+                      </label>
+                      <input
+                        type="time"
+                        value={expiryTime}
+                        onChange={(e) => setExpiryTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-900 leading-relaxed">
+                  🛡️ <strong>Preview Safety:</strong> Previewing this closing screen in Creator Studio does <em>not</em> expire your gift. Recipient gifts expire strictly when the server-side expiry threshold is reached.
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation to other experiences */}
+            <div className="pt-4 border-t border-black/5 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveExperience('gift_journey');
+                  setPreviewStateMode('unlocked');
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-black/10 text-xs font-medium text-platform-dark hover:bg-black/5 transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Gift Journey</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveExperience('password_gate');
+                  setPreviewStateMode('password_gate');
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all shadow-xs cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Edit Password Gate</span>
+              </button>
+            </div>
+          </div>
+        )}
         </div>
 
         {/* ======================================================== */}
@@ -1825,6 +2494,13 @@ function GiftBuilderInner() {
           <LivePreviewPane
             gift={previewGift}
             activeSectionId={activeSectionId}
+            stateMode={previewStateMode}
+            onStateModeChange={(mode) => {
+              setPreviewStateMode(mode);
+              if (mode === 'password_gate') setActiveExperience('password_gate');
+              else if (mode === 'expired_closing') setActiveExperience('expiry_screen');
+              else setActiveExperience('gift_journey');
+            }}
             onSectionVisible={handlePreviewSectionVisible}
           />
         </div>
@@ -1905,6 +2581,13 @@ function GiftBuilderInner() {
             <LivePreviewPane
               gift={previewGift}
               activeSectionId={activeSectionId}
+              stateMode={previewStateMode}
+              onStateModeChange={(mode) => {
+                setPreviewStateMode(mode);
+                if (mode === 'password_gate') setActiveExperience('password_gate');
+                else if (mode === 'expired_closing') setActiveExperience('expiry_screen');
+                else setActiveExperience('gift_journey');
+              }}
               onSectionVisible={handlePreviewSectionVisible}
               isMobileDrawer={true}
               onCloseMobilePreview={() => {
