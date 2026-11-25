@@ -3547,6 +3547,181 @@ test('Developer layout and overview implement error boundary, loading state and 
   );
 });
 
+// -------------------------------------------------------------
+// 45. GLOBAL LIGHT/DARK THEME, OFFLINE ZIP & PRINTABLE PDF TESTS
+// -------------------------------------------------------------
+console.log('\n--- 45. Global Light/Dark Theme, Offline ZIP & Printable PDF Tests ---');
+
+test('Global platform theme infrastructure and anti-flash script', () => {
+  const themeModule = fs.readFileSync('src/lib/theme/platform-theme.tsx', 'utf8');
+  const layoutCode = fs.readFileSync('src/app/layout.tsx', 'utf8');
+  const toggleCode = fs.readFileSync('src/components/common/PlatformThemeToggle.tsx', 'utf8');
+
+  // Verify theme provider exports
+  assert.strictEqual(
+    themeModule.includes('PlatformThemeProvider') && themeModule.includes('usePlatformTheme'),
+    true,
+    'Platform theme module must export PlatformThemeProvider and usePlatformTheme'
+  );
+
+  // Verify storage key
+  assert.strictEqual(
+    themeModule.includes('dear_you_platform_theme'),
+    true,
+    'Platform theme must persist to dear_you_platform_theme in localStorage'
+  );
+
+  // Verify anti-flash script
+  assert.strictEqual(
+    themeModule.includes('platformThemeInitScript'),
+    true,
+    'Platform theme module must export platformThemeInitScript'
+  );
+  assert.strictEqual(
+    layoutCode.includes('platformThemeInitScript') && layoutCode.includes('PlatformThemeProvider'),
+    true,
+    'Root layout must inject platformThemeInitScript in head and wrap children in PlatformThemeProvider'
+  );
+
+  // Verify PlatformThemeToggle variants
+  assert.strictEqual(
+    toggleCode.includes('compact') && toggleCode.includes('segmented') && toggleCode.includes('menu'),
+    true,
+    'PlatformThemeToggle must support compact, segmented, and menu variants'
+  );
+});
+
+test('Platform theme tokens and gift theme independence', () => {
+  const css = fs.readFileSync('src/styles/globals.css', 'utf8');
+  const tailwind = fs.readFileSync('tailwind.config.ts', 'utf8');
+  const themeContainer = fs.readFileSync('src/components/recipient/ThemeContainer.tsx', 'utf8');
+
+  // Verify tailwind dark mode configuration
+  assert.strictEqual(
+    tailwind.includes("darkMode: ['class', '[data-platform-theme=\"dark\"]']"),
+    true,
+    'Tailwind must configure platform-theme dark mode attribute selector'
+  );
+
+  // Verify CSS variables in globals.css
+  assert.strictEqual(
+    css.includes('--platform-bg') && css.includes('--platform-text') && css.includes('--platform-card'),
+    true,
+    'globals.css must define semantic platform tokens'
+  );
+
+  // Verify ThemeContainer isolates gift theme CSS variables
+  assert.strictEqual(
+    themeContainer.includes('--theme-bg') && themeContainer.includes('--theme-text'),
+    true,
+    'ThemeContainer must isolate gift colors using scoped --theme-* variables independent of platform theme'
+  );
+});
+
+test('Global theme switcher integrated across all key views', () => {
+  const homeCode = fs.readFileSync('src/app/page.tsx', 'utf8');
+  const loginCode = fs.readFileSync('src/app/login/page.tsx', 'utf8');
+  const forgotCode = fs.readFileSync('src/app/forgot-password/page.tsx', 'utf8');
+  const resetCode = fs.readFileSync('src/app/reset-password/page.tsx', 'utf8');
+  const adminLayout = fs.readFileSync('src/app/admin/layout.tsx', 'utf8');
+  const settingsCode = fs.readFileSync('src/app/admin/settings/page.tsx', 'utf8');
+  const createCode = fs.readFileSync('src/app/admin/create/page.tsx', 'utf8');
+  const devLayout = fs.readFileSync('src/app/developer/layout.tsx', 'utf8');
+
+  assert.strictEqual(homeCode.includes('PlatformThemeToggle'), true, 'Homepage must include PlatformThemeToggle');
+  assert.strictEqual(loginCode.includes('PlatformThemeToggle'), true, 'Login page must include PlatformThemeToggle');
+  assert.strictEqual(forgotCode.includes('PlatformThemeToggle'), true, 'Forgot password page must include PlatformThemeToggle');
+  assert.strictEqual(resetCode.includes('PlatformThemeToggle'), true, 'Reset password page must include PlatformThemeToggle');
+  assert.strictEqual(adminLayout.includes('PlatformThemeToggle'), true, 'Admin layout must include PlatformThemeToggle');
+  assert.strictEqual(settingsCode.includes('PlatformThemeToggle'), true, 'Settings page must include PlatformThemeToggle');
+  assert.strictEqual(createCode.includes('PlatformThemeToggle'), true, 'Gift builder must include PlatformThemeToggle');
+  assert.strictEqual(devLayout.includes('PlatformThemeToggle'), true, 'Developer layout must include PlatformThemeToggle');
+});
+
+test('Offline ZIP export generates structured package with assets and permanent guarantee', () => {
+  const routeCode = fs.readFileSync('src/app/api/gifts/[slug]/download/route.ts', 'utf8');
+  const offlineCardCode = fs.readFileSync('src/lib/download/generate-offline-card.ts', 'utf8');
+
+  // Verify database query before fallback
+  assert.strictEqual(
+    routeCode.includes("from('gifts')") && routeCode.includes('.eq(\'slug\', slug)'),
+    true,
+    'Download route must query Supabase database before falling back to mock'
+  );
+
+  // Verify assets packaging
+  assert.strictEqual(
+    routeCode.includes("zip.file(`assets/images/"),
+    true,
+    'Download route must package images into assets/images/'
+  );
+  assert.strictEqual(
+    routeCode.includes("zip.file('data/gift-data.json'"),
+    true,
+    'Download route must package data/gift-data.json'
+  );
+
+  // Verify permanent copy disclosure
+  assert.strictEqual(
+    routeCode.includes('PERMANENT OFFLINE GUARANTEE') &&
+    routeCode.includes('cannot be remotely expired, edited, revoked, or deleted'),
+    true,
+    'README.txt must disclose that downloaded offline copies are permanent and cannot be remotely revoked or expired'
+  );
+
+  // Verify offline card interactivity support
+  assert.strictEqual(
+    offlineCardCode.includes('toggleOfflineMusic') && offlineCardCode.includes('hero-cover-img'),
+    true,
+    'Offline card generator must support offline audio player and cover image'
+  );
+});
+
+test('Printable PDF export eliminates modal overlay repetition and formats dedicated memory book', () => {
+  const modalCode = fs.readFileSync('src/components/recipient/DownloadKeepsakeModal.tsx', 'utf8');
+  const printPageCode = fs.readFileSync('src/app/g/[slug]/print/page.tsx', 'utf8');
+  const printViewCode = fs.readFileSync('src/components/recipient/PrintKeepsakeView.tsx', 'utf8');
+  const globalsCss = fs.readFileSync('src/styles/globals.css', 'utf8');
+
+  // Verify modal fix
+  assert.strictEqual(
+    modalCode.includes('/g/${gift.slug}/print?autoPrint=true') && modalCode.includes('_blank'),
+    true,
+    'Modal must open dedicated /print route in new window to prevent fixed-modal print stamping'
+  );
+  assert.strictEqual(
+    modalCode.includes('no-print'),
+    true,
+    'Modal container must have no-print class'
+  );
+
+  // Verify print route existence and password verification
+  assert.strictEqual(
+    printPageCode.includes('getGiftWithChildCollections') && printPageCode.includes('verifyRecipientToken'),
+    true,
+    'Print route must fetch full gift collections and verify password protection'
+  );
+
+  // Verify print memory book sections and page break rules
+  assert.strictEqual(
+    printViewCode.includes('page-break-after') && printViewCode.includes('avoid-break'),
+    true,
+    'PrintKeepsakeView must implement page break rules for cover page and avoid-break for cards'
+  );
+  assert.strictEqual(
+    printViewCode.includes('The Memory Wall') && printViewCode.includes('Our Journey Timeline'),
+    true,
+    'PrintKeepsakeView must render memory wall and journey timeline'
+  );
+
+  // Verify print media query hides modals and navigation in globals.css
+  assert.strictEqual(
+    globalsCss.includes('@media print') && globalsCss.includes('.no-print'),
+    true,
+    'globals.css must hide .no-print elements during printing'
+  );
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

@@ -22,6 +22,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 const AUTHORIZED_DEVELOPER_EMAILS = [
   'kaushikparth363@gmail.com',
@@ -297,13 +298,16 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
             </span>
           </div>
         </Link>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 text-stone-400 hover:text-white cursor-pointer rounded-lg hover:bg-white/5"
-          aria-label="Toggle navigation menu"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6 text-indigo-400" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <PlatformThemeToggle variant="compact" />
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 text-stone-400 hover:text-white cursor-pointer rounded-lg hover:bg-white/5"
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6 text-indigo-400" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </header>
 
       {/* Sidebar for Desktop & Mobile Drawer */}
@@ -383,7 +387,12 @@ export default function DeveloperLayout({ children }: DeveloperLayoutProps) {
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-6 border-t border-white/10 space-y-1.5 mt-6 md:mt-0">
+        <div className="pt-6 border-t border-white/10 space-y-2 mt-6 md:mt-0">
+          <div className="px-3.5 py-1.5 flex items-center justify-between">
+            <span className="text-[11px] font-mono text-stone-400">Theme</span>
+            <PlatformThemeToggle variant="compact" />
+          </div>
+
           <Link
             href="/admin"
             onClick={() => setMobileMenuOpen(false)}

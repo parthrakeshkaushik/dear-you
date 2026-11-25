@@ -6,6 +6,88 @@ import { verifyRecipientToken, getRecipientCookieName } from '@/lib/auth/recipie
 import { isAuthorizedPreviewUser } from '@/lib/auth/roles';
 import { generateOfflineCardHtml } from '@/lib/download/generate-offline-card';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { Gift } from '@/types/gift';
+
+/**
+ * Robust asset fetcher: handles base64 data URIs, local files in public/, and remote URLs.
+ */
+async function fetchAssetBuffer(
+  assetUrl: string,
+  baseOrigin?: string
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  try {
+    if (!assetUrl) return null;
+
+    // 1. Data URI
+    if (assetUrl.startsWith('data:')) {
+      const commaIdx = assetUrl.indexOf(',');
+      if (commaIdx === -1) return null;
+      const meta = assetUrl.slice(0, commaIdx);
+      const base64Data = assetUrl.slice(commaIdx + 1);
+      const mimeMatch = meta.match(/data:([^;]+)/);
+      const contentType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      return {
+        buffer: Buffer.from(base64Data, 'base64'),
+        contentType,
+      };
+    }
+
+    // 2. Local public file (e.g., /brand/logo.png)
+    if (assetUrl.startsWith('/') && !assetUrl.startsWith('//')) {
+      try {
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const localPath = path.join(process.cwd(), 'public', assetUrl.replace(/^\//, ''));
+        const buffer = await fs.readFile(localPath);
+        const ext = path.extname(localPath).toLowerCase().replace('.', '');
+        const contentType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        return { buffer, contentType };
+      } catch {
+        if (baseOrigin) {
+          assetUrl = `${baseOrigin}${assetUrl}`;
+        } else {
+          return null;
+        }
+      }
+    }
+
+    // 3. Remote URL (http / https)
+    if (assetUrl.startsWith('http://') || assetUrl.startsWith('https://')) {
+      const res = await fetch(assetUrl, {
+        headers: { 'User-Agent': 'DearYou-OfflineAssetPackager/1.0' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      const arrayBuffer = await res.arrayBuffer();
+      const contentType = res.headers.get('content-type') || 'application/octet-stream';
+      return {
+        buffer: Buffer.from(arrayBuffer),
+        contentType,
+      };
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('Asset fetch notice for URL:', assetUrl, err);
+    return null;
+  }
+}
+
+function getExtFromContentTypeOrUrl(contentType?: string, url?: string): string {
+  if (contentType?.includes('png')) return 'png';
+  if (contentType?.includes('webp')) return 'webp';
+  if (contentType?.includes('gif')) return 'gif';
+  if (contentType?.includes('svg')) return 'svg';
+  if (contentType?.includes('jpeg') || contentType?.includes('jpg')) return 'jpg';
+  if (contentType?.includes('audio/mpeg') || contentType?.includes('mp3')) return 'mp3';
+  if (contentType?.includes('audio/wav')) return 'wav';
+  if (url) {
+    const clean = url.split('?')[0].split('#')[0];
+    const match = clean.match(/\.([a-zA-Z0-9]{3,4})$/);
+    if (match) return match[1].toLowerCase();
+  }
+  return 'jpg';
+}
 
 export async function GET(
   request: NextRequest,
@@ -13,14 +95,34 @@ export async function GET(
 ) {
   try {
     const { slug } = params;
-    const gift = MOCK_GIFTS[slug];
+
+    // 1. Fetch gift from Supabase database first, fallback to mock data
+    let gift: Gift | null = null;
+    try {
+      const supabaseAdmin = createAdminClient();
+      const { data, error } = await supabaseAdmin
+        .from('gifts')
+        .select('*')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (data && !error) {
+        gift = data as Gift;
+      }
+    } catch (dbErr) {
+      console.warn('Database query note in download route:', dbErr);
+    }
+
+    if (!gift) {
+      gift = MOCK_GIFTS[slug] || null;
+    }
 
     if (!gift) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });
     }
 
-    // 1. Check Moderation & Soft-Deletion
-    if (gift.moderation_status === 'deleted' || gift.deleted_at) {
+    // 2. Check Moderation & Soft-Deletion
+    if (gift.moderation_status === 'deleted' || (gift as any).deleted_at) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });
     }
 
@@ -38,8 +140,8 @@ export async function GET(
       );
     }
 
-    // 2. Check Creator Status
-    const owner = MOCK_USERS.find((u) => u.id === gift.owner_id);
+    // 3. Check Creator Status
+    const owner = MOCK_USERS.find((u) => u.id === gift!.owner_id);
     if (owner && owner.account_status === 'suspended') {
       return NextResponse.json(
         {
@@ -50,8 +152,7 @@ export async function GET(
       );
     }
 
-    // 3. Strict Server-Side Expiry Enforcement
-    // Expired cards CANNOT be downloaded online after expiration!
+    // 4. Strict Server-Side Expiry Enforcement
     const expiry = checkGiftExpiry(gift.expiry_enabled, gift.expires_at, gift.expiry_timezone);
     if (expiry.isExpired) {
       return NextResponse.json(
@@ -64,7 +165,7 @@ export async function GET(
       );
     }
 
-    // 4. Password Protection Check
+    // 5. Password Protection Check
     const cookieName = getRecipientCookieName(slug);
     const token = request.cookies.get(cookieName)?.value;
     const wantsPreview = request.nextUrl.searchParams.get('preview') === 'true';
@@ -100,40 +201,121 @@ export async function GET(
       return response;
     }
 
-    // 5. Generate Standalone Offline HTML
-    const offlineHtml = generateOfflineCardHtml(gift);
-
-    // 6. Generate Self-Contained ZIP Archive
+    // 6. Initialize ZIP archive
     const zip = new JSZip();
+    const baseOrigin = request.nextUrl.origin;
 
-    // Add main offline webpage
+    // Clone gift for offline packaging with rewritten relative asset paths
+    const packagedGift: Gift = JSON.parse(JSON.stringify(gift));
+
+    // A. Package Cover Photograph
+    if (gift.cover_image) {
+      const coverAsset = await fetchAssetBuffer(gift.cover_image, baseOrigin);
+      if (coverAsset) {
+        const ext = getExtFromContentTypeOrUrl(coverAsset.contentType, gift.cover_image);
+        const fileName = `cover.${ext}`;
+        zip.file(`assets/images/${fileName}`, coverAsset.buffer);
+        packagedGift.cover_image = `./assets/images/${fileName}`;
+      }
+    }
+
+    // B. Package Memories & Photos
+    if (Array.isArray(gift.memories) && gift.memories.length > 0) {
+      for (let i = 0; i < gift.memories.length; i++) {
+        const memory = gift.memories[i];
+        if (memory?.image_path) {
+          const photoAsset = await fetchAssetBuffer(memory.image_path, baseOrigin);
+          if (photoAsset) {
+            const ext = getExtFromContentTypeOrUrl(photoAsset.contentType, memory.image_path);
+            const fileName = `photo-${i + 1}.${ext}`;
+            zip.file(`assets/images/${fileName}`, photoAsset.buffer);
+            if (packagedGift.memories && packagedGift.memories[i]) {
+              packagedGift.memories[i].image_path = `./assets/images/${fileName}`;
+            }
+          }
+        }
+      }
+    }
+
+    // C. Package Background Audio (if present)
+    const audioUrl = gift.music_url || (gift.theme_config as any)?.music_url;
+    if (audioUrl) {
+      const audioAsset = await fetchAssetBuffer(audioUrl, baseOrigin);
+      if (audioAsset) {
+        const ext = getExtFromContentTypeOrUrl(audioAsset.contentType, audioUrl);
+        const fileName = `background.${ext === 'wav' ? 'wav' : 'mp3'}`;
+        zip.file(`assets/audio/${fileName}`, audioAsset.buffer);
+        packagedGift.music_url = `./assets/audio/${fileName}`;
+      }
+    }
+
+    // D. Package Structured Gift Data (Sanitized of password hashes)
+    const sanitizedGiftData = {
+      id: gift.id,
+      title: gift.title,
+      slug: gift.slug,
+      recipient_name: gift.recipient_name,
+      event_type: gift.event_type,
+      event_date: gift.event_date,
+      introduction: gift.introduction,
+      welcome_heading: gift.welcome_heading,
+      welcome_message: gift.welcome_message,
+      welcome_button_text: gift.welcome_button_text,
+      selected_theme: gift.selected_theme,
+      theme_config: gift.theme_config,
+      gift_box_message: gift.gift_box_message,
+      scratch_card_hidden_text: gift.scratch_card_hidden_text,
+      closing_message: gift.closing_message,
+      memories: packagedGift.memories || [],
+      timeline_entries: gift.timeline_entries || [],
+      quiz_questions: gift.quiz_questions || [],
+      secret_messages: gift.secret_messages || [],
+      letters: gift.letters || [],
+      wishes: gift.wishes || [],
+      created_at: gift.created_at,
+      exported_at: new Date().toISOString(),
+      platform: 'Dear You (https://dear-you-wine.vercel.app)',
+    };
+    zip.file('data/gift-data.json', JSON.stringify(sanitizedGiftData, null, 2));
+
+    // E. Generate Standalone Offline HTML with rewritten relative asset paths
+    const offlineHtml = generateOfflineCardHtml(packagedGift);
     zip.file('index.html', offlineHtml);
 
-    // Add Readme instructions for recipient
+    // F. Package Detailed README.txt with permanent offline disclosure
     const readmeContent = `======================================================================
-DEAR YOU — PERMANENT PERSONAL KEEPSAKE
+DEAR YOU — PERMANENT PERSONAL KEEPSAKE PACKAGE
 Special Surprise Crafted for: ${gift.recipient_name}
 Title: ${gift.title}
+Created on Dear You • https://dear-you-wine.vercel.app
 ======================================================================
 
 Dear ${gift.recipient_name},
 
-This is your personal, self-contained offline gift package created with Dear You.
+This package contains your permanent, self-contained offline memory book.
 
-HOW TO OPEN & EXPLORE:
+FOLDER CONTENTS:
+- index.html: Double-click to open your interactive memory book in any web browser.
+- assets/images/: All original photographs and memory cards safely preserved offline.
+- assets/audio/: Preserved background music (if included in your gift).
+- data/gift-data.json: Complete structured keepsake data.
+- README.txt: This instructions and guarantee file.
+
+PERMANENT OFFLINE GUARANTEE:
+- 100% Offline: This gift is completely self-contained on your device. You can open and enjoy it anytime without an internet connection.
+- Permanent Keepsake: Once downloaded, this offline copy is yours forever. It cannot be remotely expired, edited, revoked, or deleted by anyone, even if the online link reaches its scheduled conclusion.
+- Safe Preservation: You may freely copy this folder to a USB drive, your phone/tablet/computer, or your personal cloud storage (Google Drive, iCloud, OneDrive) to preserve these memories for a lifetime.
+
+HOW TO EXPLORE:
 1. Double-click the "index.html" file.
-2. It will open in your preferred web browser (Chrome, Safari, Edge, Firefox, etc.).
-3. No internet connection or login is needed!
-4. All messages, memories, scratch reveals, and letters are saved here.
+2. It will open in your default browser (Chrome, Safari, Edge, Firefox, etc.).
+3. Interact with the gift: unwrap the surprise box, scratch to reveal secret messages, view photos in the lightbox, answer quiz questions, and read personal letters!
 
-You can save this folder to your phone, tablet, computer, or cloud drive,
-and revisit your special surprise anytime—forever.
-
-With warmth,
-The Dear You Platform
+Crafted with love on Dear You.
 `;
     zip.file('README.txt', readmeContent);
 
+    // Generate ZIP file buffer
     const zipUint8Array = await zip.generateAsync({
       type: 'uint8array',
       compression: 'DEFLATE',
@@ -163,11 +345,12 @@ The Dear You Platform
           recipient_name: gift.recipient_name,
           slug: gift.slug,
           format: 'zip',
+          photos_bundled: gift.memories?.length || 0,
         },
         ip_address: request.headers.get('x-forwarded-for') || '127.0.0.1',
       });
     } catch (dbErr) {
-      console.warn('Download tracking note:', dbErr);
+      console.warn('Download tracking notice:', dbErr);
     }
 
     // 8. Stream ZIP download to recipient

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
+import { PlatformThemeProvider, platformThemeInitScript } from "@/lib/theme/platform-theme";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -76,8 +77,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: platformThemeInitScript }} />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
@@ -87,8 +89,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className="min-h-screen flex flex-col selection:bg-purple-200 selection:text-purple-900">
-        {children}
+      <body className="min-h-screen flex flex-col selection:bg-purple-200 selection:text-purple-900 bg-platform-bg text-platform-text">
+        <PlatformThemeProvider defaultTheme="light">
+          {children}
+        </PlatformThemeProvider>
       </body>
     </html>
   );

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -298,7 +299,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     setProfileDropdownOpen(false);
                     if (isMobile) setMobileMenuOpen(false);
                   }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-platform-dark hover:bg-black/5 transition-colors font-medium"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-platform-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors font-medium"
                 >
                   <User className="w-3.5 h-3.5 text-platform-muted" />
                   <span>Profile Settings</span>
@@ -311,14 +312,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                       setProfileDropdownOpen(false);
                       if (isMobile) setMobileMenuOpen(false);
                     }}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-indigo-700 hover:bg-indigo-50 transition-colors font-semibold"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors font-semibold"
                   >
-                    <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
+                    <ShieldAlert className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     <span>Developer Console</span>
                   </Link>
                 )}
 
-                <div className="my-1 border-t border-black/5" />
+                <div className="py-1">
+                  <PlatformThemeToggle variant="menu" />
+                </div>
+
+                <div className="my-1 border-t border-platform-border" />
 
                 <button
                   type="button"
@@ -341,31 +346,34 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F6F5F2] text-[#1A1625] flex flex-col md:flex-row">
+    <div className="min-h-screen bg-platform-bg text-platform-text flex flex-col md:flex-row transition-colors duration-200">
       {/* Mobile Header */}
-      <header className="md:hidden flex items-center justify-between px-5 py-4 bg-white border-b border-black/5 sticky top-0 z-40">
+      <header className="md:hidden flex items-center justify-between px-5 py-4 bg-platform-card border-b border-platform-border sticky top-0 z-40">
         <Link href="/admin" className="flex items-center gap-2.5 group">
           <img
             src="/brand/logo.png"
             alt="Dear You"
             className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-lg font-semibold tracking-tight">Dear You</span>
+          <span className="font-serif text-lg font-semibold tracking-tight text-platform-text">Dear You</span>
         </Link>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 text-platform-muted hover:text-platform-dark cursor-pointer"
-          aria-label="Toggle menu"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <PlatformThemeToggle variant="compact" />
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 text-platform-muted hover:text-platform-text cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </header>
 
       {/* Sidebar for Desktop & Mobile Drawer */}
       <aside
         className={`${
           mobileMenuOpen ? 'block' : 'hidden'
-        } md:block w-full md:w-64 bg-white border-r border-black/5 p-6 flex flex-col justify-between shrink-0 fixed md:sticky top-0 h-[calc(100vh-65px)] md:h-screen z-30 overflow-y-auto`}
+        } md:block w-full md:w-64 bg-platform-card border-r border-platform-border p-6 flex flex-col justify-between shrink-0 fixed md:sticky top-0 h-[calc(100vh-65px)] md:h-screen z-30 overflow-y-auto`}
       >
         <div>
           {/* Logo & Platform Info */}
@@ -380,7 +388,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               className="w-9 h-9 object-contain transition-transform group-hover:scale-105"
             />
             <div>
-              <span className="font-serif text-xl font-semibold tracking-tight block leading-tight text-platform-dark">
+              <span className="font-serif text-xl font-semibold tracking-tight block leading-tight text-platform-text">
                 Dear You
               </span>
               <span className="text-[10px] text-platform-muted uppercase tracking-wider font-medium">
@@ -405,8 +413,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
                     isActive
-                      ? 'bg-[#1A1625] text-white shadow-xs'
-                      : 'text-platform-muted hover:bg-black/5 hover:text-platform-dark'
+                      ? 'bg-platform-text text-platform-bg shadow-xs font-semibold'
+                      : 'text-platform-muted hover:bg-black/5 dark:hover:bg-white/10 hover:text-platform-text'
                   }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
@@ -422,10 +430,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <Link
                 href="/developer"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-50 border border-indigo-200/80 text-indigo-700 hover:bg-indigo-100 transition-all shadow-2xs"
+                className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500/10 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-all shadow-2xs"
               >
                 <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                  <ShieldAlert className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span>Developer Console</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />
@@ -434,12 +442,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           )}
 
           {/* Quick Create Highlight */}
-          <div className="mt-8 p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100/70">
-            <div className="flex items-center gap-2 text-xs font-semibold text-purple-900 mb-1">
+          <div className="mt-8 p-4 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+            <div className="flex items-center gap-2 text-xs font-semibold text-platform-text mb-1">
               <Sparkles className="w-3.5 h-3.5 text-platform-violet" />
               <span>Personalized Gifting</span>
             </div>
-            <p className="text-[11px] text-purple-800/80 leading-relaxed mb-3">
+            <p className="text-[11px] text-platform-muted leading-relaxed mb-3">
               Ready to craft an unforgettable surprise for someone special?
             </p>
             <Link
@@ -454,7 +462,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </div>
 
         {/* Footer Actions & Authenticated User Identity */}
-        <div className="pt-6 border-t border-black/5 space-y-3">
+        <div className="pt-6 border-t border-platform-border space-y-3">
           {/* Profile Section in Sidebar */}
           {renderProfileSection(false)}
 
@@ -462,7 +470,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <Link
               href="/g/demo-gift"
               target="_blank"
-              className="flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-platform-muted hover:text-platform-dark hover:bg-black/5 transition-colors"
+              className="flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-platform-muted hover:text-platform-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             >
               <span className="flex items-center gap-2">
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -473,7 +481,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <button
               onClick={() => handleLogout(false)}
               disabled={isLoggingOut}
-              className="w-full flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer disabled:opacity-50"
+              className="w-full flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left cursor-pointer disabled:opacity-50"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
@@ -482,7 +490,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <button
               onClick={() => handleLogout(true)}
               disabled={isLoggingOut}
-              className="w-full flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[10px] text-stone-500 hover:text-rose-700 hover:bg-rose-50/50 transition-colors text-left cursor-pointer font-mono"
+              className="w-full flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[10px] text-stone-500 hover:text-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 transition-colors text-left cursor-pointer font-mono"
               title="Revokes all active sessions across desktop and mobile devices"
             >
               <span>Log out from all devices</span>
@@ -493,6 +501,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       {/* Main Content Area */}
       <main className="flex-1 p-5 sm:p-8 md:p-10 max-w-7xl mx-auto w-full overflow-y-auto space-y-5">
+        <div className="hidden md:flex items-center justify-end">
+          <PlatformThemeToggle variant="button" showLabel />
+        </div>
         <Suspense fallback={null}>
           <VerifiedBanner />
         </Suspense>

@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 function ResetPasswordContent() {
   const router = useRouter();
@@ -250,7 +251,7 @@ function ResetPasswordContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-4 sm:p-6">
+    <div className="min-h-screen bg-platform-bg text-platform-text flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
       {/* Top Header */}
       <header className="max-w-6xl w-full mx-auto flex items-center justify-between">
         <Link href="/" className="inline-flex items-center gap-2.5 group" title="Dear You">
@@ -259,14 +260,17 @@ function ResetPasswordContent() {
             alt="Dear You"
             className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-xl font-semibold tracking-tight">Dear You</span>
+          <span className="font-serif text-xl font-semibold tracking-tight text-platform-text">Dear You</span>
         </Link>
-        <Link
-          href="/login"
-          className="text-xs text-platform-muted hover:text-platform-dark transition-colors inline-flex items-center gap-1 font-medium"
-        >
-          <span>Return to Sign In</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <PlatformThemeToggle variant="compact" />
+          <Link
+            href="/login"
+            className="text-xs text-platform-muted hover:text-platform-text transition-colors inline-flex items-center gap-1 font-medium"
+          >
+            <span>Return to Sign In</span>
+          </Link>
+        </div>
       </header>
 
       {/* Main Card */}
@@ -275,7 +279,7 @@ function ResetPasswordContent() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative overflow-hidden"
+          className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-platform-card border border-platform-border shadow-xl text-center relative overflow-hidden"
         >
           {/* Brand Logo */}
           <div className="w-16 h-16 mx-auto flex items-center justify-center mb-3">
@@ -286,11 +290,11 @@ function ResetPasswordContent() {
             />
           </div>
 
-          <span className="text-[10px] font-semibold tracking-wider text-platform-violet uppercase font-mono bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">
+          <span className="text-[10px] font-semibold tracking-wider text-platform-violet uppercase font-mono bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-500/20">
             Account Security
           </span>
 
-          <h1 className="font-serif text-2xl sm:text-3xl text-platform-dark font-normal mt-2.5">
+          <h1 className="font-serif text-2xl sm:text-3xl text-platform-text font-normal mt-2.5">
             Create a New Password
           </h1>
 
@@ -348,7 +352,7 @@ function ResetPasswordContent() {
             <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-left">
               {/* New Password */}
               <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                <label className="block text-xs font-semibold text-platform-text mb-1.5">
                   New Password
                 </label>
                 <div className="relative flex items-center">
@@ -362,13 +366,13 @@ function ResetPasswordContent() {
                       if (errorMessage) setErrorMessage(null);
                     }}
                     placeholder="••••••••••••"
-                    className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                    className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-platform-inputBg text-platform-text border border-platform-inputBorder text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
                   />
                   <Lock className="w-4 h-4 text-platform-muted absolute left-3" />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="p-1.5 text-platform-muted hover:text-platform-dark absolute right-2.5"
+                    className="p-1.5 text-platform-muted hover:text-platform-text absolute right-2.5"
                     aria-label={showNewPassword ? 'Hide password' : 'Show password'}
                   >
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -378,7 +382,7 @@ function ResetPasswordContent() {
 
               {/* Confirm New Password */}
               <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                <label className="block text-xs font-semibold text-platform-text mb-1.5">
                   Confirm New Password
                 </label>
                 <div className="relative flex items-center">
@@ -392,13 +396,13 @@ function ResetPasswordContent() {
                       if (errorMessage) setErrorMessage(null);
                     }}
                     placeholder="••••••••••••"
-                    className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                    className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-platform-inputBg text-platform-text border border-platform-inputBorder text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
                   />
                   <Lock className="w-4 h-4 text-platform-muted absolute left-3" />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="p-1.5 text-platform-muted hover:text-platform-dark absolute right-2.5"
+                    className="p-1.5 text-platform-muted hover:text-platform-text absolute right-2.5"
                     aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

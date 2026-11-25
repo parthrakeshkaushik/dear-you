@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: ['class', '[data-platform-theme="dark"]'],
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,13 +11,23 @@ const config: Config = {
     extend: {
       colors: {
         platform: {
-          lavender: "#E8E5F2",
-          violet: "#9B8EC4",
+          bg: "var(--platform-bg)",
+          card: "var(--platform-card)",
+          cardSubtle: "var(--platform-card-subtle)",
+          text: "var(--platform-text)",
+          muted: "var(--platform-muted)",
+          lavender: "var(--platform-lavender)",
+          violet: "var(--platform-violet)",
+          gold: "var(--platform-gold)",
+          border: "var(--platform-border)",
+          borderStrong: "var(--platform-border-strong)",
+          inputBg: "var(--platform-input-bg)",
+          inputBorder: "var(--platform-input-border)",
+          elevated: "var(--platform-elevated)",
+          hover: "var(--platform-hover)",
+          dark: "var(--platform-text)",
+          ivory: "var(--platform-bg)",
           blush: "#F4DCD6",
-          ivory: "#FAF8F5",
-          gold: "#D4AF37",
-          dark: "#1A1625",
-          muted: "#6B637B",
         },
         gift: {
           bg: "var(--theme-bg)",

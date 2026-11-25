@@ -64,6 +64,7 @@ import {
 import { ThemeId, CustomThemeConfig } from '@/types/theme';
 import { THEME_PRESETS } from '@/config/themes';
 import { LivePreviewPane, PreviewStateMode } from '@/components/admin/LivePreviewPane';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 interface WizardPageConfig {
   step: number;
@@ -1130,6 +1131,8 @@ function GiftBuilderInner() {
           >
             <span>Save Draft</span>
           </button>
+
+          <PlatformThemeToggle variant="compact" />
 
           {/* Mobile Preview Trigger Button (Header) */}
           <button

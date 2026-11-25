@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
+import { Sun, Moon } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -462,8 +464,24 @@ function SettingsContent() {
             </form>
           </div>
 
+          {/* Global Platform Appearance */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-platform-card border border-platform-border shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5 text-platform-text font-semibold text-sm">
+                  <Sun className="w-5 h-5 text-amber-500" />
+                  <span>Platform Appearance (Light / Dark Mode)</span>
+                </div>
+                <p className="text-xs text-platform-muted mt-1 leading-relaxed">
+                  Controls the Dear You studio, dashboard, and developer interface. The appearance of individual recipient gifts remains completely independent.
+                </p>
+              </div>
+              <PlatformThemeToggle variant="segmented" />
+            </div>
+          </div>
+
           {/* Session Security & Sign Out Panel */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-white border border-black/5 shadow-xs space-y-4">
+          <div className="p-6 sm:p-8 rounded-3xl bg-platform-card border border-platform-border shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5 text-platform-dark font-semibold text-sm">
                 <Clock className="w-5 h-5 text-platform-violet" />

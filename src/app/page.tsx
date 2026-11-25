@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Sparkles, Gift, Lock, Heart, ArrowRight, ShieldCheck, Palette, Calendar } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -36,10 +37,10 @@ export default function LandingPage() {
     } catch {}
   }, [router]);
   return (
-    <div className="relative min-h-screen bg-[#FAF8F5] text-[#1A1625] overflow-hidden flex flex-col justify-between">
+    <div className="relative min-h-screen bg-platform-bg text-platform-text overflow-hidden flex flex-col justify-between transition-colors duration-200">
       {/* Soft Ambient Glowing Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-purple-200/40 to-pink-200/40 blur-3xl pointer-events-none animate-float-slow" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full bg-gradient-to-bl from-amber-100/50 to-violet-200/30 blur-3xl pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-purple-500/15 to-pink-500/15 blur-3xl pointer-events-none animate-float-slow" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full bg-gradient-to-bl from-amber-500/15 to-violet-500/15 blur-3xl pointer-events-none" />
 
       {/* Navigation Header */}
       <header className="relative z-10 w-full max-w-6xl mx-auto px-6 py-8 flex items-center justify-between">
@@ -53,27 +54,28 @@ export default function LandingPage() {
             alt="Dear You"
             className="w-8 h-8 sm:w-9 sm:h-9 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-2xl tracking-tight text-[#1A1625] font-semibold">
+          <span className="font-serif text-2xl tracking-tight text-platform-text font-semibold">
             Dear You
           </span>
         </Link>
 
-        <nav className="flex items-center gap-3">
+        <nav className="flex items-center gap-2 sm:gap-3">
+          <PlatformThemeToggle variant="button" showLabel />
           <Link
             href="/g/demo-gift"
-            className="text-sm font-medium text-platform-muted hover:text-platform-dark transition-colors px-2 py-1.5"
+            className="hidden sm:inline-block text-xs sm:text-sm font-medium text-platform-muted hover:text-platform-text transition-colors px-2 py-1.5"
           >
             Demo Card
           </Link>
           <Link
             href="/signup"
-            className="text-xs font-semibold text-white bg-platform-violet hover:bg-platform-violet/90 transition-colors rounded-full px-4 py-2 shadow-xs"
+            className="text-xs font-semibold text-white bg-platform-violet hover:bg-platform-violet/90 transition-colors rounded-full px-3.5 sm:px-4 py-2 shadow-xs"
           >
             Sign Up
           </Link>
           <Link
             href="/login"
-            className="text-xs tracking-wider uppercase font-semibold text-platform-muted/80 hover:text-platform-dark transition-colors border border-black/10 rounded-full px-3.5 py-2 hover:border-black/30"
+            className="text-xs tracking-wider uppercase font-semibold text-platform-text hover:text-platform-violet transition-colors border border-platform-border rounded-full px-3.5 py-2 hover:border-platform-borderStrong bg-black/5 dark:bg-white/10"
           >
             Sign In
           </Link>
@@ -145,31 +147,31 @@ export default function LandingPage() {
           transition={{ duration: 1, delay: 0.45 }}
           className="mt-16 sm:mt-24 grid grid-cols-1 sm:grid-cols-3 gap-6 text-left w-full max-w-3xl"
         >
-          <div className="p-5 rounded-2xl bg-white/70 border border-black/5 shadow-xs">
-            <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center text-purple-700 mb-3">
+          <div className="p-5 rounded-2xl bg-platform-card border border-platform-border shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center text-platform-violet mb-3">
               <Palette className="w-4 h-4" />
             </div>
-            <h3 className="font-serif text-base font-semibold text-[#1A1625]">Per-Gift Theming</h3>
+            <h3 className="font-serif text-base font-semibold text-platform-text">Per-Gift Theming</h3>
             <p className="mt-1 text-xs text-platform-muted leading-relaxed">
               Seven crafted aesthetic presets or completely custom palettes. No two gifts look alike.
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white/70 border border-black/5 shadow-xs">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-700 mb-3">
+          <div className="p-5 rounded-2xl bg-platform-card border border-platform-border shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 mb-3">
               <Lock className="w-4 h-4" />
             </div>
-            <h3 className="font-serif text-base font-semibold text-[#1A1625]">Protected & Private</h3>
+            <h3 className="font-serif text-base font-semibold text-platform-text">Protected & Private</h3>
             <p className="mt-1 text-xs text-platform-muted leading-relaxed">
               Protected by custom passwords and session tokens. Safe from search engines and unauthorized access.
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white/70 border border-black/5 shadow-xs">
-            <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-rose-700 mb-3">
+          <div className="p-5 rounded-2xl bg-platform-card border border-platform-border shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500 mb-3">
               <Calendar className="w-4 h-4" />
             </div>
-            <h3 className="font-serif text-base font-semibold text-[#1A1625]">Graceful Expiry</h3>
+            <h3 className="font-serif text-base font-semibold text-platform-text">Graceful Expiry</h3>
             <p className="mt-1 text-xs text-platform-muted leading-relaxed">
               Server-checked expiration dates transition smoothly to an emotional parting closing letter.
             </p>
@@ -178,10 +180,10 @@ export default function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 border-t border-black/5 flex flex-col sm:flex-row items-center justify-between text-xs text-platform-muted">
+      <footer className="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 border-t border-platform-border flex flex-col sm:flex-row items-center justify-between text-xs text-platform-muted">
         <p>© {new Date().getFullYear()} Dear You. Thoughtfully designed for meaningful connections.</p>
         <div className="flex items-center gap-4 mt-2 sm:mt-0">
-          <Link href="/login" className="hover:text-platform-dark underline transition-colors">
+          <Link href="/login" className="hover:text-platform-text underline transition-colors">
             Administrator Portal
           </Link>
         </div>

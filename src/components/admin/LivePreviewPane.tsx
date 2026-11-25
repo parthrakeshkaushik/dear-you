@@ -19,6 +19,7 @@ import { RecipientExperience } from '@/components/recipient/RecipientExperience'
 import { PasswordGate } from '@/components/recipient/PasswordGate';
 import { ExpiryScreen } from '@/components/recipient/ExpiryScreen';
 import { ThemeContainer } from '@/components/recipient/ThemeContainer';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 interface LivePreviewPaneProps {
   gift: GiftType;
@@ -359,6 +360,8 @@ export function LivePreviewPane({
             <RotateCcw className="w-3.5 h-3.5" />
             <span className="text-[11px] hidden sm:inline">Reset</span>
           </button>
+
+          <PlatformThemeToggle variant="compact" />
 
           {/* Close button for Mobile Full-Screen Overlay */}
           {isMobileDrawer && onCloseMobilePreview && (

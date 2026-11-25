@@ -4,17 +4,31 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ============================================================== */
+/* DEAR YOU — GLOBAL PLATFORM DESIGN TOKENS (LIGHT & DARK)        */
+/* Note: Global platform theme is strictly isolated from gift themes */
+/* ============================================================== */
+
+:root,
+[data-platform-theme="light"] {
   --platform-bg: #FAF8F5;
   --platform-card: #FFFFFF;
+  --platform-card-subtle: #F6F4F0;
   --platform-text: #1A1625;
   --platform-muted: #6B637B;
   --platform-lavender: #E8E5F2;
   --platform-violet: #8B7AA8;
   --platform-gold: #C5A059;
   --platform-border: rgba(107, 99, 123, 0.15);
+  --platform-border-strong: rgba(107, 99, 123, 0.28);
+  --platform-input-bg: #FFFFFF;
+  --platform-input-border: rgba(0, 0, 0, 0.12);
+  --platform-elevated: #FFFFFF;
+  --platform-hover: rgba(0, 0, 0, 0.05);
+  --platform-nav-bg: rgba(250, 248, 245, 0.9);
+  --platform-nav-border: rgba(0, 0, 0, 0.06);
 
-  /* Defaults for gift container */
+  /* Defaults for individual gift container (Independently overridden by ThemeContainer) */
   --theme-bg: #0D0B18;
   --theme-surface: #18142C;
   --theme-text: #F5F3FF;
@@ -26,12 +40,32 @@
   --theme-radius: 1rem;
 }
 
+[data-platform-theme="dark"] {
+  --platform-bg: #0A0E17;
+  --platform-card: #121826;
+  --platform-card-subtle: #182234;
+  --platform-text: #F8FAFC;
+  --platform-muted: #94A3B8;
+  --platform-lavender: #26213B;
+  --platform-violet: #A78BFA;
+  --platform-gold: #FBBF24;
+  --platform-border: rgba(255, 255, 255, 0.1);
+  --platform-border-strong: rgba(255, 255, 255, 0.22);
+  --platform-input-bg: #162032;
+  --platform-input-border: rgba(255, 255, 255, 0.14);
+  --platform-elevated: #1E293B;
+  --platform-hover: rgba(255, 255, 255, 0.07);
+  --platform-nav-bg: rgba(10, 14, 23, 0.9);
+  --platform-nav-border: rgba(255, 255, 255, 0.08);
+}
+
 body {
   color: var(--platform-text);
   background-color: var(--platform-bg);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Custom Scrollbar for gift view */
@@ -72,4 +106,49 @@ body {
 .scratch-canvas {
   touch-action: none;
   cursor: crosshair;
+}
+
+/* ============================================================== */
+/* PRINT STYLES FOR PDF & KEEPSAKE PRINTING                       */
+/* ============================================================== */
+
+@media print {
+  /* Eliminate all web chrome, popups, floating bars, and interactive modals */
+  .no-print,
+  [role="dialog"],
+  [data-no-print="true"],
+  .fixed,
+  header,
+  aside,
+  nav {
+    display: none !important;
+  }
+
+  body {
+    background-color: #FFFFFF !important;
+    color: #1A1625 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Prevent awkward page break splits */
+  .print-page-break-before {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  .print-page-break-after {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm 15mm 12mm;
+  }
 }

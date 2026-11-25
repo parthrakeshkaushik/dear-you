@@ -654,6 +654,50 @@ export function generateOfflineCardHtml(gift: Gift): string {
       margin-top: 80px;
     }
 
+    /* Cover Photograph & Audio Player Styling */
+    .hero-cover-wrapper {
+      margin: 24px auto;
+      max-width: 480px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+      border: 1px solid var(--border);
+    }
+    .hero-cover-img {
+      width: 100%;
+      height: 280px;
+      object-fit: cover;
+      display: block;
+    }
+    .offline-music-widget {
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .music-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 9999px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .music-toggle-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    }
+    .music-toggle-btn.playing {
+      background: var(--primary);
+      color: #fff;
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
@@ -677,6 +721,22 @@ export function generateOfflineCardHtml(gift: Gift): string {
       <span class="recipient-salutation">Dear ${recipientName},</span>
       <h1 class="hero-title">${welcomeHeading}</h1>
       <p class="hero-message">${welcomeMessage}</p>
+
+      ${gift.cover_image ? `
+        <div class="hero-cover-wrapper">
+          <img src="${escapeHtml(gift.cover_image)}" alt="Keepsake Cover" class="hero-cover-img" />
+        </div>
+      ` : ''}
+
+      ${gift.music_url ? `
+        <div class="offline-music-widget">
+          <audio id="offline-audio" loop src="${escapeHtml(gift.music_url)}"></audio>
+          <button id="music-toggle-btn" class="music-toggle-btn" onclick="toggleOfflineMusic()">
+            <span id="music-icon">🎵</span> <span id="music-text">Play Background Music</span>
+          </button>
+        </div>
+      ` : ''}
+
       <button class="btn-journey" onclick="document.getElementById('journey-start').scrollIntoView({ behavior: 'smooth' })">
         <span>✨ Explore Your Gift</span>
       </button>
@@ -840,6 +900,29 @@ export function generateOfflineCardHtml(gift: Gift): string {
 
     function closeLightbox() {
       document.getElementById('lightbox').classList.remove('active');
+    }
+
+    function toggleOfflineMusic() {
+      const audio = document.getElementById('offline-audio');
+      const btn = document.getElementById('music-toggle-btn');
+      const icon = document.getElementById('music-icon');
+      const text = document.getElementById('music-text');
+      if (!audio) return;
+
+      if (audio.paused) {
+        audio.play().then(function() {
+          btn.classList.add('playing');
+          if (icon) icon.innerText = '⏸';
+          if (text) text.innerText = 'Pause Music';
+        }).catch(function(err) {
+          console.warn('Playback error:', err);
+        });
+      } else {
+        audio.pause();
+        btn.classList.remove('playing');
+        if (icon) icon.innerText = '🎵';
+        if (text) text.innerText = 'Play Background Music';
+      }
     }
   </script>
 </body>

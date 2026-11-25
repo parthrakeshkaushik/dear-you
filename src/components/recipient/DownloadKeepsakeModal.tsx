@@ -73,12 +73,14 @@ export function DownloadKeepsakeModal({
   };
 
   const handlePrintPdf = () => {
-    window.print();
+    // Open dedicated printable keepsake book in a new window/tab
+    // This eliminates fixed-modal print overlay repetition and formats a beautiful multi-page memory book
+    window.open(`/g/${gift.slug}/print?autoPrint=true`, '_blank');
   };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}

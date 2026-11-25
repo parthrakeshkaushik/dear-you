@@ -19,6 +19,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
 import { SessionDurationDays } from '@/lib/auth/persistent-session';
+import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 function AuthPageContent() {
   const router = useRouter();
@@ -308,7 +309,7 @@ function AuthPageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-4 sm:p-6">
+    <div className="min-h-screen bg-platform-bg text-platform-text flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
       {/* Top Header */}
       <header className="max-w-6xl w-full mx-auto flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -317,14 +318,17 @@ function AuthPageContent() {
             alt="Dear You"
             className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-xl font-semibold tracking-tight">Dear You</span>
+          <span className="font-serif text-xl font-semibold tracking-tight text-platform-text">Dear You</span>
         </Link>
-        <Link
-          href="/"
-          className="text-xs text-platform-muted hover:text-platform-dark transition-colors"
-        >
-          ← Return to Home
-        </Link>
+        <div className="flex items-center gap-3">
+          <PlatformThemeToggle variant="compact" />
+          <Link
+            href="/"
+            className="text-xs text-platform-muted hover:text-platform-text transition-colors"
+          >
+            ← Return to Home
+          </Link>
+        </div>
       </header>
 
       {/* Main Form Container */}
@@ -333,7 +337,7 @@ function AuthPageContent() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative overflow-hidden"
+          className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-platform-card border border-platform-border shadow-xl text-center relative overflow-hidden"
         >
           {/* Official Brand Logo */}
           <div className="w-16 h-16 mx-auto flex items-center justify-center mb-3">
@@ -345,7 +349,7 @@ function AuthPageContent() {
           </div>
 
           {/* Toggle between Sign In and Sign Up */}
-          <div className="inline-flex items-center p-1 rounded-full bg-black/5 border border-black/5 mb-5 text-xs">
+          <div className="inline-flex items-center p-1 rounded-full bg-black/5 dark:bg-white/10 border border-platform-border mb-5 text-xs">
             <button
               type="button"
               onClick={() => {
@@ -355,8 +359,8 @@ function AuthPageContent() {
               }}
               className={`px-4 py-1.5 rounded-full transition-all font-medium cursor-pointer ${
                 !isSignUp
-                  ? 'bg-white shadow-xs text-platform-dark font-semibold'
-                  : 'text-platform-muted hover:text-platform-dark'
+                  ? 'bg-platform-card shadow-xs text-platform-text font-semibold'
+                  : 'text-platform-muted hover:text-platform-text'
               }`}
             >
               Sign In
@@ -419,7 +423,7 @@ function AuthPageContent() {
             {/* Display Name (Signup Only) */}
             {isSignUp && (
               <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1">
+                <label className="block text-xs font-semibold text-platform-text mb-1">
                   Full Name
                 </label>
                 <div className="relative flex items-center">
@@ -432,7 +436,7 @@ function AuthPageContent() {
                     }}
                     placeholder="e.g. Maya Sharma"
                     required={isSignUp}
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-platform-inputBg text-platform-text border border-platform-inputBorder text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                   />
                   <User className="w-4 h-4 text-platform-muted absolute left-3" />
                 </div>
@@ -441,7 +445,7 @@ function AuthPageContent() {
 
             {/* Email Address */}
             <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1">
+              <label className="block text-xs font-semibold text-platform-text mb-1">
                 Email Address
               </label>
               <div className="relative flex items-center">
@@ -455,7 +459,7 @@ function AuthPageContent() {
                   placeholder="you@example.com"
                   autoComplete="email"
                   required
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-platform-inputBg text-platform-text border border-platform-inputBorder text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
                 <Mail className="w-4 h-4 text-platform-muted absolute left-3" />
               </div>
@@ -463,7 +467,7 @@ function AuthPageContent() {
 
             {/* Password Field */}
             <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1">
+              <label className="block text-xs font-semibold text-platform-text mb-1">
                 Password
               </label>
               <div className="relative flex items-center">
@@ -478,13 +482,13 @@ function AuthPageContent() {
                   autoComplete={isSignUp ? 'new-password' : 'current-password'}
                   required
                   minLength={isSignUp ? 6 : undefined}
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-platform-inputBg text-platform-text border border-platform-inputBorder text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
                 <Lock className="w-4 h-4 text-platform-muted absolute left-3 pointer-events-none" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="p-1.5 text-platform-muted hover:text-platform-dark absolute right-2.5 focus:outline-none transition-colors"
+                  className="p-1.5 text-platform-muted hover:text-platform-text absolute right-2.5 focus:outline-none transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -505,7 +509,7 @@ function AuthPageContent() {
 
             {/* Remember Me Option (Sign In Only) */}
             {!isSignUp && (
-              <div className="p-3.5 rounded-2xl bg-stone-50/80 border border-black/5 text-left space-y-2">
+              <div className="p-3.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-platform-border text-left space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input

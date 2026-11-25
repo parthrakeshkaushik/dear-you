@@ -32,8 +32,8 @@ export default function AdminThemesPage() {
               onClick={() => setActiveThemeId(id as ThemeId)}
               className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                 isSelected
-                  ? 'border-platform-violet bg-white shadow-md ring-2 ring-platform-violet/20'
-                  : 'border-black/5 hover:border-black/20 bg-white'
+                  ? 'border-platform-violet bg-platform-card shadow-md ring-2 ring-platform-violet/20'
+                  : 'border-platform-border hover:border-platform-muted/40 bg-platform-card'
               }`}
             >
               <div>
