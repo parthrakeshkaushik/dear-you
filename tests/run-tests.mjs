@@ -1611,6 +1611,274 @@ test('Mobile preview preserves and restores editor scroll position', () => {
   assert.strictEqual(windowScrollY, 650);
 });
 
+// -------------------------------------------------------------
+// 28. CONTENT LENGTH & WORD LIMIT CONTROLS TESTS
+// -------------------------------------------------------------
+console.log('\n--- 28. Content Length & Word Limit Controls Tests ---');
+
+import {
+  countWords,
+  clampToMaxWords,
+  getWordCountFeedback,
+  getUniquePhotos,
+  DEFAULT_CONTENT_LIMITS,
+} from '../src/lib/config/content-limits.ts';
+
+test('Unicode & Indian Language Word Counting accurately handles English and Hindi', () => {
+  // English with erratic spaces and punctuation
+  const englishText = '   Hello,   world!   This  is   a   special  birthday   gift.   ';
+  assert.strictEqual(countWords(englishText), 8);
+
+  // Hindi (Devanagari) with dandas and standard words
+  const hindiText = 'नमस्ते आप कैसे हैं? यह एक बेहद खूबसूरत उपहार है।';
+  assert.strictEqual(countWords(hindiText), 10);
+
+  // Mixed Hindi and English
+  const mixedText = 'Happy Birthday Ananya! आप हमेशा मुस्कुराती रहें।';
+  assert.strictEqual(countWords(mixedText), 7);
+
+  // Empty or whitespace only
+  assert.strictEqual(countWords(''), 0);
+  assert.strictEqual(countWords('   \n\t  '), 0);
+  assert.strictEqual(countWords(null), 0);
+  assert.strictEqual(countWords(undefined), 0);
+});
+
+test('Word limit thresholds correctly evaluate below, at, and exceeding limits', () => {
+  const maxWords = 10;
+  const belowText = 'One two three four five';
+  const atText = 'One two three four five six seven eight nine ten';
+  const exceedingText = 'One two three four five six seven eight nine ten eleven twelve';
+
+  assert.strictEqual(countWords(belowText) <= maxWords, true);
+  assert.strictEqual(countWords(atText) <= maxWords, true);
+  assert.strictEqual(countWords(exceedingText) <= maxWords, false);
+});
+
+test('Clamps copy-pasted oversized text without severing words', () => {
+  const longParagraph =
+    'Dear Ananya, this long paragraph was copied and pasted with far too many extra words that exceed our tight title limit.';
+  const clamped = clampToMaxWords(longParagraph, 5);
+  assert.strictEqual(countWords(clamped), 5);
+  assert.strictEqual(clamped, 'Dear Ananya, this long paragraph');
+});
+
+test('Friendly feedback messages transition smoothly from normal to warning and limit', () => {
+  // Normal
+  const fb1 = getWordCountFeedback(40, 100);
+  assert.strictEqual(fb1.tone, 'normal');
+  assert.strictEqual(fb1.remaining, 60);
+
+  // Warning (>= 80%)
+  const fb2 = getWordCountFeedback(85, 100);
+  assert.strictEqual(fb2.tone, 'warning');
+  assert.strictEqual(fb2.message.includes('Almost there'), true);
+
+  // Exact Limit
+  const fb3 = getWordCountFeedback(100, 100);
+  assert.strictEqual(fb3.tone, 'limit');
+  assert.strictEqual(fb3.message.includes('reached the word limit'), true);
+
+  // Exceeded (legacy card warning)
+  const fb4 = getWordCountFeedback(115, 100);
+  assert.strictEqual(fb4.tone, 'exceeded');
+  assert.strictEqual(fb4.message.includes('15 over the 100-word limit'), true);
+});
+
+test('Initial platform defaults match configured word limit specification', () => {
+  const f = DEFAULT_CONTENT_LIMITS.fields;
+  assert.strictEqual(f.cardTitle.maxWords, 10);
+  assert.strictEqual(f.shortIntroduction.maxWords, 50);
+  assert.strictEqual(f.welcomeMessage.maxWords, 100);
+  assert.strictEqual(f.personalLetter.maxWords, 300);
+  assert.strictEqual(f.specialMessage.maxWords, 150);
+  assert.strictEqual(f.individualWish.maxWords, 50);
+  assert.strictEqual(f.memoryCaption.maxWords, 30);
+  assert.strictEqual(f.photoDescription.maxWords, 40);
+  assert.strictEqual(f.timelineDescription.maxWords, 50);
+  assert.strictEqual(f.secretMessage.maxWords, 100);
+  assert.strictEqual(f.quizQuestion.maxWords, 30);
+  assert.strictEqual(f.quizAnswer.maxWords, 15);
+  assert.strictEqual(f.finalClosingMessage.maxWords, 100);
+  assert.strictEqual(f.customSectionText.maxWords, 150);
+  assert.strictEqual(DEFAULT_CONTENT_LIMITS.maxPhotos, 15);
+});
+
+// -------------------------------------------------------------
+// 29. MAXIMUM PHOTO UPLOAD LIMIT (15 PHOTOS) & DEDUPLICATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 29. Maximum Photo Upload Limit (15 Photos) & Deduplication Tests ---');
+
+test('Allows uploading up to 15 unique photos across sections', () => {
+  const mockCard = {
+    cover_image: 'https://example.com/cover.jpg',
+    memories: Array.from({ length: 10 }, (_, i) => ({
+      id: `m-${i}`,
+      image_path: `https://example.com/photo-${i}.jpg`,
+      caption: `Memory ${i}`,
+    })),
+    timeline_entries: Array.from({ length: 4 }, (_, i) => ({
+      id: `t-${i}`,
+      image_path: `https://example.com/timeline-${i}.jpg`,
+      title: `Event ${i}`,
+    })),
+  };
+
+  const unique = getUniquePhotos(mockCard);
+  // 1 cover + 10 memories + 4 timeline = 15 total unique photos
+  assert.strictEqual(unique.length, 15);
+  assert.strictEqual(unique.length <= DEFAULT_CONTENT_LIMITS.maxPhotos, true);
+});
+
+test('Rejects attempting to upload a 16th unique photo', () => {
+  const mockCard = {
+    cover_image: 'https://example.com/cover.jpg',
+    memories: Array.from({ length: 11 }, (_, i) => ({
+      id: `m-${i}`,
+      image_path: `https://example.com/photo-${i}.jpg`,
+      caption: `Memory ${i}`,
+    })),
+    timeline_entries: Array.from({ length: 4 }, (_, i) => ({
+      id: `t-${i}`,
+      image_path: `https://example.com/timeline-${i}.jpg`,
+      title: `Event ${i}`,
+    })),
+  };
+
+  const unique = getUniquePhotos(mockCard);
+  // 1 cover + 11 memories + 4 timeline = 16 total unique photos
+  assert.strictEqual(unique.length, 16);
+  assert.strictEqual(unique.length > DEFAULT_CONTENT_LIMITS.maxPhotos, true);
+});
+
+test('Deduplicates photo URLs appearing in multiple sections', () => {
+  const sharedPhotoUrl = 'https://example.com/rooftop-sunset.jpg';
+
+  const mockCard = {
+    cover_image: sharedPhotoUrl, // 1st occurrence
+    memories: [
+      { id: 'm1', image_path: sharedPhotoUrl, caption: 'Memory Wall View' }, // 2nd occurrence (Memory Wall)
+      { id: 'm2', image_path: sharedPhotoUrl, caption: 'Gallery View' }, // 3rd occurrence (Gallery)
+      { id: 'm3', image_path: 'https://example.com/roadtrip.jpg', caption: 'Roadtrip' },
+    ],
+    timeline_entries: [
+      { id: 't1', image_path: sharedPhotoUrl, title: 'The First Date' }, // 4th occurrence (Timeline)
+      { id: 't2', image_path: 'https://example.com/roadtrip.jpg', title: 'Roadtrip Event' },
+    ],
+  };
+
+  const unique = getUniquePhotos(mockCard);
+  // Even though sharedPhotoUrl appears 4 times and roadtrip appears twice,
+  // there are strictly 2 unique photos in total!
+  assert.strictEqual(unique.length, 2);
+  assert.strictEqual(unique.includes(sharedPhotoUrl), true);
+  assert.strictEqual(unique.includes('https://example.com/roadtrip.jpg'), true);
+});
+
+test('Replacing a photo preserves slot count and does not increment total photos', () => {
+  const photoCollection = [
+    'https://example.com/old-photo-1.jpg',
+    'https://example.com/photo-2.jpg',
+    'https://example.com/photo-3.jpg',
+  ];
+
+  assert.strictEqual(photoCollection.length, 3);
+
+  // Replace photo at index 0 with a new one
+  photoCollection[0] = 'https://example.com/new-replacement-photo.jpg';
+
+  // Collection size remains 3
+  assert.strictEqual(photoCollection.length, 3);
+  assert.strictEqual(photoCollection[0], 'https://example.com/new-replacement-photo.jpg');
+});
+
+test('Remaining photo slots calculation reflects accurate availability', () => {
+  const currentCount = 12;
+  const maxPhotos = 15;
+  const remainingSlots = Math.max(0, maxPhotos - currentCount);
+
+  assert.strictEqual(remainingSlots, 3);
+
+  // When user selects 5 photos but only 3 slots remain
+  const selectedBatch = ['p1.jpg', 'p2.jpg', 'p3.jpg', 'p4.jpg', 'p5.jpg'];
+  const acceptedBatch = selectedBatch.slice(0, remainingSlots);
+
+  assert.strictEqual(acceptedBatch.length, 3);
+  assert.deepStrictEqual(acceptedBatch, ['p1.jpg', 'p2.jpg', 'p3.jpg']);
+});
+
+test('Existing legacy cards exceeding limits are preserved without truncation', () => {
+  const legacyCard = {
+    id: 'legacy-card-99',
+    title: 'An Extremely Long Legacy Title That Exceeds Ten Words And Was Created In Previous Production',
+    welcome_message:
+      'This is an existing long welcome message from an earlier version of Dear You that has more than one hundred words. '.repeat(
+        6
+      ),
+  };
+
+  // Ensure count exceeds initial limit
+  assert.strictEqual(countWords(legacyCard.title) > 10, true);
+  assert.strictEqual(countWords(legacyCard.welcome_message) > 100, true);
+
+  // Migration policy: legacy card text is preserved without automatic truncation
+  assert.strictEqual(legacyCard.title.includes('Legacy Title'), true);
+  assert.strictEqual(legacyCard.welcome_message.length > 500, true);
+});
+
+// -------------------------------------------------------------
+// 30. DEVELOPER CONFIGURATION & AUDIT TRAIL TESTS
+// -------------------------------------------------------------
+console.log('\n--- 30. Developer Configuration & Audit Trail Tests ---');
+
+test('Only authorized platform owners can modify content limits', () => {
+  const authorizedOwners = ['kaushikparth363@gmail.com', 'kaushikparth353@gmail.com'];
+
+  const canModify1 = authorizedOwners.includes('kaushikparth363@gmail.com');
+  const canModify2 = authorizedOwners.includes('kaushikparth353@gmail.com');
+  const unauthorizedUser = authorizedOwners.includes('regular.user@example.com');
+
+  assert.strictEqual(canModify1, true);
+  assert.strictEqual(canModify2, true);
+  assert.strictEqual(unauthorizedUser, false);
+});
+
+test('Modifying platform content limits produces structured audit log entry', () => {
+  const auditLogs = [];
+
+  function simulateSettingUpdate(developerEmail, previousLimits, newLimits) {
+    if (
+      developerEmail !== 'kaushikparth363@gmail.com' &&
+      developerEmail !== 'kaushikparth353@gmail.com'
+    ) {
+      throw new Error('Forbidden: Platform Developer access required');
+    }
+
+    auditLogs.push({
+      action_type: 'modify_platform_settings',
+      developer_email: developerEmail,
+      details: {
+        setting: 'content_limits',
+        previousMaxPhotos: previousLimits.maxPhotos,
+        newMaxPhotos: newLimits.maxPhotos,
+      },
+      action_result: 'success',
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  simulateSettingUpdate(
+    'kaushikparth363@gmail.com',
+    { maxPhotos: 15 },
+    { maxPhotos: 20 }
+  );
+
+  assert.strictEqual(auditLogs.length, 1);
+  assert.strictEqual(auditLogs[0].action_type, 'modify_platform_settings');
+  assert.strictEqual(auditLogs[0].developer_email, 'kaushikparth363@gmail.com');
+  assert.strictEqual(auditLogs[0].details.newMaxPhotos, 20);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

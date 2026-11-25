@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { MOCK_GIFTS } from '@/lib/mock-data';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getPlatformContentLimits, countWords } from '@/lib/config/content-limits';
 import { Gift } from '@/types/gift';
 
 export async function POST(
@@ -18,6 +19,16 @@ export async function POST(
       expiry_enabled = false,
       expires_at = null,
     } = body;
+
+    if (new_title) {
+      const limits = getPlatformContentLimits();
+      if (limits.fields.cardTitle.enabled && countWords(new_title) > limits.fields.cardTitle.maxWords) {
+        return NextResponse.json(
+          { error: `New title exceeds the ${limits.fields.cardTitle.maxWords}-word limit.` },
+          { status: 400 }
+        );
+      }
+    }
 
     const sourceGift = MOCK_GIFTS[slug];
     if (!sourceGift) {

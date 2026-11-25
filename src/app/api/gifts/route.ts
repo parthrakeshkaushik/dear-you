@@ -6,9 +6,141 @@ import {
   verifySessionExpiryToken,
   SESSION_COOKIE_NAME,
 } from '@/lib/auth/persistent-session';
+import {
+  getPlatformContentLimits,
+  countWords,
+  getUniquePhotos,
+  PlatformContentLimits,
+} from '@/lib/config/content-limits';
 import { Gift } from '@/types/gift';
 
 const DEMO_CARD_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
+/**
+ * Validates text content word limits and photo upload limits.
+ * Returns an error string if validation fails, or null if valid.
+ * Preserves legacy existing card content unless the creator specifically expands it beyond limits.
+ */
+function validateGiftContentLimits(
+  giftData: any,
+  existingGift: Gift | undefined,
+  limits: PlatformContentLimits
+): string | null {
+  // 1. Validate Photo Limits (Unique across Memory Wall, Gallery, Timeline, Cover)
+  const uniquePhotos = getUniquePhotos(giftData);
+  if (uniquePhotos.length > limits.maxPhotos) {
+    const prevCount = existingGift ? getUniquePhotos(existingGift).length : 0;
+    // If new card OR user added additional photos beyond existing count
+    if (!existingGift || uniquePhotos.length > prevCount) {
+      return `This card contains ${uniquePhotos.length} unique photos, exceeding the platform limit of ${limits.maxPhotos} photos. Please remove ${uniquePhotos.length - limits.maxPhotos} photo(s) before saving.`;
+    }
+  }
+
+  // Helper to check a single field
+  const checkField = (
+    fieldValue: string | undefined | null,
+    prevValue: string | undefined | null,
+    limitConfig: { maxWords: number; enabled: boolean; label: string }
+  ): string | null => {
+    if (!limitConfig.enabled || !fieldValue) return null;
+    const words = countWords(fieldValue);
+    if (words > limitConfig.maxWords) {
+      const prevWords = prevValue ? countWords(prevValue) : 0;
+      // Allow legacy text only if creator did not expand it further
+      if (!existingGift || words > prevWords) {
+        return `${limitConfig.label} exceeds the ${limitConfig.maxWords}-word limit (currently ${words} words). Please shorten it.`;
+      }
+    }
+    return null;
+  };
+
+  // 2. Validate Card Title (10 words)
+  let err = checkField(giftData.title, existingGift?.title, limits.fields.cardTitle);
+  if (err) return err;
+
+  // 3. Short Introduction (50 words)
+  err = checkField(giftData.introduction, existingGift?.introduction, limits.fields.shortIntroduction);
+  if (err) return err;
+
+  // 4. Welcome Message (100 words)
+  err = checkField(giftData.welcome_message, existingGift?.welcome_message, limits.fields.welcomeMessage);
+  if (err) return err;
+
+  // 5. Special Messages (150 words each)
+  err = checkField(giftData.gift_box_message, existingGift?.gift_box_message, limits.fields.specialMessage);
+  if (err) return err;
+
+  err = checkField(giftData.scratch_card_hidden_text, existingGift?.scratch_card_hidden_text, limits.fields.specialMessage);
+  if (err) return err;
+
+  // 6. Final Closing Message (100 words)
+  err = checkField(giftData.closing_message, existingGift?.closing_message, limits.fields.finalClosingMessage);
+  if (err) return err;
+
+  // 7. Individual Wishes (50 words each)
+  if (Array.isArray(giftData.wishes)) {
+    for (let i = 0; i < giftData.wishes.length; i++) {
+      const wishText = typeof giftData.wishes[i] === 'string' ? giftData.wishes[i] : giftData.wishes[i]?.wish_text;
+      err = checkField(wishText, undefined, limits.fields.individualWish);
+      if (err) return `Wish #${i + 1}: ${err}`;
+    }
+  }
+
+  // 8. Timeline Descriptions (50 words each)
+  if (Array.isArray(giftData.timeline_entries)) {
+    for (let i = 0; i < giftData.timeline_entries.length; i++) {
+      const entry = giftData.timeline_entries[i];
+      err = checkField(entry?.description, undefined, limits.fields.timelineDescription);
+      if (err) return `Timeline entry "${entry?.title || i + 1}": ${err}`;
+    }
+  }
+
+  // 9. Trivia Quiz (Question 30 words, Option 15 words)
+  if (Array.isArray(giftData.quiz_questions)) {
+    for (let i = 0; i < giftData.quiz_questions.length; i++) {
+      const q = giftData.quiz_questions[i];
+      err = checkField(q?.question, undefined, limits.fields.quizQuestion);
+      if (err) return `Quiz Question #${i + 1}: ${err}`;
+
+      if (Array.isArray(q?.options)) {
+        for (let j = 0; j < q.options.length; j++) {
+          const opt = q.options[j];
+          err = checkField(opt?.option_text, undefined, limits.fields.quizAnswer);
+          if (err) return `Quiz Question #${i + 1}, Option #${j + 1}: ${err}`;
+        }
+      }
+    }
+  }
+
+  // 10. Secret Messages (100 words each)
+  if (Array.isArray(giftData.secret_messages)) {
+    for (let i = 0; i < giftData.secret_messages.length; i++) {
+      const msg = giftData.secret_messages[i];
+      err = checkField(msg?.content, undefined, limits.fields.secretMessage);
+      if (err) return `Secret message #${i + 1}: ${err}`;
+    }
+  }
+
+  // 11. Personal Letters (300 words each)
+  if (Array.isArray(giftData.letters)) {
+    for (let i = 0; i < giftData.letters.length; i++) {
+      const letter = giftData.letters[i];
+      err = checkField(letter?.content, undefined, limits.fields.personalLetter);
+      if (err) return `Letter "${letter?.heading || i + 1}": ${err}`;
+    }
+  }
+
+  // 12. Memory Captions (30 words each)
+  if (Array.isArray(giftData.memories)) {
+    for (let i = 0; i < giftData.memories.length; i++) {
+      const mem = giftData.memories[i];
+      err = checkField(mem?.caption, undefined, limits.fields.memoryCaption);
+      if (err) return `Memory photo #${i + 1} caption: ${err}`;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Extracts authenticated user ID from request session cookies or headers.
@@ -202,6 +334,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Server-side enforcement of word limits and 15-photo maximum
+    const activeLimits = getPlatformContentLimits();
+    const validationError = validateGiftContentLimits(body, existingGift, activeLimits);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
+    }
+
     // Generate unique slug
     let finalSlug: string = existingGift?.slug || '';
     if (!finalSlug) {
@@ -345,6 +484,16 @@ export async function PATCH(request: NextRequest) {
     const { id, title, recipient_name } = await request.json();
     if (!id) {
       return NextResponse.json({ error: 'Card ID is required' }, { status: 400 });
+    }
+
+    if (title !== undefined) {
+      const activeLimits = getPlatformContentLimits();
+      if (activeLimits.fields.cardTitle.enabled && countWords(title) > activeLimits.fields.cardTitle.maxWords) {
+        return NextResponse.json(
+          { error: `Card title exceeds the ${activeLimits.fields.cardTitle.maxWords}-word limit.` },
+          { status: 400 }
+        );
+      }
     }
 
     let updatedGift: Gift | null = null;

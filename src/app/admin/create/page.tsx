@@ -21,12 +21,29 @@ import {
   Share2,
   ExternalLink,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Heart,
   Gift,
   HelpCircle,
   FileText,
   RotateCcw,
+  RefreshCw,
+  AlertCircle,
+  Image as ImageIcon,
 } from 'lucide-react';
+import {
+  DEFAULT_CONTENT_LIMITS,
+  PlatformContentLimits,
+  getUniquePhotos,
+  countWords,
+  clampToMaxWords,
+} from '@/lib/config/content-limits';
+import {
+  WordLimitIndicator,
+  LimitedInput,
+  LimitedTextarea,
+} from '@/components/admin/WordLimitIndicator';
 import {
   EventType,
   MemoryItem,
@@ -120,6 +137,24 @@ function GiftBuilderInner() {
   const editorScrollPosRef = useRef<number>(0);
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
+
+  // Platform Content & Photo Limits state
+  const [contentLimits, setContentLimits] = useState<PlatformContentLimits>(DEFAULT_CONTENT_LIMITS);
+  const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
+  const replacingIndexRef = useRef<number | null>(null);
+  const [photoUploadNotice, setPhotoUploadNotice] = useState<string | null>(null);
+
+  // Fetch active platform content limits
+  useEffect(() => {
+    fetch('/api/developer/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.limits) {
+          setContentLimits(data.limits);
+        }
+      })
+      .catch((err) => console.warn('Could not load content limits for builder:', err));
+  }, []);
 
   // Form State - Page 1: Cover & Welcome
   const [recipientName, setRecipientName] = useState('Ananya');
@@ -327,12 +362,43 @@ function GiftBuilderInner() {
     setCurrentStep(1);
   };
 
-  // Upload handler for memories
+  // Photo count and slot availability (unique across all sections)
+  const uniquePhotos = getUniquePhotos({
+    memories,
+    timeline_entries: timelineEntries,
+    cover_image: coverImage,
+  });
+  const maxPhotos = contentLimits?.maxPhotos || 15;
+  const totalPhotosCount = uniquePhotos.length;
+  const remainingPhotoSlots = Math.max(0, maxPhotos - totalPhotosCount);
+  const isPhotoLimitReached = totalPhotosCount >= maxPhotos;
+
+  // Upload handler for memories with 15-photo maximum enforcement
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newMemories: MemoryItem[] = Array.from(files).map((file, idx) => ({
+    if (remainingPhotoSlots <= 0) {
+      setPhotoUploadNotice(
+        `Photo limit reached (${totalPhotosCount} / ${maxPhotos} photos used). Please remove or replace an existing photo to add new ones.`
+      );
+      e.target.value = '';
+      return;
+    }
+
+    const fileList = Array.from(files);
+    let filesToAccept = fileList;
+
+    if (fileList.length > remainingPhotoSlots) {
+      filesToAccept = fileList.slice(0, remainingPhotoSlots);
+      setPhotoUploadNotice(
+        `You selected ${fileList.length} photos, but only ${remainingPhotoSlots} slot(s) remain (maximum ${maxPhotos} photos). We added the first ${remainingPhotoSlots}. Please remove existing photos to add more.`
+      );
+    } else {
+      setPhotoUploadNotice(null);
+    }
+
+    const newMemories: MemoryItem[] = filesToAccept.map((file, idx) => ({
       id: `mem-${Date.now()}-${idx}`,
       image_path: URL.createObjectURL(file),
       caption: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
@@ -340,11 +406,64 @@ function GiftBuilderInner() {
       display_order: memories.length + idx + 1,
       frame_style: 'polaroid',
       frame_size: 'medium',
-      rotation: (idx % 2 === 0 ? -2.5 : 2.5),
+      rotation: idx % 2 === 0 ? -2.5 : 2.5,
     }));
 
     setMemories([...memories, ...newMemories]);
     e.target.value = '';
+  };
+
+  // Replace an existing photo in-place (does NOT consume an additional photo slot)
+  const triggerReplacePhoto = (idx: number) => {
+    replacingIndexRef.current = idx;
+    replaceFileInputRef.current?.click();
+  };
+
+  const handleReplacePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    const targetIdx = replacingIndexRef.current;
+    if (!files || files.length === 0 || targetIdx === null || targetIdx === undefined) return;
+
+    const file = files[0];
+    const newUrl = URL.createObjectURL(file);
+    const updated = [...memories];
+    if (updated[targetIdx]) {
+      updated[targetIdx] = {
+        ...updated[targetIdx],
+        image_path: newUrl,
+      };
+      setMemories(updated);
+      setPhotoUploadNotice('Photo replaced successfully without consuming an extra slot.');
+      setTimeout(() => setPhotoUploadNotice(null), 3500);
+    }
+
+    replacingIndexRef.current = null;
+    e.target.value = '';
+  };
+
+  // Remove photo (frees up a slot)
+  const handleRemovePhoto = (idx: number) => {
+    setMemories(memories.filter((_, i) => i !== idx));
+    setPhotoUploadNotice(null);
+  };
+
+  // Reorder photos
+  const handleMovePhotoUp = (idx: number) => {
+    if (idx <= 0) return;
+    const updated = [...memories];
+    const temp = updated[idx - 1];
+    updated[idx - 1] = updated[idx];
+    updated[idx] = temp;
+    setMemories(updated);
+  };
+
+  const handleMovePhotoDown = (idx: number) => {
+    if (idx >= memories.length - 1) return;
+    const updated = [...memories];
+    const temp = updated[idx + 1];
+    updated[idx + 1] = updated[idx];
+    updated[idx] = temp;
+    setMemories(updated);
   };
 
   // Construct reactive Live Preview Gift object
@@ -827,9 +946,54 @@ function GiftBuilderInner() {
                     <input
                       type="text"
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
+                        const max = contentLimits.fields.cardTitle.maxWords;
+                        if (
+                          contentLimits.fields.cardTitle.enabled &&
+                          countWords(nextVal) > max &&
+                          countWords(nextVal) > countWords(title)
+                        ) {
+                          return;
+                        }
+                        setTitle(nextVal);
+                      }}
                       placeholder="e.g. A Little Universe for Maya"
                       className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                    <WordLimitIndicator
+                      text={title}
+                      maxWords={contentLimits.fields.cardTitle.maxWords}
+                      enabled={contentLimits.fields.cardTitle.enabled}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                      Short Introduction (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={introduction}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
+                        const max = contentLimits.fields.shortIntroduction.maxWords;
+                        if (
+                          contentLimits.fields.shortIntroduction.enabled &&
+                          countWords(nextVal) > max &&
+                          countWords(nextVal) > countWords(introduction)
+                        ) {
+                          return;
+                        }
+                        setIntroduction(nextVal);
+                      }}
+                      placeholder="e.g. A little universe crafted just for you."
+                      className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                    <WordLimitIndicator
+                      text={introduction}
+                      maxWords={contentLimits.fields.shortIntroduction.maxWords}
+                      enabled={contentLimits.fields.shortIntroduction.enabled}
                     />
                   </div>
 
@@ -885,10 +1049,26 @@ function GiftBuilderInner() {
                       Welcome Message
                     </label>
                     <textarea
-                      rows={2}
+                      rows={3}
                       value={welcomeMessage}
-                      onChange={(e) => setWelcomeMessage(e.target.value)}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
+                        const max = contentLimits.fields.welcomeMessage.maxWords;
+                        if (
+                          contentLimits.fields.welcomeMessage.enabled &&
+                          countWords(nextVal) > max &&
+                          countWords(nextVal) > countWords(welcomeMessage)
+                        ) {
+                          return;
+                        }
+                        setWelcomeMessage(nextVal);
+                      }}
                       className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                    <WordLimitIndicator
+                      text={welcomeMessage}
+                      maxWords={contentLimits.fields.welcomeMessage.maxWords}
+                      enabled={contentLimits.fields.welcomeMessage.enabled}
                     />
                   </div>
 
@@ -961,9 +1141,25 @@ function GiftBuilderInner() {
                     <textarea
                       rows={4}
                       value={giftBoxMessage}
-                      onChange={(e) => setGiftBoxMessage(e.target.value)}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
+                        const max = contentLimits.fields.specialMessage.maxWords;
+                        if (
+                          contentLimits.fields.specialMessage.enabled &&
+                          countWords(nextVal) > max &&
+                          countWords(nextVal) > countWords(giftBoxMessage)
+                        ) {
+                          return;
+                        }
+                        setGiftBoxMessage(nextVal);
+                      }}
                       placeholder="Write the heartfelt revelation that appears when the gift unties..."
                       className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                    <WordLimitIndicator
+                      text={giftBoxMessage}
+                      maxWords={contentLimits.fields.specialMessage.maxWords}
+                      enabled={contentLimits.fields.specialMessage.enabled}
                     />
                   </div>
 
@@ -974,9 +1170,25 @@ function GiftBuilderInner() {
                     <input
                       type="text"
                       value={scratchCardHiddenText}
-                      onChange={(e) => setScratchCardHiddenText(e.target.value)}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
+                        const max = contentLimits.fields.specialMessage.maxWords;
+                        if (
+                          contentLimits.fields.specialMessage.enabled &&
+                          countWords(nextVal) > max &&
+                          countWords(nextVal) > countWords(scratchCardHiddenText)
+                        ) {
+                          return;
+                        }
+                        setScratchCardHiddenText(nextVal);
+                      }}
                       placeholder="Hidden until recipient scratches with cursor or fingertip..."
                       className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                    <WordLimitIndicator
+                      text={scratchCardHiddenText}
+                      maxWords={contentLimits.fields.specialMessage.maxWords}
+                      enabled={contentLimits.fields.specialMessage.enabled}
                     />
                   </div>
                 </div>
@@ -995,29 +1207,92 @@ function GiftBuilderInner() {
                   </p>
                 </div>
 
-                {/* Upload Trigger */}
+                {/* Combined Photo Quota & Available Slots */}
+                <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200/60 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-platform-violet" />
+                      <span className="text-xs font-semibold text-platform-dark">
+                        Photos: {totalPhotosCount} / {maxPhotos} used
+                      </span>
+                    </div>
+                    <span
+                      className={`text-xs font-mono font-medium ${
+                        remainingPhotoSlots === 0
+                          ? 'text-rose-600 font-semibold'
+                          : 'text-platform-muted'
+                      }`}
+                    >
+                      {remainingPhotoSlots === 0
+                        ? 'Limit reached (0 slots remaining)'
+                        : `${remainingPhotoSlots} photo slots remaining`}
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full h-1.5 bg-purple-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 rounded-full ${
+                        isPhotoLimitReached ? 'bg-rose-500' : 'bg-platform-violet'
+                      }`}
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round((totalPhotosCount / maxPhotos) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+
+                  {photoUploadNotice && (
+                    <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200/60 flex items-start gap-1.5">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                      <span>{photoUploadNotice}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload & Replace Triggers */}
                 <div>
                   <input
                     type="file"
                     ref={fileInputRef}
                     multiple
                     accept="image/*"
+                    disabled={isPhotoLimitReached}
                     onChange={handlePhotoUpload}
                     className="hidden"
                   />
+                  <input
+                    type="file"
+                    ref={replaceFileInputRef}
+                    accept="image/*"
+                    onChange={handleReplacePhoto}
+                    className="hidden"
+                  />
+
                   <button
                     type="button"
+                    disabled={isPhotoLimitReached}
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-4 px-6 rounded-2xl border-2 border-dashed border-purple-200 hover:border-platform-violet bg-purple-50/50 hover:bg-purple-50 transition-colors flex flex-col items-center justify-center gap-2 cursor-pointer group"
+                    className={`w-full py-4 px-6 rounded-2xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-2 group ${
+                      isPhotoLimitReached
+                        ? 'border-stone-200 bg-stone-50 cursor-not-allowed opacity-60'
+                        : 'border-purple-200 hover:border-platform-violet bg-purple-50/50 hover:bg-purple-50 cursor-pointer'
+                    }`}
                   >
                     <div className="w-10 h-10 rounded-full bg-platform-violet/10 text-platform-violet flex items-center justify-center group-hover:scale-105 transition-transform">
                       <Upload className="w-5 h-5" />
                     </div>
                     <span className="text-xs font-semibold text-platform-dark">
-                      Upload Photos for the Memory Wall
+                      {isPhotoLimitReached
+                        ? 'Maximum Photo Limit Reached (15 Photos)'
+                        : 'Upload Photos for the Memory Wall'}
                     </span>
                     <span className="text-[11px] text-platform-muted">
-                      JPG, PNG, WebP up to 10MB each
+                      {isPhotoLimitReached
+                        ? 'Remove or replace an existing photo to upload new ones'
+                        : `${remainingPhotoSlots} available slots • JPG, PNG, WebP up to 10MB each`}
                     </span>
                   </button>
                 </div>
@@ -1040,13 +1315,29 @@ function GiftBuilderInner() {
                             type="text"
                             value={photo.caption || ''}
                             onChange={(e) => {
+                              const nextVal = e.target.value;
+                              const max = contentLimits.fields.memoryCaption.maxWords;
+                              if (
+                                contentLimits.fields.memoryCaption.enabled &&
+                                countWords(nextVal) > max &&
+                                countWords(nextVal) > countWords(photo.caption || '')
+                              ) {
+                                return;
+                              }
                               const updated = [...memories];
-                              updated[idx].caption = e.target.value;
+                              updated[idx].caption = nextVal;
                               setMemories(updated);
                             }}
                             placeholder="Write a caption for this memory..."
                             className="w-full px-3 py-1.5 rounded-lg border border-black/10 text-xs focus:outline-none"
                           />
+                          <WordLimitIndicator
+                            text={photo.caption}
+                            maxWords={contentLimits.fields.memoryCaption.maxWords}
+                            enabled={contentLimits.fields.memoryCaption.enabled}
+                            showFeedbackText={false}
+                          />
+
                           <div className="grid grid-cols-2 gap-2 text-xs">
                             <select
                               value={photo.frame_style || 'polaroid'}
@@ -1076,13 +1367,44 @@ function GiftBuilderInner() {
                             />
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setMemories(memories.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-stone-400 hover:text-rose-600 cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+
+                        {/* Actions: Reorder, Replace, Delete */}
+                        <div className="flex flex-col items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => triggerReplacePhoto(idx)}
+                            title="Replace photograph (retains slot)"
+                            className="p-1.5 text-stone-500 hover:text-platform-violet hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => handleMovePhotoUp(idx)}
+                            title="Move photo up"
+                            className="p-1 text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === memories.length - 1}
+                            onClick={() => handleMovePhotoDown(idx)}
+                            title="Move photo down"
+                            className="p-1 text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePhoto(idx)}
+                            title="Remove photo (frees slot)"
+                            className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1131,26 +1453,44 @@ function GiftBuilderInner() {
                     <label className="block text-xs font-semibold text-platform-dark mb-1.5">
                       Celebration Wishes & Cake Message
                     </label>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {wishes.map((w, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={w}
-                            onChange={(e) => {
-                              const updated = [...wishes];
-                              updated[idx] = e.target.value;
-                              setWishes(updated);
-                            }}
-                            className="flex-1 px-3 py-2 rounded-xl border border-black/10 text-xs"
+                        <div key={idx} className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={w}
+                              onChange={(e) => {
+                                const nextVal = e.target.value;
+                                const max = contentLimits.fields.individualWish.maxWords;
+                                if (
+                                  contentLimits.fields.individualWish.enabled &&
+                                  countWords(nextVal) > max &&
+                                  countWords(nextVal) > countWords(w)
+                                ) {
+                                  return;
+                                }
+                                const updated = [...wishes];
+                                updated[idx] = nextVal;
+                                setWishes(updated);
+                              }}
+                              className="flex-1 px-3 py-2 rounded-xl border border-black/10 text-xs focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setWishes(wishes.filter((_, i) => i !== idx))}
+                              className="p-1.5 text-stone-400 hover:text-rose-600 cursor-pointer"
+                              title="Delete wish"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <WordLimitIndicator
+                            text={w}
+                            maxWords={contentLimits.fields.individualWish.maxWords}
+                            enabled={contentLimits.fields.individualWish.enabled}
+                            showFeedbackText={false}
                           />
-                          <button
-                            type="button"
-                            onClick={() => setWishes(wishes.filter((_, i) => i !== idx))}
-                            className="p-1.5 text-stone-400 hover:text-rose-600 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       ))}
                       <button
@@ -1199,12 +1539,27 @@ function GiftBuilderInner() {
                             rows={2}
                             value={t.description}
                             onChange={(e) => {
+                              const nextVal = e.target.value;
+                              const max = contentLimits.fields.timelineDescription.maxWords;
+                              if (
+                                contentLimits.fields.timelineDescription.enabled &&
+                                countWords(nextVal) > max &&
+                                countWords(nextVal) > countWords(t.description)
+                              ) {
+                                return;
+                              }
                               const up = [...timelineEntries];
-                              up[idx].description = e.target.value;
+                              up[idx].description = nextVal;
                               setTimelineEntries(up);
                             }}
                             placeholder="What made this moment special?"
                             className="w-full px-2 py-1 rounded border border-black/10"
+                          />
+                          <WordLimitIndicator
+                            text={t.description}
+                            maxWords={contentLimits.fields.timelineDescription.maxWords}
+                            enabled={contentLimits.fields.timelineDescription.enabled}
+                            showFeedbackText={false}
                           />
                         </div>
                       ))}
@@ -1235,21 +1590,36 @@ function GiftBuilderInner() {
                       rows={6}
                       value={letters[0]?.content || ''}
                       onChange={(e) => {
+                        const nextVal = e.target.value;
+                        const prevVal = letters[0]?.content || '';
+                        const max = contentLimits.fields.personalLetter.maxWords;
+                        if (
+                          contentLimits.fields.personalLetter.enabled &&
+                          countWords(nextVal) > max &&
+                          countWords(nextVal) > countWords(prevVal)
+                        ) {
+                          return;
+                        }
                         const updated = [...letters];
                         if (!updated[0]) {
                           updated[0] = {
                             id: 'l1',
                             heading: 'A letter from the heart',
-                            content: e.target.value,
+                            content: nextVal,
                             display_order: 1,
                           };
                         } else {
-                          updated[0].content = e.target.value;
+                          updated[0].content = nextVal;
                         }
                         setLetters(updated);
                       }}
                       placeholder="Write your long-form letter..."
                       className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm font-serif leading-relaxed focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                    <WordLimitIndicator
+                      text={letters[0]?.content || ''}
+                      maxWords={contentLimits.fields.personalLetter.maxWords}
+                      enabled={contentLimits.fields.personalLetter.enabled}
                     />
                   </div>
 
@@ -1260,9 +1630,25 @@ function GiftBuilderInner() {
                     <textarea
                       rows={3}
                       value={closingMessage}
-                      onChange={(e) => setClosingMessage(e.target.value)}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
+                        const max = contentLimits.fields.finalClosingMessage.maxWords;
+                        if (
+                          contentLimits.fields.finalClosingMessage.enabled &&
+                          countWords(nextVal) > max &&
+                          countWords(nextVal) > countWords(closingMessage)
+                        ) {
+                          return;
+                        }
+                        setClosingMessage(nextVal);
+                      }}
                       placeholder="Final words at the very bottom of the card journey..."
                       className="w-full px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm focus:ring-2 focus:ring-platform-violet/40 focus:outline-none"
+                    />
+                    <WordLimitIndicator
+                      text={closingMessage}
+                      maxWords={contentLimits.fields.finalClosingMessage.maxWords}
+                      enabled={contentLimits.fields.finalClosingMessage.enabled}
                     />
                   </div>
 

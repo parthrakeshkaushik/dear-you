@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings,
   ShieldCheck,
@@ -14,8 +14,13 @@ import {
   Mail,
   Smartphone,
   Server,
+  Image,
+  Type,
+  Sliders,
+  Sparkles,
 } from 'lucide-react';
 import { AUTHORIZED_DEVELOPERS } from '@/lib/mock-data';
+import { DEFAULT_CONTENT_LIMITS, PlatformContentLimits } from '@/lib/config/content-limits';
 
 export default function DeveloperSettingsPage() {
   const [developers, setDevelopers] = useState(AUTHORIZED_DEVELOPERS);
@@ -23,6 +28,67 @@ export default function DeveloperSettingsPage() {
   const [termsVersion, setTermsVersion] = useState('v1.0');
   const [privacyVersion, setPrivacyVersion] = useState('v1.0');
   const [saveNotice, setSaveNotice] = useState(false);
+
+  // Content & Photo Limits state
+  const [contentLimits, setContentLimits] = useState<PlatformContentLimits>(DEFAULT_CONTENT_LIMITS);
+  const [isLimitsSaving, setIsLimitsSaving] = useState(false);
+  const [limitsSaveNotice, setLimitsSaveNotice] = useState<string | null>(null);
+
+  // Load active limits on mount
+  useEffect(() => {
+    fetch('/api/developer/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.limits) {
+          setContentLimits(data.limits);
+        }
+      })
+      .catch((err) => console.warn('Could not load developer content limits:', err));
+  }, []);
+
+  const handleSaveContentLimits = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLimitsSaving(true);
+    setLimitsSaveNotice(null);
+
+    try {
+      const res = await fetch('/api/developer/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contentLimits),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setLimitsSaveNotice(data.error || 'Failed to update content limits');
+      } else {
+        setContentLimits(data.limits);
+        setLimitsSaveNotice('Content limits saved and logged to audit trail.');
+        setTimeout(() => setLimitsSaveNotice(null), 4000);
+      }
+    } catch (err: any) {
+      setLimitsSaveNotice(err.message || 'Error updating settings');
+    } finally {
+      setIsLimitsSaving(false);
+    }
+  };
+
+  const handleFieldLimitChange = (
+    fieldKey: keyof PlatformContentLimits['fields'],
+    prop: 'maxWords' | 'enabled',
+    val: any
+  ) => {
+    setContentLimits((prev) => ({
+      ...prev,
+      fields: {
+        ...prev.fields,
+        [fieldKey]: {
+          ...prev.fields[fieldKey],
+          [prop]: prop === 'maxWords' ? Math.max(1, parseInt(val, 10) || 1) : Boolean(val),
+        },
+      },
+    }));
+  };
 
   const handleAddDeveloper = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,11 +114,142 @@ export default function DeveloperSettingsPage() {
           Developer Settings & RBAC Access
         </h1>
         <p className="mt-1 text-xs text-stone-400">
-          Configure authorized developer accounts, legal policy version tracking, and audit parameters.
+          Configure content length controls, photo limits, authorized developer accounts, and policy governance.
         </p>
       </div>
 
       <div className="space-y-6">
+        {/* PLATFORM CONTENT LENGTH & PHOTO UPLOAD CONTROLS */}
+        <form
+          onSubmit={handleSaveContentLimits}
+          className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-6"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+            <div>
+              <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-purple-400" />
+                <span>Content Length Controls & Photo Upload Limits</span>
+              </h3>
+              <p className="text-xs text-stone-400 mt-0.5">
+                Govern max photos per card and word limits for creator wizard text fields. Changes apply to new/drafted cards without truncating legacy published cards.
+              </p>
+            </div>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30">
+              Platform Rule
+            </span>
+          </div>
+
+          {/* Overall Photo Limit Setting */}
+          <div className="p-4 rounded-xl bg-black/40 border border-white/5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-white text-xs font-semibold">
+                <Image className="w-4 h-4 text-indigo-400" />
+                <span>Maximum Photos Per Card</span>
+              </div>
+              <span className="text-xs font-mono text-indigo-300">
+                Default: 15 photos
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-400">
+              Combined photo limit across Memory Wall, Memories Gallery, Timeline, and Cover image. Moving or reusing a photo across sections counts only once.
+            </p>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={contentLimits.maxPhotos}
+                onChange={(e) =>
+                  setContentLimits({
+                    ...contentLimits,
+                    maxPhotos: Math.max(1, parseInt(e.target.value, 10) || 15),
+                  })
+                }
+                className="w-28 px-3 py-1.5 rounded-lg bg-black/60 border border-white/15 text-xs text-white font-mono focus:border-indigo-500 focus:outline-none"
+              />
+              <span className="text-xs text-stone-400">photos allowed per card</span>
+            </div>
+          </div>
+
+          {/* Word Limits Per Text Field Grid */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-white flex items-center gap-2">
+                <Type className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Text Field Word Limits</span>
+              </h4>
+              <span className="text-[10px] text-stone-400 font-mono">
+                Unicode & Indian Language Aware
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(
+                Object.keys(contentLimits.fields) as Array<
+                  keyof PlatformContentLimits['fields']
+                >
+              ).map((fieldKey) => {
+                const config = contentLimits.fields[fieldKey];
+                return (
+                  <div
+                    key={fieldKey}
+                    className="p-3 rounded-xl bg-black/30 border border-white/5 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={config.enabled}
+                          onChange={(e) =>
+                            handleFieldLimitChange(fieldKey, 'enabled', e.target.checked)
+                          }
+                          className="w-3.5 h-3.5 rounded border-white/20 bg-black/40 text-indigo-600 focus:ring-0 cursor-pointer"
+                        />
+                        <span className="text-stone-200 font-medium truncate">
+                          {config.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min="1"
+                        max="5000"
+                        disabled={!config.enabled}
+                        value={config.maxWords}
+                        onChange={(e) =>
+                          handleFieldLimitChange(fieldKey, 'maxWords', e.target.value)
+                        }
+                        className="w-16 px-2 py-1 rounded-md bg-black/60 border border-white/15 text-xs text-white font-mono text-center disabled:opacity-40 focus:border-indigo-500 focus:outline-none"
+                      />
+                      <span className="text-[10px] text-stone-400 font-mono">words</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            <button
+              type="submit"
+              disabled={isLimitsSaving}
+              className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>{isLimitsSaving ? 'Saving...' : 'Update Platform Limits'}</span>
+            </button>
+
+            {limitsSaveNotice && (
+              <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{limitsSaveNotice}</span>
+              </span>
+            )}
+          </div>
+        </form>
+
         {/* Authorized Developer Accounts */}
         <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
