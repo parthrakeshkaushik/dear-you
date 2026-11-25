@@ -3190,6 +3190,84 @@ test('App URL resolution strictly enforces production Vercel domain and never le
   assert.strictEqual(getResetPasswordUrl().includes('localhost'), false, 'Production reset URL must never contain localhost');
 });
 
+console.log('\n--- 42. Supabase Password Recovery Token Hash & Email Scanner Immunity Tests ---');
+
+test('Password reset route generates crawler-immune token_hash recovery links', () => {
+  const resetRouteCode = fs.readFileSync('src/app/api/auth/reset-password/route.ts', 'utf8');
+
+  // Verify extraction of hashed_token
+  assert.strictEqual(
+    resetRouteCode.includes('hashed_token'),
+    true,
+    'Must extract hashed_token from Supabase generateLink'
+  );
+
+  // Verify recoveryUrl construction includes token_hash and type=recovery
+  assert.strictEqual(
+    resetRouteCode.includes('token_hash='),
+    true,
+    'Must construct recovery URL containing token_hash'
+  );
+  assert.strictEqual(
+    resetRouteCode.includes('type=recovery'),
+    true,
+    'Must specify type=recovery in recovery URL'
+  );
+});
+
+test('/reset-password page processes token_hash via client verifyOtp to defeat link prefetchers', () => {
+  const resetPageCode = fs.readFileSync('src/app/reset-password/page.tsx', 'utf8');
+
+  // Verify searchParams reads token_hash
+  assert.strictEqual(
+    resetPageCode.includes("searchParams?.get('token_hash')"),
+    true,
+    'Must read token_hash from URL search parameters'
+  );
+
+  // Verify verifyOtp call with token_hash and type
+  assert.strictEqual(
+    resetPageCode.includes('supabase.auth.verifyOtp'),
+    true,
+    'Must invoke supabase.auth.verifyOtp'
+  );
+  assert.strictEqual(
+    resetPageCode.includes('token_hash,'),
+    true,
+    'Must pass token_hash to verifyOtp'
+  );
+
+  // Verify URL cleanup to prevent re-consumption on page refresh
+  assert.strictEqual(
+    resetPageCode.includes('window.history?.replaceState'),
+    true,
+    'Must cleanse URL query params with replaceState upon successful verification'
+  );
+
+  // Verify password update uses active session without old password
+  assert.strictEqual(
+    resetPageCode.includes('supabase.auth.updateUser'),
+    true,
+    'Must update password using supabase.auth.updateUser'
+  );
+});
+
+test('Auth callback route attaches session cookies directly to redirect response', () => {
+  const callbackCode = fs.readFileSync('src/app/auth/callback/route.ts', 'utf8');
+
+  // Verify createServerClient attaches cookies to NextResponse.redirect
+  assert.strictEqual(
+    callbackCode.includes('createServerClient'),
+    true,
+    'Must use createServerClient in callback route'
+  );
+  assert.strictEqual(
+    callbackCode.includes('response.cookies.set'),
+    true,
+    'Must explicitly attach cookies to the redirect response object'
+  );
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

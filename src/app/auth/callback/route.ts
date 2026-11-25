@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -15,25 +15,38 @@ export async function GET(request: NextRequest) {
   const next = requestUrl.searchParams.get('next') || defaultNext;
 
   const origin = requestUrl.origin;
+  const targetRedirectUrl = isRecovery ? `${origin}/reset-password` : `${origin}${next}?verified=true`;
+
+  let response = NextResponse.redirect(targetRedirectUrl);
 
   try {
-    const supabase = createClient();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.redirect(targetRedirectUrl);
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    });
 
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (!error) {
-        if (isRecovery) {
-          return NextResponse.redirect(`${origin}/reset-password`);
-        }
-        return NextResponse.redirect(`${origin}${next}?verified=true`);
+        return response;
       }
     } else if (token_hash && type) {
       const { error } = await supabase.auth.verifyOtp({ token_hash, type });
       if (!error) {
-        if (type === 'recovery') {
-          return NextResponse.redirect(`${origin}/reset-password`);
-        }
-        return NextResponse.redirect(`${origin}${next}?verified=true`);
+        return response;
       }
     }
   } catch (err) {

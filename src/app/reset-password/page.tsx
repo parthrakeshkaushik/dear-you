@@ -54,20 +54,68 @@ function ResetPasswordContent() {
 
       const supabase = createClient();
 
-      // 2. Process PKCE exchange code if provided in query string
+      // 2. Check token_hash in query string (Bot-Immune Direct Recovery Link)
+      const token_hash = searchParams?.get('token_hash');
+      const type = (searchParams?.get('type') as any) || 'recovery';
+
+      if (token_hash) {
+        try {
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash,
+            type,
+          });
+
+          if (!error && data?.session) {
+            if (isMounted) {
+              setHasValidSession(true);
+              setIsCheckingSession(false);
+              setErrorMessage(null);
+              // Clean query parameters from URL so refreshing doesn't re-trigger OTP verification
+              if (typeof window !== 'undefined' && window.history?.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }
+            }
+            return;
+          } else if (error) {
+            console.warn('[AUTH_DIAGNOSTIC] token_hash verifyOtp error:', error.message);
+            if (isMounted) {
+              setIsCheckingSession(false);
+              setHasValidSession(false);
+              setErrorMessage(
+                error.message.toLowerCase().includes('expired')
+                  ? 'Your password reset link has expired. Please request a new one.'
+                  : 'Your reset link is invalid or has already been used. Please request another link.'
+              );
+            }
+            return;
+          }
+        } catch (otpErr: any) {
+          console.warn('[AUTH_DIAGNOSTIC] verifyOtp exception:', otpErr?.message);
+        }
+      }
+
+      // 3. Process PKCE exchange code if provided in query string
       const code = searchParams?.get('code');
       if (code) {
         try {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            console.warn('[AUTH_DIAGNOSTIC] PKCE code exchange note:', exchangeError.message);
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (!exchangeError && data?.session) {
+            if (isMounted) {
+              setHasValidSession(true);
+              setIsCheckingSession(false);
+              setErrorMessage(null);
+              if (typeof window !== 'undefined' && window.history?.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }
+            }
+            return;
           }
         } catch (e: any) {
           console.warn('[AUTH_DIAGNOSTIC] Code exchange exception:', e?.message);
         }
       }
 
-      // 3. Process URL Hash fragment if present (#access_token=...&type=recovery)
+      // 4. Process URL Hash fragment if present (#access_token=...&type=recovery)
       if (typeof window !== 'undefined' && window.location.hash) {
         const hash = window.location.hash;
         if (hash.includes('error=')) {

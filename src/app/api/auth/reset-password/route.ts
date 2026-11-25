@@ -118,17 +118,33 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(genericConfirmationResponse, { status: 200 });
         }
 
+        const hashedToken = linkData?.properties?.hashed_token;
         const actionLink = linkData?.properties?.action_link;
-        if (!actionLink) {
-          console.error('[AUTH_DIAGNOSTIC] No action_link returned by Supabase Auth for registered user');
+
+        if (!hashedToken && !actionLink) {
+          console.error('[AUTH_DIAGNOSTIC] Neither hashed_token nor action_link returned by Supabase Auth for registered user');
           await supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
           return NextResponse.json(genericConfirmationResponse, { status: 200 });
         }
 
+        // Construct direct bot-immune recovery URL:
+        // When using action_link (https://<ref>.supabase.co/auth/v1/verify?token=...), email scanners
+        // (like Gmail Safe Browsing / Defender Safe Links) execute an automated HTTP GET request on incoming emails.
+        // Because Supabase OTP tokens are single-use, the scanner consumes the token immediately.
+        // When the human user clicks the link 2 minutes later, Supabase returns error=otp_expired.
+        //
+        // Solution: Send the user directly to our Next.js frontend with the hashed_token:
+        // `${redirectUrl}?token_hash=${encodeURIComponent(hashedToken)}&type=recovery`
+        // Scanners only fetch the static HTML shell, leaving the token unburned.
+        // The token is verified via client-side JavaScript (supabase.auth.verifyOtp) only when a real human opens the page.
+        const recoveryUrl = hashedToken
+          ? `${redirectUrl}?token_hash=${encodeURIComponent(hashedToken)}&type=recovery`
+          : actionLink!;
+
         console.log(`[AUTH_DIAGNOSTIC] Verified registered account: ${maskEmail(email)}. Dispatching recovery email...`);
 
         // 3. Dispatch recovery email via configured SMTP (Gmail / Custom SMTP)
-        const dispatchResult = await dispatchRecoveryEmail(email, actionLink);
+        const dispatchResult = await dispatchRecoveryEmail(email, recoveryUrl);
 
         // Record diagnostic audit log
         try {
