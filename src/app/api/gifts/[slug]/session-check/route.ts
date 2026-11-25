@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRecipientToken, getRecipientCookieName } from '@/lib/auth/recipient-session';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { MOCK_GIFTS } from '@/lib/mock-data';
 
 /**
@@ -13,7 +14,27 @@ export async function GET(
 ) {
   try {
     const { slug } = params;
-    const gift = MOCK_GIFTS[slug];
+
+    // Fast-path: builder preview or draft placeholders never require recipient access sessions
+    if (slug === 'builder-preview' || slug === 'surprise') {
+      return NextResponse.json({ valid: true });
+    }
+
+    let gift = MOCK_GIFTS[slug];
+    if (!gift) {
+      try {
+        const supabaseAdmin = createAdminClient();
+        const { data: dbGift } = await supabaseAdmin
+          .from('gifts')
+          .select('id, slug, password_version')
+          .eq('slug', slug)
+          .maybeSingle();
+
+        if (dbGift) {
+          gift = dbGift as any;
+        }
+      } catch {}
+    }
 
     if (!gift) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });

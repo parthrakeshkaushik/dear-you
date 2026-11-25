@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRecipientToken, getRecipientCookieName } from '@/lib/auth/recipient-session';
+import { isAuthorizedPreviewUser } from '@/lib/auth/roles';
 import { checkGiftExpiry } from '@/lib/expiry';
 import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
 
@@ -86,12 +87,17 @@ export async function GET(
       isPasswordRevoked = !!authCheck.passwordRevoked;
     }
 
-    // Check query for preview if authorized
-    const isPreview = request.nextUrl.searchParams.get('preview') === 'true';
+    // Check query for preview if authorized (Creator/Developer ownership verification)
+    const wantsPreview = request.nextUrl.searchParams.get('preview') === 'true';
+    let isAuthorizedPreview = false;
+    if (wantsPreview) {
+      const authPreview = await isAuthorizedPreviewUser(request, gift.owner_id);
+      isAuthorizedPreview = authPreview.isAuthorized;
+    }
 
     const isDemo = gift.is_demo === true || slug === 'demo' || slug === 'demo-gift';
 
-    if (!hasAccess && !isPreview) {
+    if (!hasAccess && !isAuthorizedPreview && !isDemo) {
       const response = NextResponse.json(
         {
           error: isPasswordRevoked

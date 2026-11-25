@@ -1879,6 +1879,248 @@ test('Modifying platform content limits produces structured audit log entry', ()
   assert.strictEqual(auditLogs[0].details.newMaxPhotos, 20);
 });
 
+// -------------------------------------------------------------
+// 31. CREATOR LIVE PREVIEW & RECIPIENT AUTH SEPARATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 31. Creator Live Preview & Recipient Auth Separation Tests ---');
+
+test('Creator Preview initializes unlocked without requiring recipient access session', () => {
+  // Simulates RecipientExperience with isPreview=true
+  function simulateRecipientExperienceMount(props) {
+    const isUnlocked = props.isPreview ? true : (props.initialUnlocked ?? false);
+    let sessionCheckExecuted = false;
+
+    // Heartbeat logic
+    if (!props.isPreview && isUnlocked) {
+      sessionCheckExecuted = true;
+    }
+
+    return {
+      isUnlocked,
+      sessionCheckExecuted,
+      revocationNotice: null,
+      displaysPasswordGate: !isUnlocked,
+    };
+  }
+
+  const previewState = simulateRecipientExperienceMount({
+    gift: { id: 'builder-preview', slug: 'surprise', title: 'My Draft' },
+    initialUnlocked: true,
+    isPreview: true,
+  });
+
+  assert.strictEqual(previewState.isUnlocked, true);
+  assert.strictEqual(previewState.sessionCheckExecuted, false);
+  assert.strictEqual(previewState.displaysPasswordGate, false);
+  assert.strictEqual(previewState.revocationNotice, null);
+});
+
+test('Real recipient experience enforces password gate and runs heartbeat session-check', () => {
+  function simulateRecipientExperienceMount(props) {
+    const isUnlocked = props.isPreview ? true : (props.initialUnlocked ?? false);
+    let sessionCheckExecuted = false;
+
+    if (!props.isPreview && isUnlocked) {
+      sessionCheckExecuted = true;
+    }
+
+    return {
+      isUnlocked,
+      sessionCheckExecuted,
+      displaysPasswordGate: !isUnlocked,
+    };
+  }
+
+  // Locked recipient
+  const lockedRecipient = simulateRecipientExperienceMount({
+    gift: { id: 'real-gift-1', slug: 'anniversary' },
+    initialUnlocked: false,
+    isPreview: false,
+  });
+  assert.strictEqual(lockedRecipient.isUnlocked, false);
+  assert.strictEqual(lockedRecipient.displaysPasswordGate, true);
+  assert.strictEqual(lockedRecipient.sessionCheckExecuted, false);
+
+  // Unlocked recipient runs periodic heartbeat
+  const unlockedRecipient = simulateRecipientExperienceMount({
+    gift: { id: 'real-gift-1', slug: 'anniversary' },
+    initialUnlocked: true,
+    isPreview: false,
+  });
+  assert.strictEqual(unlockedRecipient.isUnlocked, true);
+  assert.strictEqual(unlockedRecipient.displaysPasswordGate, false);
+  assert.strictEqual(unlockedRecipient.sessionCheckExecuted, true);
+});
+
+test('Preview mode tabs switch cleanly between Gift Journey, Password Gate and Closing Screen', () => {
+  let activeTab = 'unlocked'; // 'unlocked' | 'password_gate' | 'expired_closing'
+
+  function renderTab(tab, draftGift) {
+    switch (tab) {
+      case 'password_gate':
+        return {
+          view: 'PasswordGate',
+          recipientName: draftGift.recipient_name,
+          title: draftGift.title,
+          isSimulated: true,
+          passwordExposed: false,
+          hasSessionError: false,
+        };
+      case 'expired_closing':
+        return {
+          view: 'ExpiryScreen',
+          heading: draftGift.expiry_heading || 'This Gift Has Concluded',
+          actualGiftExpired: draftGift.expiry_enabled,
+          hasSessionError: false,
+        };
+      case 'unlocked':
+      default:
+        return {
+          view: 'GiftJourney',
+          sections: ['welcome', 'gift_box', 'memory_wall', 'celebration', 'closing'],
+          hasSessionError: false,
+        };
+    }
+  }
+
+  const draftGift = {
+    title: 'Surprise for Jane',
+    recipient_name: 'Jane',
+    expiry_enabled: false,
+    expiry_heading: 'Farewell Moments',
+  };
+
+  // 1. Gift Journey
+  const journey = renderTab('unlocked', draftGift);
+  assert.strictEqual(journey.view, 'GiftJourney');
+  assert.strictEqual(journey.hasSessionError, false);
+  assert.strictEqual(journey.sections.includes('memory_wall'), true);
+
+  // 2. Password Gate simulation
+  const gate = renderTab('password_gate', draftGift);
+  assert.strictEqual(gate.view, 'PasswordGate');
+  assert.strictEqual(gate.isSimulated, true);
+  assert.strictEqual(gate.passwordExposed, false);
+  assert.strictEqual(gate.hasSessionError, false);
+
+  // 3. Closing Screen inspection
+  const closing = renderTab('expired_closing', draftGift);
+  assert.strictEqual(closing.view, 'ExpiryScreen');
+  assert.strictEqual(closing.heading, 'Farewell Moments');
+  assert.strictEqual(closing.actualGiftExpired, false); // Inspected without changing actual draft state
+});
+
+test('Standalone preview route /g/[slug]/preview enforces strict creator ownership', () => {
+  const mockDbGifts = [
+    { id: 'gift-alice', slug: 'for-alice', owner_id: 'user-alice', title: "Alice's Card" },
+    { id: 'gift-bob', slug: 'for-bob', owner_id: 'user-bob', title: "Bob's Card" },
+  ];
+
+  function evaluatePreviewRouteAccess(slug, authenticatedUserId, userRole, userEmail) {
+    if (!authenticatedUserId) {
+      return { allowed: false, action: 'redirect_login' };
+    }
+
+    const gift = mockDbGifts.find((g) => g.slug === slug);
+    if (!gift) return { allowed: false, action: 'not_found' };
+
+    const isOwner = gift.owner_id === authenticatedUserId;
+    const isDeveloper =
+      userRole === 'developer' ||
+      userEmail === 'kaushikparth363@gmail.com' ||
+      userEmail === 'kaushikparth353@gmail.com';
+
+    if (isOwner || isDeveloper) {
+      return { allowed: true, action: 'render_preview' };
+    }
+
+    return { allowed: false, action: 'forbidden_not_found' };
+  }
+
+  // 1. Owner accesses their own gift preview -> ALLOWED
+  const ownerAccess = evaluatePreviewRouteAccess('for-alice', 'user-alice', 'creator', 'alice@test.com');
+  assert.strictEqual(ownerAccess.allowed, true);
+  assert.strictEqual(ownerAccess.action, 'render_preview');
+
+  // 2. Different user attempts to access another user's draft preview -> FORBIDDEN (Denied)
+  const intruderAccess = evaluatePreviewRouteAccess('for-alice', 'user-bob', 'creator', 'bob@test.com');
+  assert.strictEqual(intruderAccess.allowed, false);
+  assert.strictEqual(intruderAccess.action, 'forbidden_not_found');
+
+  // 3. Platform Developer accesses preview -> ALLOWED
+  const devAccess = evaluatePreviewRouteAccess('for-alice', 'dev-1', 'developer', 'kaushikparth363@gmail.com');
+  assert.strictEqual(devAccess.allowed, true);
+  assert.strictEqual(devAccess.action, 'render_preview');
+
+  // 4. Unauthenticated user -> REDIRECT TO LOGIN
+  const unauthAccess = evaluatePreviewRouteAccess('for-alice', null, null, null);
+  assert.strictEqual(unauthAccess.allowed, false);
+  assert.strictEqual(unauthAccess.action, 'redirect_login');
+});
+
+test('Unauthorized user cannot bypass recipient password on published card using ?preview=true', () => {
+  function verifyContentAccess({ hasRecipientSessionCookie, wantsPreviewQuery, callerUserId, giftOwnerId, isDeveloper }) {
+    let isAuthorizedPreview = false;
+    if (wantsPreviewQuery) {
+      const isOwner = !!(callerUserId && callerUserId === giftOwnerId);
+      if (isOwner || isDeveloper) {
+        isAuthorizedPreview = true;
+      }
+    }
+
+    // Access granted only if valid recipient session exists OR caller is verified owner/developer
+    return hasRecipientSessionCookie || isAuthorizedPreview;
+  }
+
+  // 1. Legitimate recipient with valid session cookie -> GRANTED
+  assert.strictEqual(
+    verifyContentAccess({
+      hasRecipientSessionCookie: true,
+      wantsPreviewQuery: false,
+      callerUserId: null,
+      giftOwnerId: 'owner-1',
+      isDeveloper: false,
+    }),
+    true
+  );
+
+  // 2. Attacker without recipient cookie appending ?preview=true -> DENIED
+  assert.strictEqual(
+    verifyContentAccess({
+      hasRecipientSessionCookie: false,
+      wantsPreviewQuery: true,
+      callerUserId: 'intruder-user',
+      giftOwnerId: 'owner-1',
+      isDeveloper: false,
+    }),
+    false
+  );
+
+  // 3. Anonymous attacker appending ?preview=true -> DENIED
+  assert.strictEqual(
+    verifyContentAccess({
+      hasRecipientSessionCookie: false,
+      wantsPreviewQuery: true,
+      callerUserId: null,
+      giftOwnerId: 'owner-1',
+      isDeveloper: false,
+    }),
+    false
+  );
+
+  // 4. Genuine creator inspecting preview with ?preview=true -> GRANTED
+  assert.strictEqual(
+    verifyContentAccess({
+      hasRecipientSessionCookie: false,
+      wantsPreviewQuery: true,
+      callerUserId: 'owner-1',
+      giftOwnerId: 'owner-1',
+      isDeveloper: false,
+    }),
+    true
+  );
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

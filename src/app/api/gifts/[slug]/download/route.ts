@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
 import { checkGiftExpiry } from '@/lib/expiry';
 import { verifyRecipientToken, getRecipientCookieName } from '@/lib/auth/recipient-session';
+import { isAuthorizedPreviewUser } from '@/lib/auth/roles';
 import { generateOfflineCardHtml } from '@/lib/download/generate-offline-card';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -66,7 +67,13 @@ export async function GET(
     // 4. Password Protection Check
     const cookieName = getRecipientCookieName(slug);
     const token = request.cookies.get(cookieName)?.value;
-    const isPreview = request.nextUrl.searchParams.get('preview') === 'true';
+    const wantsPreview = request.nextUrl.searchParams.get('preview') === 'true';
+
+    let isAuthorizedPreview = false;
+    if (wantsPreview) {
+      const authPreview = await isAuthorizedPreviewUser(request, gift.owner_id);
+      isAuthorizedPreview = authPreview.isAuthorized;
+    }
 
     let hasAccess = false;
     let isPasswordRevoked = false;
@@ -76,7 +83,7 @@ export async function GET(
       isPasswordRevoked = !!authCheck.passwordRevoked;
     }
 
-    if (gift.password_hash && !hasAccess && !isPreview) {
+    if (gift.password_hash && !hasAccess && !isAuthorizedPreview) {
       const response = NextResponse.json(
         {
           error: isPasswordRevoked

@@ -25,15 +25,17 @@ import { Download } from 'lucide-react';
 interface RecipientExperienceProps {
   gift: Gift;
   initialUnlocked?: boolean;
+  isPreview?: boolean;
   onVerifyPassword?: (password: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function RecipientExperience({
   gift,
   initialUnlocked = false,
+  isPreview = false,
   onVerifyPassword,
 }: RecipientExperienceProps) {
-  const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
+  const [isUnlocked, setIsUnlocked] = useState(isPreview ? true : initialUnlocked);
   const [revocationNotice, setRevocationNotice] = useState<string | null>(null);
   const [hasStartedExperience, setHasStartedExperience] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
@@ -46,12 +48,13 @@ export function RecipientExperience({
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
-  // Check Expiry
+  // Check Expiry (In preview mode, creator explicitly uses the Closing Screen tab to preview expiry)
   const isExpired = useMemo(() => {
+    if (isPreview) return false;
     if (!gift.expiry_enabled || !gift.expires_at) return false;
     const expiryTime = new Date(gift.expires_at).getTime();
     return Date.now() > expiryTime;
-  }, [gift.expiry_enabled, gift.expires_at]);
+  }, [isPreview, gift.expiry_enabled, gift.expires_at]);
 
   // Determine Enabled Sections and their sequence
   const enabledSections = useMemo(() => {
@@ -89,8 +92,9 @@ export function RecipientExperience({
   }, []);
 
   // Periodic heartbeat session check to detect creator password updates in real-time
+  // PREVIEW ARCHITECTURE: Creator preview NEVER validates against recipient access sessions
   useEffect(() => {
-    if (!isUnlocked) return;
+    if (isPreview || !isUnlocked) return;
 
     const checkSession = async () => {
       try {
@@ -114,7 +118,7 @@ export function RecipientExperience({
 
     const interval = setInterval(checkSession, 5000);
     return () => clearInterval(interval);
-  }, [isUnlocked, gift.slug]);
+  }, [isPreview, isUnlocked, gift.slug]);
 
   // Play / Pause toggle
   const handleTogglePlay = useCallback(() => {

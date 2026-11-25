@@ -196,7 +196,12 @@ export function LivePreviewPane({
               giftTitle={gift.title}
               recipientName={gift.recipient_name}
               passwordHint={gift.password_hint}
-              onSubmit={async () => {
+              isDemo={false}
+              revocationNotice={null}
+              onSubmit={async (entered) => {
+                if (!entered.trim()) {
+                  return { success: false, error: 'Please enter a password to test.' };
+                }
                 return { success: true };
               }}
               onSuccess={() => setStateMode('unlocked')}
@@ -210,8 +215,11 @@ export function LivePreviewPane({
             <ExpiryScreen
               recipientName={gift.recipient_name}
               themeId={gift.selected_theme}
-              heading={gift.expiry_heading}
-              message={gift.expiry_message}
+              heading={gift.expiry_heading || 'This Gift Has Concluded'}
+              message={
+                gift.expiry_message ||
+                'Thank you for being part of this special moment. This digital keepsake has reached its scheduled conclusion.'
+              }
             />
           </ThemeContainer>
         );
@@ -223,6 +231,7 @@ export function LivePreviewPane({
             key={`preview-experience-${previewKey}-${gift.selected_theme}`}
             gift={gift}
             initialUnlocked={true}
+            isPreview={true}
           />
         );
     }

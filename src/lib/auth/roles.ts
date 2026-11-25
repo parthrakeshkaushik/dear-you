@@ -209,3 +209,46 @@ export async function logDeveloperAction(params: {
     console.warn('Could not persist developer audit log:', err);
   }
 }
+
+/**
+ * Verifies if an incoming request is from the authenticated owner of the gift
+ * or an authorized platform developer/super admin. Used to safely authorize
+ * creator live previews without requiring recipient passwords.
+ */
+export async function isAuthorizedPreviewUser(
+  request: NextRequest,
+  giftOwnerId?: string
+): Promise<{ isAuthorized: boolean; userId?: string; isOwner?: boolean; isDeveloper?: boolean }> {
+  // 1. Check custom persistent session cookie
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (sessionCookie) {
+    const check = await verifySessionExpiryToken(sessionCookie);
+    if (check.valid && check.userId) {
+      const isOwner = !!(giftOwnerId && check.userId === giftOwnerId);
+      const isDev = check.role === 'developer' || isAuthorizedDeveloperEmail(check.email);
+      if (isOwner || isDev) {
+        return {
+          isAuthorized: true,
+          userId: check.userId,
+          isOwner,
+          isDeveloper: isDev,
+        };
+      }
+    }
+  }
+
+  // 2. Check Supabase Auth Bearer token / dev session
+  try {
+    const dev = await getAuthenticatedDeveloper(request);
+    if (dev.isDeveloper) {
+      return {
+        isAuthorized: true,
+        userId: dev.userId,
+        isOwner: !!(giftOwnerId && dev.userId === giftOwnerId),
+        isDeveloper: true,
+      };
+    }
+  } catch {}
+
+  return { isAuthorized: false };
+}
