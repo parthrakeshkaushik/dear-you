@@ -10,6 +10,8 @@ import {
   SessionDurationDays,
 } from '@/lib/auth/persistent-session';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/auth/session
  * Establishes or refreshes persistent session cookies with chosen duration (7 or 14 days).
@@ -120,10 +122,26 @@ export async function GET(request: NextRequest) {
     const msRemaining = (check.expiresAt || 0) - Date.now();
     const daysRemaining = Math.max(0, Math.round((msRemaining / (24 * 60 * 60 * 1000)) * 10) / 10);
 
+    let displayName: string | null = null;
+    if (check.userId) {
+      try {
+        const supabaseAdmin = createAdminClient();
+        const { data: userRec } = await supabaseAdmin
+          .from('admin_users')
+          .select('display_name')
+          .eq('id', check.userId)
+          .maybeSingle();
+        if (userRec?.display_name) {
+          displayName = userRec.display_name;
+        }
+      } catch {}
+    }
+
     return NextResponse.json({
       authenticated: true,
       userId: check.userId,
       email: check.email,
+      displayName,
       role: check.role,
       rememberDays: check.days,
       expiresAt: new Date(check.expiresAt || 0).toISOString(),

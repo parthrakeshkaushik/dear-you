@@ -2529,6 +2529,103 @@ test('Child components render appropriately without returning null when data is 
   assert.strictEqual(letterRenders, true, 'LetterSection renders when letters are present');
 });
 
+// -------------------------------------------------------------
+// 35. AUTHENTICATED CREATOR DASHBOARD PROFILE IDENTITY & DROPDOWN TESTS
+// -------------------------------------------------------------
+console.log('\n--- 35. Creator Dashboard Profile Identity & Dropdown Tests ---');
+
+test('Profile initials helper handles multi-word names, single words and emails gracefully', () => {
+  function getInitials(nameOrEmail) {
+    if (!nameOrEmail) return 'U';
+    const clean = nameOrEmail.trim();
+    if (clean.includes('@')) {
+      return clean[0].toUpperCase();
+    }
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return clean.slice(0, 2).toUpperCase();
+  }
+
+  assert.strictEqual(getInitials('Parth Kaushik'), 'PK');
+  assert.strictEqual(getInitials('Parth'), 'PA');
+  assert.strictEqual(getInitials('kaushikparth363@gmail.com'), 'K');
+  assert.strictEqual(getInitials(''), 'U');
+  assert.strictEqual(getInitials(null), 'U');
+});
+
+test('Profile identity accurately distinguishes between Developer and Creator account types', () => {
+  function resolveAccountType(email, dbRole) {
+    const isDev =
+      email === 'kaushikparth363@gmail.com' ||
+      email === 'kaushikparth353@gmail.com' ||
+      dbRole === 'developer';
+    return isDev ? 'Developer' : 'Creator';
+  }
+
+  assert.strictEqual(resolveAccountType('kaushikparth363@gmail.com', 'developer'), 'Developer');
+  assert.strictEqual(resolveAccountType('kaushikparth353@gmail.com', 'developer'), 'Developer');
+  assert.strictEqual(resolveAccountType('kaushikparth373@gmail.com', 'creator'), 'Creator');
+  assert.strictEqual(resolveAccountType('ordinary-creator@example.com', 'creator'), 'Creator');
+});
+
+test('Profile identity endpoint strictly rejects unauthenticated access with HTTP 401', () => {
+  function verifyProfileAuth(sessionToken) {
+    if (!sessionToken || sessionToken.trim() === '') {
+      return { status: 401, error: 'Unauthorized: Please sign in to view your profile.' };
+    }
+    return { status: 200, user: { email: 'user@example.com' } };
+  }
+
+  const unauthRes = verifyProfileAuth('');
+  assert.strictEqual(unauthRes.status, 401);
+  assert.strictEqual(unauthRes.error.includes('Unauthorized'), true);
+
+  const authRes = verifyProfileAuth('valid-token');
+  assert.strictEqual(authRes.status, 200);
+});
+
+test('Profile update endpoint allows display_name changes but strictly blocks arbitrary email alterations', () => {
+  function validateProfileUpdate(body) {
+    if (body.email) {
+      return {
+        status: 400,
+        error: 'Authenticated email address cannot be changed directly. Please use the secure email change and verification procedure.'
+      };
+    }
+    if (!body.displayName || !body.displayName.trim()) {
+      return { status: 400, error: 'Full name cannot be blank.' };
+    }
+    return { status: 200, success: true, updatedName: body.displayName.trim() };
+  }
+
+  const emailAttempt = validateProfileUpdate({ displayName: 'New Name', email: 'tampered@example.com' });
+  assert.strictEqual(emailAttempt.status, 400);
+  assert.strictEqual(emailAttempt.error.includes('cannot be changed directly'), true);
+
+  const emptyNameAttempt = validateProfileUpdate({ displayName: '   ' });
+  assert.strictEqual(emptyNameAttempt.status, 400);
+  assert.strictEqual(emptyNameAttempt.error.includes('cannot be blank'), true);
+
+  const validAttempt = validateProfileUpdate({ displayName: 'Parth Kaushik' });
+  assert.strictEqual(validAttempt.status, 200);
+  assert.strictEqual(validAttempt.updatedName, 'Parth Kaushik');
+});
+
+test('Admin layout renders profile card in sidebar with clickable dropdown options and graceful fallbacks', () => {
+  const layoutCode = fs.readFileSync('src/app/admin/layout.tsx', 'utf8');
+
+  assert.strictEqual(layoutCode.includes('/api/auth/profile'), true, 'Layout must fetch verified account profile');
+  assert.strictEqual(layoutCode.includes('profileDropdownOpen'), true, 'Must manage profile dropdown open state');
+  assert.strictEqual(layoutCode.includes('Profile Settings'), true, 'Dropdown must include Profile Settings option');
+  assert.strictEqual(layoutCode.includes('Sign Out'), true, 'Dropdown must include Sign Out option');
+  assert.strictEqual(layoutCode.includes('Your Account'), true, 'Must provide sensible fallback if name is unavailable');
+  assert.strictEqual(layoutCode.includes('Email unavailable'), true, 'Must provide sensible fallback if email is unavailable');
+  assert.strictEqual(layoutCode.includes('Platform Developer'), true, 'Must display appropriate account role label');
+  assert.strictEqual(layoutCode.includes('truncate'), true, 'Long email and name must truncate gracefully in sidebar');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

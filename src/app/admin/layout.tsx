@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -18,11 +18,38 @@ import {
   Mail,
   ShieldAlert,
   ChevronRight,
+  User,
+  ChevronsUpDown,
+  ShieldCheck,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
+}
+
+interface AuthenticatedProfile {
+  id: string;
+  email: string;
+  displayName: string | null;
+  role: string;
+  accountType: 'Developer' | 'Creator';
+  avatarUrl?: string | null;
+  createdAt?: string | null;
+}
+
+function getInitials(nameOrEmail?: string | null): string {
+  if (!nameOrEmail) return 'U';
+  const clean = nameOrEmail.trim();
+  if (clean.includes('@')) {
+    return clean[0].toUpperCase();
+  }
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
 }
 
 function VerifiedBanner() {
@@ -44,6 +71,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const [profile, setProfile] = useState<AuthenticatedProfile | null>(null);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDeveloper, setIsDeveloper] = useState(false);
+
   const navLinks = [
     { href: '/admin', label: 'Overview', icon: LayoutDashboard },
     { href: '/admin/gifts', label: 'All Gifts', icon: Gift },
@@ -52,67 +86,258 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { href: '/admin/settings', label: 'Settings', icon: Settings },
   ];
 
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isDeveloper, setIsDeveloper] = useState(false);
-
-  React.useEffect(() => {
+  // Fetch verified user identity from authenticated server profile endpoint
+  useEffect(() => {
     let isMounted = true;
-    async function checkRole() {
-      // 1. Fast check from verified persistent session endpoint
+
+    async function loadIdentity() {
+      // 1. Primary: Fetch verified account profile from secure server endpoint
+      try {
+        const res = await fetch('/api/auth/profile');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user && isMounted) {
+            setProfile(data.user);
+            setIsDeveloper(data.user.role === 'developer');
+            return;
+          }
+        }
+      } catch (profileErr) {
+        console.warn('Profile fetch note in layout:', profileErr);
+      }
+
+      // 2. Fallback: Check persistent session endpoint
       try {
         const sessRes = await fetch('/api/auth/session');
         if (sessRes.ok) {
           const sessData = await sessRes.json();
-          if (sessData.authenticated) {
-            const email = (sessData.email || '').toLowerCase();
-            if (
+          if (sessData.authenticated && isMounted) {
+            const email = (sessData.email || '').toLowerCase().trim();
+            const isDev =
               email === 'kaushikparth363@gmail.com' ||
               email === 'kaushikparth353@gmail.com' ||
-              sessData.role === 'developer'
-            ) {
-              if (isMounted) setIsDeveloper(true);
-              return;
-            }
+              sessData.role === 'developer';
+
+            setIsDeveloper(isDev);
+            setProfile({
+              id: sessData.userId || '',
+              email: email || 'Email unavailable',
+              displayName: sessData.displayName || null,
+              role: isDev ? 'developer' : 'creator',
+              accountType: isDev ? 'Developer' : 'Creator',
+            });
+            return;
           }
         }
       } catch {}
 
-      // 2. Check Supabase client user identity
+      // 3. Fallback: Supabase Client Auth
       try {
         const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (user && isMounted) {
-          const email = (user.email || '').toLowerCase();
-          if (
+          const email = (user.email || '').toLowerCase().trim();
+          const isDev =
             email === 'kaushikparth363@gmail.com' ||
             email === 'kaushikparth353@gmail.com' ||
-            user.app_metadata?.role === 'developer'
-          ) {
-            setIsDeveloper(true);
-          }
+            user.app_metadata?.role === 'developer';
+
+          setIsDeveloper(isDev);
+          setProfile({
+            id: user.id,
+            email: email || 'Email unavailable',
+            displayName:
+              user.user_metadata?.display_name ||
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              null,
+            role: isDev ? 'developer' : 'creator',
+            accountType: isDev ? 'Developer' : 'Creator',
+            avatarUrl: user.user_metadata?.avatar_url || null,
+            createdAt: user.created_at,
+          });
         }
       } catch {}
     }
-    checkRole();
+
+    loadIdentity();
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [pathname]);
+
+  // Dismiss profile dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setProfileDropdownOpen(false);
+      }
+    }
+
+    if (profileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [profileDropdownOpen]);
 
   const handleLogout = async (global = false) => {
     setIsLoggingOut(true);
     try {
       const supabase = createClient();
       await supabase.auth.signOut();
-    } catch {
-      // Ignore
-    }
+    } catch {}
     try {
       await fetch(`/api/auth/logout${global ? '?global=true' : ''}`, { method: 'POST' });
-    } catch {
-      // Ignore
-    }
+    } catch {}
     router.push('/login?logged_out=true');
+  };
+
+  // Reusable Profile Widget & Dropdown
+  const renderProfileSection = (isMobile = false) => {
+    const displayName = profile?.displayName || 'Your Account';
+    const email = profile?.email || 'Email unavailable';
+    const accountRoleLabel = profile?.role === 'developer' ? 'Platform Developer' : 'Gift Creator';
+    const isDevRole = profile?.role === 'developer' || isDeveloper;
+
+    return (
+      <div className="relative" ref={isMobile ? undefined : dropdownRef}>
+        <button
+          type="button"
+          onClick={() => setProfileDropdownOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between p-2 sm:p-2.5 rounded-2xl bg-black/5 hover:bg-black/10 transition-all text-left cursor-pointer border border-black/5 focus:outline-none focus:ring-2 focus:ring-platform-violet/20"
+          aria-label="Account identity and profile options"
+          aria-expanded={profileDropdownOpen}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Avatar Initials / Photo */}
+            <div className="w-8 h-8 rounded-full bg-platform-violet/15 text-platform-violet font-semibold text-xs flex items-center justify-center shrink-0 border border-platform-violet/25 shadow-2xs">
+              {profile?.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={displayName}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <span>{getInitials(displayName || email)}</span>
+              )}
+            </div>
+            {/* Name & Truncated Email */}
+            <div className="min-w-0 flex-1">
+              <span className="block text-xs font-semibold text-platform-dark truncate leading-snug">
+                {displayName}
+              </span>
+              <span
+                className="block text-[11px] text-platform-muted truncate leading-snug font-normal"
+                title={email}
+              >
+                {email}
+              </span>
+            </div>
+          </div>
+          <ChevronsUpDown className="w-3.5 h-3.5 text-platform-muted shrink-0 ml-1.5" />
+        </button>
+
+        {/* Profile Dropdown Panel */}
+        <AnimatePresence>
+          {profileDropdownOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="absolute bottom-full left-0 mb-2 w-full min-w-[240px] bg-white rounded-2xl shadow-xl border border-black/10 p-2 z-50 overflow-hidden"
+            >
+              {/* Account Identity Details */}
+              <div className="p-3 bg-stone-50 rounded-xl mb-1.5 border border-black/5">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-9 h-9 rounded-full bg-platform-violet/20 text-platform-violet font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                    {profile?.avatarUrl ? (
+                      <img
+                        src={profile.avatarUrl}
+                        alt=""
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <span>{getInitials(displayName || email)}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-xs font-bold text-platform-dark truncate">
+                      {displayName}
+                    </span>
+                    <span className="block text-[11px] text-platform-muted break-all leading-tight font-mono">
+                      {email}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-black/5">
+                  <span className="text-[10px] text-stone-500 font-medium">Account Role:</span>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      isDevRole
+                        ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                        : 'bg-purple-100 text-purple-800 border border-purple-200'
+                    }`}
+                  >
+                    {accountRoleLabel}
+                  </span>
+                </div>
+              </div>
+
+              {/* Navigation Options */}
+              <div className="space-y-0.5">
+                <Link
+                  href="/admin/settings?tab=profile"
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    if (isMobile) setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-platform-dark hover:bg-black/5 transition-colors font-medium"
+                >
+                  <User className="w-3.5 h-3.5 text-platform-muted" />
+                  <span>Profile Settings</span>
+                </Link>
+
+                {isDevRole && (
+                  <Link
+                    href="/developer"
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      if (isMobile) setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-indigo-700 hover:bg-indigo-50 transition-colors font-semibold"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Developer Console</span>
+                  </Link>
+                )}
+
+                <div className="my-1 border-t border-black/5" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileDropdownOpen(false);
+                    handleLogout(false);
+                  }}
+                  disabled={isLoggingOut}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer font-medium disabled:opacity-50"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
   };
 
   return (
@@ -220,36 +445,41 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="pt-6 border-t border-black/5 space-y-1.5">
-          <Link
-            href="/g/demo-gift"
-            target="_blank"
-            className="flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-platform-muted hover:text-platform-dark hover:bg-black/5 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Sample Recipient View</span>
-            </span>
-          </Link>
+        {/* Footer Actions & Authenticated User Identity */}
+        <div className="pt-6 border-t border-black/5 space-y-3">
+          {/* Profile Section in Sidebar */}
+          {renderProfileSection(false)}
 
-          <button
-            onClick={() => handleLogout(false)}
-            disabled={isLoggingOut}
-            className="w-full flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer disabled:opacity-50"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
-          </button>
+          <div className="space-y-1">
+            <Link
+              href="/g/demo-gift"
+              target="_blank"
+              className="flex items-center justify-between px-3.5 py-2 rounded-lg text-xs text-platform-muted hover:text-platform-dark hover:bg-black/5 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Sample Recipient View</span>
+              </span>
+            </Link>
 
-          <button
-            onClick={() => handleLogout(true)}
-            disabled={isLoggingOut}
-            className="w-full flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[10px] text-stone-600 hover:text-rose-700 hover:bg-rose-50/50 transition-colors text-left cursor-pointer font-mono"
-            title="Revokes all active sessions across desktop and mobile devices"
-          >
-            <span>Log out from all devices</span>
-          </button>
+            <button
+              onClick={() => handleLogout(false)}
+              disabled={isLoggingOut}
+              className="w-full flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer disabled:opacity-50"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
+            </button>
+
+            <button
+              onClick={() => handleLogout(true)}
+              disabled={isLoggingOut}
+              className="w-full flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[10px] text-stone-500 hover:text-rose-700 hover:bg-rose-50/50 transition-colors text-left cursor-pointer font-mono"
+              title="Revokes all active sessions across desktop and mobile devices"
+            >
+              <span>Log out from all devices</span>
+            </button>
+          </div>
         </div>
       </aside>
 
