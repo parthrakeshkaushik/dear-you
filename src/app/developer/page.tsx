@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import {
   Users,
   Gift,
@@ -19,12 +18,16 @@ import {
   ShieldCheck,
   Eye,
   Layers,
+  RotateCcw,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { THEME_PRESETS } from '@/config/themes';
 import { formatDate } from '@/lib/utils';
 
 export default function DeveloperOverviewPage() {
   const [isLoading, setIsLoading] = React.useState(true);
+  const [fetchError, setFetchError] = React.useState<string | null>(null);
   const [metrics, setMetrics] = React.useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -37,35 +40,47 @@ export default function DeveloperOverviewPage() {
   const [recentGifts, setRecentGifts] = React.useState<any[]>([]);
   const [recentAuditLogs, setRecentAuditLogs] = React.useState<any[]>([]);
 
-  React.useEffect(() => {
-    async function fetchOverview() {
-      try {
-        const res = await fetch('/api/developer/overview');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.metrics) setMetrics(data.metrics);
-          if (data.recentGifts) setRecentGifts(data.recentGifts);
-          if (data.recentAuditLogs) setRecentAuditLogs(data.recentAuditLogs);
-        }
-      } catch {} finally {
-        setIsLoading(false);
+  const fetchOverview = React.useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch('/api/developer/overview');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.metrics) setMetrics(data.metrics);
+        if (Array.isArray(data.recentGifts)) setRecentGifts(data.recentGifts);
+        if (Array.isArray(data.recentAuditLogs)) setRecentAuditLogs(data.recentAuditLogs);
+      } else {
+        const errData = await res.json().catch(() => null);
+        setFetchError(errData?.error || 'Failed to load telemetry overview from platform servers.');
       }
+    } catch {
+      setFetchError('Unable to connect to the developer telemetry service. Please check your network.');
+    } finally {
+      setIsLoading(false);
     }
-    fetchOverview();
   }, []);
 
+  React.useEffect(() => {
+    fetchOverview();
+  }, [fetchOverview]);
+
   const {
-    totalUsers,
-    activeUsers,
-    totalGifts,
-    publishedGifts,
-    draftGifts,
-    expiredGifts,
-    themeCounts,
+    totalUsers = 0,
+    activeUsers = 0,
+    totalGifts = 0,
+    publishedGifts = 0,
+    draftGifts = 0,
+    expiredGifts = 0,
+    themeCounts = {},
   } = metrics;
-  const gifts = recentGifts;
-  const auditLogs = recentAuditLogs;
-  const totalPhotosUploaded = gifts.reduce((acc: number, g: any) => acc + (g.memories?.length || 0), 0);
+
+  const gifts = Array.isArray(recentGifts) ? recentGifts : [];
+  const auditLogs = Array.isArray(recentAuditLogs) ? recentAuditLogs : [];
+  const totalPhotosUploaded = gifts.reduce((acc: number, g: any) => {
+    const memCount = Array.isArray(g?.memories) ? g.memories.length : 0;
+    return acc + memCount;
+  }, 0);
 
   return (
     <div className="space-y-8">
@@ -97,263 +112,324 @@ export default function DeveloperOverviewPage() {
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Users */}
-        <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-stone-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Registered Users</span>
-            <Users className="w-4 h-4 text-indigo-400" />
+      {/* Error Banner */}
+      {fetchError && (
+        <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{fetchError}</span>
           </div>
-          <div className="text-3xl font-semibold text-white font-mono">{totalUsers}</div>
-          <div className="mt-2 text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
-            <span>{activeUsers} active accounts</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => fetchOverview()}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold transition-all cursor-pointer shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
         </div>
+      )}
 
-        {/* Total Gifts */}
-        <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-stone-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Gifts Created</span>
-            <Gift className="w-4 h-4 text-purple-400" />
+      {/* Loading Skeletons */}
+      {isLoading ? (
+        <div className="space-y-8 animate-pulse">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-28 rounded-2xl bg-white/5 border border-white/10" />
+            ))}
           </div>
-          <div className="text-3xl font-semibold text-white font-mono">{totalGifts}</div>
-          <div className="mt-2 text-[11px] text-stone-400 flex items-center gap-2">
-            <span className="text-emerald-400 font-semibold">{publishedGifts} published</span>
-            <span>•</span>
-            <span className="text-amber-400">{draftGifts} drafts</span>
-          </div>
-        </div>
-
-        {/* Uploaded Photographs */}
-        <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-stone-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Photographs Hosted</span>
-            <Camera className="w-4 h-4 text-rose-400" />
-          </div>
-          <div className="text-3xl font-semibold text-white font-mono">{totalPhotosUploaded}</div>
-          <div className="mt-2 text-[11px] text-stone-400">
-            Across Memory Walls & Galleries
-          </div>
-        </div>
-
-        {/* Expired / Completed */}
-        <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-stone-400 mb-2">
-            <span className="text-xs font-mono uppercase tracking-wider">Expired / Closed</span>
-            <Clock className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-3xl font-semibold text-white font-mono">{expiredGifts}</div>
-          <div className="mt-2 text-[11px] text-amber-300 font-medium">
-            Graceful closing screens active
-          </div>
-        </div>
-      </div>
-
-      {/* Visual Analytics Grid: Trends & Usage Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Most Frequently Used Themes */}
-        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
-              <Palette className="w-4 h-4 text-indigo-400" />
-              <span>Theme Preferences</span>
-            </h3>
-            <span className="text-[10px] font-mono text-stone-400">Real Usage</span>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            {Object.entries(THEME_PRESETS).map(([id, theme]) => {
-              const count = themeCounts[id] || (id === 'dreamy' ? 1 : 0);
-              const percentage = Math.round((count / Math.max(totalGifts, 1)) * 100);
-
-              return (
-                <div key={id} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-stone-300">{theme.name}</span>
-                    <span className="font-mono text-stone-400">{count} ({percentage}%)</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-500 rounded-full transition-all"
-                      style={{ width: `${Math.max(percentage, 8)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Mobile vs Desktop Usage & Section Popularity */}
-        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-5">
-          <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-            <span>Platform Device Ratios</span>
-          </h3>
-
-          <div className="p-4 rounded-xl bg-black/30 border border-white/5 space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-2 text-stone-300">
-                <Smartphone className="w-4 h-4 text-purple-400" />
-                <span>Mobile Browsing (Primary)</span>
-              </span>
-              <span className="font-mono font-semibold text-white">74%</span>
-            </div>
-            <div className="w-full h-2 bg-black/60 rounded-full overflow-hidden">
-              <div className="h-full bg-purple-500 rounded-full" style={{ width: '74%' }} />
-            </div>
-
-            <div className="flex items-center justify-between text-xs pt-2">
-              <span className="flex items-center gap-2 text-stone-300">
-                <Laptop className="w-4 h-4 text-blue-400" />
-                <span>Desktop / Tablet</span>
-              </span>
-              <span className="font-mono font-semibold text-white">26%</span>
-            </div>
-            <div className="w-full h-2 bg-black/60 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 rounded-full" style={{ width: '26%' }} />
-            </div>
-          </div>
-
-          <div className="space-y-2 text-xs">
-            <span className="text-stone-400 font-mono text-[11px] block uppercase">
-              Top Interactive Features
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
-                🎂 Birthday Cake (92%)
-              </span>
-              <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
-                🖼️ Memory Wall (88%)
-              </span>
-              <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
-                ✨ Scratch Card (79%)
-              </span>
-              <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
-                💌 Personal Letters (96%)
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Audit Activities */}
-        <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-indigo-400" />
-              <span>Recent Dev Audit Logs</span>
-            </h3>
-            <Link
-              href="/developer/audit-logs"
-              className="text-[11px] text-indigo-400 hover:underline font-mono"
-            >
-              View All →
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {auditLogs.slice(0, 4).map((log) => (
-              <div
-                key={log.id}
-                className="p-3 rounded-xl bg-black/30 border border-white/5 text-xs space-y-1 font-mono"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-indigo-300 font-semibold text-[11px]">
-                    {log.action_type.replace(/_/g, ' ')}
-                  </span>
-                  <span className="text-[10px] text-stone-500">
-                    {formatDate(log.created_at)}
-                  </span>
-                </div>
-                <div className="text-[11px] text-stone-300 truncate">
-                  Target: {log.target_gift_title || log.target_user_name || 'System'}
-                </div>
-                <div className="text-[10px] text-stone-500">
-                  By {log.developer_email}
-                </div>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-64 rounded-2xl bg-white/5 border border-white/10" />
             ))}
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* KPI Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Users */}
+            <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between text-stone-400 mb-2">
+                <span className="text-xs font-mono uppercase tracking-wider">Registered Users</span>
+                <Users className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div className="text-3xl font-semibold text-white font-mono">{totalUsers}</div>
+              <div className="mt-2 text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
+                <span>{activeUsers} active accounts</span>
+              </div>
+            </div>
 
-      {/* Recent User Creations Ready for Inspection */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-serif text-xl font-normal text-white">
-              Recently Created User Gifts
-            </h2>
-            <p className="text-xs text-stone-400">
-              Inspect messages, recipient journeys, photographs, and layout choices.
-            </p>
+            {/* Total Gifts */}
+            <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between text-stone-400 mb-2">
+                <span className="text-xs font-mono uppercase tracking-wider">Gifts Created</span>
+                <Gift className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="text-3xl font-semibold text-white font-mono">{totalGifts}</div>
+              <div className="mt-2 text-[11px] text-stone-400 flex items-center gap-2">
+                <span className="text-emerald-400 font-semibold">{publishedGifts} published</span>
+                <span>•</span>
+                <span className="text-amber-400">{draftGifts} drafts</span>
+              </div>
+            </div>
+
+            {/* Uploaded Photographs */}
+            <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between text-stone-400 mb-2">
+                <span className="text-xs font-mono uppercase tracking-wider">Photographs Hosted</span>
+                <Camera className="w-4 h-4 text-rose-400" />
+              </div>
+              <div className="text-3xl font-semibold text-white font-mono">{totalPhotosUploaded}</div>
+              <div className="mt-2 text-[11px] text-stone-400">
+                Across Memory Walls & Galleries
+              </div>
+            </div>
+
+            {/* Expired / Completed */}
+            <div className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between text-stone-400 mb-2">
+                <span className="text-xs font-mono uppercase tracking-wider">Expired / Closed</span>
+                <Clock className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="text-3xl font-semibold text-white font-mono">{expiredGifts}</div>
+              <div className="mt-2 text-[11px] text-amber-300 font-medium">
+                Graceful closing screens active
+              </div>
+            </div>
           </div>
-          <Link
-            href="/developer/gifts"
-            className="text-xs text-indigo-400 hover:underline font-mono flex items-center gap-1"
-          >
-            <span>All User Gifts</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {gifts.map((gift) => {
-            const creatorName = gift.owner_name || 'Creator';
-            const creatorEmail = gift.owner_email ? ` (${gift.owner_email})` : '';
+          {/* Visual Analytics Grid: Trends & Usage Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Most Frequently Used Themes */}
+            <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-indigo-400" />
+                  <span>Theme Preferences</span>
+                </h3>
+                <span className="text-[10px] font-mono text-stone-400">Real Usage</span>
+              </div>
 
-            return (
-              <div
-                key={gift.id}
-                className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between hover:border-indigo-500/50 transition-colors"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-purple-900/40 text-purple-300 border border-purple-500/30">
-                      {gift.event_type}
-                    </span>
-                    <span
-                      className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
-                        gift.status === 'published'
-                          ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
-                      }`}
-                    >
-                      {gift.status.toUpperCase()}
-                    </span>
-                  </div>
+              <div className="space-y-3 pt-2">
+                {Object.entries(THEME_PRESETS).map(([id, theme]) => {
+                  const count = themeCounts[id] || 0;
+                  const percentage = Math.round((count / Math.max(totalGifts, 1)) * 100);
 
-                  <h3 className="font-serif text-base font-semibold text-white leading-snug">
-                    {gift.title}
-                  </h3>
+                  return (
+                    <div key={id} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-stone-300">{theme.name}</span>
+                        <span className="font-mono text-stone-400">{count} ({percentage}%)</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-500 rounded-full transition-all"
+                          style={{ width: `${Math.max(percentage, count > 0 ? 8 : 0)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                  <div className="mt-2 text-xs text-stone-400 space-y-0.5">
-                    <p>Recipient: <strong className="text-stone-200">{gift.recipient_name}</strong></p>
-                    <p>Creator: <span className="text-stone-300">{creatorName}{creatorEmail}</span></p>
-                    <p>Theme: <span className="text-indigo-300 font-mono">{gift.selected_theme}</span></p>
-                    <p>Photos: <span className="text-stone-200 font-mono">{gift.memories?.length || 0} framed images</span></p>
-                  </div>
+            {/* Mobile vs Desktop Usage & Section Popularity */}
+            <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-5">
+              <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span>Platform Device Ratios</span>
+              </h3>
+
+              <div className="p-4 rounded-xl bg-black/30 border border-white/5 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-2 text-stone-300">
+                    <Smartphone className="w-4 h-4 text-purple-400" />
+                    <span>Mobile Browsing (Primary)</span>
+                  </span>
+                  <span className="font-mono font-semibold text-white">74%</span>
+                </div>
+                <div className="w-full h-2 bg-black/60 rounded-full overflow-hidden">
+                  <div className="h-full bg-purple-500 rounded-full" style={{ width: '74%' }} />
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-stone-500">
-                    Created {formatDate(gift.created_at)}
+                <div className="flex items-center justify-between text-xs pt-2">
+                  <span className="flex items-center gap-2 text-stone-300">
+                    <Laptop className="w-4 h-4 text-blue-400" />
+                    <span>Desktop / Tablet</span>
                   </span>
-
-                  <Link
-                    href={`/developer/gifts/${gift.slug}`}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm transition-all"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Inspect Gift</span>
-                  </Link>
+                  <span className="font-mono font-semibold text-white">26%</span>
+                </div>
+                <div className="w-full h-2 bg-black/60 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: '26%' }} />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+
+              <div className="space-y-2 text-xs">
+                <span className="text-stone-400 font-mono text-[11px] block uppercase">
+                  Top Interactive Features
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
+                    🎂 Birthday Cake (92%)
+                  </span>
+                  <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
+                    🖼️ Memory Wall (88%)
+                  </span>
+                  <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
+                    ✨ Scratch Card (79%)
+                  </span>
+                  <span className="px-2.5 py-1 rounded-md bg-white/5 text-stone-300 text-[11px]">
+                    💌 Personal Letters (96%)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Audit Activities */}
+            <div className="p-6 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-base font-semibold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                  <span>Recent Dev Audit Logs</span>
+                </h3>
+                <Link
+                  href="/developer/audit-logs"
+                  className="text-[11px] text-indigo-400 hover:underline font-mono"
+                >
+                  View All →
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                {auditLogs.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-black/20 text-center text-xs text-stone-500">
+                    No recent administrative audit records.
+                  </div>
+                ) : (
+                  auditLogs.slice(0, 4).map((log) => {
+                    const actionLabel = (log.action_type || 'SYSTEM_ACTION').replace(/_/g, ' ');
+                    return (
+                      <div
+                        key={log.id || Math.random()}
+                        className="p-3 rounded-xl bg-black/30 border border-white/5 text-xs space-y-1 font-mono"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-indigo-300 font-semibold text-[11px]">
+                            {actionLabel}
+                          </span>
+                          <span className="text-[10px] text-stone-500">
+                            {formatDate(log.created_at)}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-stone-300 truncate">
+                          Target: {log.target_gift_title || log.target_user_name || 'System'}
+                        </div>
+                        <div className="text-[10px] text-stone-500">
+                          By {log.developer_email || 'Developer'}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Recent User Creations Ready for Inspection */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-serif text-xl font-normal text-white">
+                  Recently Created User Gifts
+                </h2>
+                <p className="text-xs text-stone-400">
+                  Inspect messages, recipient journeys, photographs, and layout choices.
+                </p>
+              </div>
+              <Link
+                href="/developer/gifts"
+                className="text-xs text-indigo-400 hover:underline font-mono flex items-center gap-1"
+              >
+                <span>All User Gifts</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {gifts.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-[#0F172A] border border-white/10 text-center space-y-2">
+                <Gift className="w-8 h-8 text-stone-500 mx-auto" />
+                <h3 className="font-serif text-base text-white">No Gifts Recorded Yet</h3>
+                <p className="text-xs text-stone-400 max-w-sm mx-auto">
+                  When creators build and publish personalized gifts, they will appear here immediately for developer inspection.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {gifts.map((gift) => {
+                  const creatorName = gift.owner_name || 'Creator';
+                  const creatorEmail = gift.owner_email ? ` (${gift.owner_email})` : '';
+                  const statusLabel = (gift.status || 'draft').toUpperCase();
+                  const themeName =
+                    typeof gift.selected_theme === 'string'
+                      ? gift.selected_theme
+                      : (gift.selected_theme?.name || gift.selected_theme?.id || 'dreamy');
+                  const photoCount = Array.isArray(gift.memories) ? gift.memories.length : 0;
+
+                  return (
+                    <div
+                      key={gift.id || gift.slug || Math.random()}
+                      className="p-5 rounded-2xl bg-[#0F172A] border border-white/10 shadow-sm flex flex-col justify-between hover:border-indigo-500/50 transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-purple-900/40 text-purple-300 border border-purple-500/30">
+                            {gift.event_type || 'Gift'}
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
+                              gift.status === 'published'
+                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
+                            }`}
+                          >
+                            {statusLabel}
+                          </span>
+                        </div>
+
+                        <h3 className="font-serif text-base font-semibold text-white leading-snug">
+                          {gift.title || 'Untitled Gift'}
+                        </h3>
+
+                        <div className="mt-2 text-xs text-stone-400 space-y-0.5">
+                          <p>Recipient: <strong className="text-stone-200">{gift.recipient_name || 'Recipient'}</strong></p>
+                          <p>Creator: <span className="text-stone-300">{creatorName}{creatorEmail}</span></p>
+                          <p>Theme: <span className="text-indigo-300 font-mono">{themeName}</span></p>
+                          <p>Photos: <span className="text-stone-200 font-mono">{photoCount} framed images</span></p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-stone-500">
+                          Created {formatDate(gift.created_at)}
+                        </span>
+
+                        <Link
+                          href={`/developer/gifts/${gift.slug || gift.id}`}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm transition-all"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Inspect Gift</span>
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

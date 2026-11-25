@@ -106,7 +106,7 @@ export async function middleware(request: NextRequest) {
 
     if (user) {
       hasSupabaseUser = true;
-      supabaseUserEmail = user.email || '';
+      supabaseUserEmail = (user.email || user.user_metadata?.email || '').toLowerCase().trim();
       supabaseUserAppMetadata = user.app_metadata || {};
     }
   } catch {

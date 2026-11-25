@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   verifySessionExpiryToken,
@@ -9,7 +10,7 @@ import { isAuthorizedDeveloperEmail } from '@/lib/auth/roles';
 export const dynamic = 'force-dynamic';
 
 /**
- * Extracts authenticated user identity from session cookies or authorization header.
+ * Extracts authenticated user identity from session cookies, Supabase SSR cookies, or authorization header.
  */
 async function getAuthenticatedUser(request: NextRequest): Promise<{
   userId: string;
@@ -19,17 +20,49 @@ async function getAuthenticatedUser(request: NextRequest): Promise<{
   // 1. Check custom persistent session cookie
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (sessionCookie) {
-    const check = await verifySessionExpiryToken(sessionCookie);
-    if (check.valid && check.userId) {
-      return {
-        userId: check.userId,
-        sessionEmail: check.email,
-        sessionRole: check.role,
-      };
-    }
+    try {
+      const check = await verifySessionExpiryToken(sessionCookie);
+      if (check.valid && check.userId) {
+        return {
+          userId: check.userId,
+          sessionEmail: check.email,
+          sessionRole: check.role,
+        };
+      }
+    } catch {}
   }
 
-  // 2. Check Authorization Bearer header
+  // 2. Check Supabase SSR session cookies via createServerClient
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+      },
+    });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user?.id) {
+      const email = user.email || '';
+      const isDev = isAuthorizedDeveloperEmail(email) || user.app_metadata?.role === 'developer';
+      return {
+        userId: user.id,
+        sessionEmail: email,
+        sessionRole: isDev ? 'developer' : (user.app_metadata?.role || 'creator'),
+      };
+    }
+  } catch (ssrErr) {
+    // Non-blocking fallback
+  }
+
+  // 3. Check Authorization Bearer header
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.replace('Bearer ', '');
@@ -39,10 +72,12 @@ async function getAuthenticatedUser(request: NextRequest): Promise<{
         data: { user },
       } = await supabaseAdmin.auth.getUser(token);
       if (user?.id) {
+        const email = user.email || '';
+        const isDev = isAuthorizedDeveloperEmail(email) || user.app_metadata?.role === 'developer';
         return {
           userId: user.id,
-          sessionEmail: user.email,
-          sessionRole: user.app_metadata?.role,
+          sessionEmail: email,
+          sessionRole: isDev ? 'developer' : (user.app_metadata?.role || 'creator'),
         };
       }
     } catch {

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   verifySessionExpiryToken,
@@ -21,41 +22,76 @@ export function isAuthorizedDeveloperEmail(email?: string | null): boolean {
 
 /**
  * Extracts and verifies the authenticated developer from the incoming request.
+ * Supports:
+ * 1. Cryptographically verified persistent session cookies (dear_you_session)
+ * 2. Supabase SSR session cookies (sb-*-auth-token chunks via createServerClient)
+ * 3. Authorization Bearer header tokens
  */
 export async function getAuthenticatedDeveloper(
   request: NextRequest
 ): Promise<{ isDeveloper: boolean; userId?: string; email?: string }> {
-  // 1. Check custom persistent session cookie
-  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   let candidateUserId: string | null = null;
   let candidateEmail: string | null = null;
 
+  // 1. Check custom persistent session cookie
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (sessionCookie) {
-    const sessionCheck = await verifySessionExpiryToken(sessionCookie);
-    if (sessionCheck.valid && sessionCheck.userId) {
-      candidateUserId = sessionCheck.userId;
-      candidateEmail = sessionCheck.email || null;
+    try {
+      const sessionCheck = await verifySessionExpiryToken(sessionCookie);
+      if (sessionCheck.valid && sessionCheck.userId) {
+        candidateUserId = sessionCheck.userId;
+        candidateEmail = sessionCheck.email || null;
+      }
+    } catch {}
+  }
+
+  // 2. Check Supabase SSR session cookies via createServerClient
+  if (!candidateUserId || !candidateEmail) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+
+      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+        },
+      });
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user?.id) {
+        candidateUserId = user.id;
+        candidateEmail = user.email || candidateEmail || null;
+      }
+    } catch (ssrErr) {
+      // Non-blocking fallback
     }
   }
 
-  // 2. Check Supabase auth header or bearer token
+  // 3. Check Supabase auth header or bearer token
   const authHeader = request.headers.get('authorization');
   let authHeaderToken = '';
   if (authHeader?.startsWith('Bearer ')) {
     authHeaderToken = authHeader.replace('Bearer ', '').trim();
   }
 
-  try {
-    const supabaseAdmin = createAdminClient();
-
-    if (authHeaderToken) {
+  if (authHeaderToken && (!candidateUserId || !candidateEmail)) {
+    try {
+      const supabaseAdmin = createAdminClient();
       const { data: authUser } = await supabaseAdmin.auth.getUser(authHeaderToken);
       if (authUser?.user?.id) {
         candidateUserId = authUser.user.id;
         if (authUser.user.email) candidateEmail = authUser.user.email;
       }
-    }
+    } catch {}
+  }
 
+  // 4. Validate developer role if candidate identity was resolved
+  try {
     if (candidateUserId || candidateEmail) {
       const roleCheck = await verifyDeveloperRole({
         userId: candidateUserId || undefined,
@@ -65,7 +101,7 @@ export async function getAuthenticatedDeveloper(
         return {
           isDeveloper: true,
           userId: roleCheck.userId || candidateUserId || undefined,
-          email: roleCheck.email,
+          email: roleCheck.email || candidateEmail || undefined,
         };
       }
     }

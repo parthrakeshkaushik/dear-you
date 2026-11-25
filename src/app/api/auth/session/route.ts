@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   signSessionExpiryToken,
@@ -9,6 +10,7 @@ import {
   SESSION_COOKIE_NAME,
   SessionDurationDays,
 } from '@/lib/auth/persistent-session';
+import { isAuthorizedDeveloperEmail } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,61 +96,103 @@ export async function GET(request: NextRequest) {
   try {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
-    if (!sessionCookie) {
-      return NextResponse.json({ authenticated: false }, { status: 200 });
-    }
+    // 1. If persistent session cookie is present, verify it
+    if (sessionCookie) {
+      const check = await verifySessionExpiryToken(sessionCookie);
 
-    const check = await verifySessionExpiryToken(sessionCookie);
+      if (check.valid && check.userId) {
+        const msRemaining = (check.expiresAt || 0) - Date.now();
+        const daysRemaining = Math.max(0, Math.round((msRemaining / (24 * 60 * 60 * 1000)) * 10) / 10);
 
-    if (!check.valid) {
-      const response = NextResponse.json(
-        {
-          authenticated: false,
-          expired: check.expired || false,
-          message: check.expired
-            ? 'Your session has expired. Please sign in again.'
-            : 'Invalid session.',
-        },
-        { status: 200 }
-      );
+        let displayName: string | null = null;
+        try {
+          const supabaseAdmin = createAdminClient();
+          const { data: userRec } = await supabaseAdmin
+            .from('admin_users')
+            .select('display_name')
+            .eq('id', check.userId)
+            .maybeSingle();
+          if (userRec?.display_name) {
+            displayName = userRec.display_name;
+          }
+        } catch {}
 
-      if (check.expired) {
-        clearSessionCookies(response);
+        const isDev =
+          check.role === 'developer' ||
+          isAuthorizedDeveloperEmail(check.email);
+
+        return NextResponse.json({
+          authenticated: true,
+          userId: check.userId,
+          email: check.email,
+          displayName,
+          role: isDev ? 'developer' : check.role,
+          rememberDays: check.days,
+          expiresAt: new Date(check.expiresAt || 0).toISOString(),
+          daysRemaining,
+          isDeveloper: isDev,
+        });
       }
-
-      return response;
     }
 
-    const msRemaining = (check.expiresAt || 0) - Date.now();
-    const daysRemaining = Math.max(0, Math.round((msRemaining / (24 * 60 * 60 * 1000)) * 10) / 10);
+    // 2. Fallback: Check active Supabase SSR session cookies via createServerClient
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
-    let displayName: string | null = null;
-    if (check.userId) {
-      try {
-        const supabaseAdmin = createAdminClient();
-        const { data: userRec } = await supabaseAdmin
-          .from('admin_users')
-          .select('display_name')
-          .eq('id', check.userId)
-          .maybeSingle();
-        if (userRec?.display_name) {
-          displayName = userRec.display_name;
-        }
-      } catch {}
+      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+        },
+      });
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user?.id) {
+        const email = (user.email || '').toLowerCase().trim();
+        const isDev =
+          isAuthorizedDeveloperEmail(email) ||
+          user.app_metadata?.role === 'developer';
+
+        let displayName: string | null =
+          user.user_metadata?.display_name ||
+          user.user_metadata?.full_name ||
+          null;
+
+        try {
+          const supabaseAdmin = createAdminClient();
+          const { data: userRec } = await supabaseAdmin
+            .from('admin_users')
+            .select('display_name')
+            .eq('id', user.id)
+            .maybeSingle();
+          if (userRec?.display_name) {
+            displayName = userRec.display_name;
+          }
+        } catch {}
+
+        return NextResponse.json({
+          authenticated: true,
+          userId: user.id,
+          email,
+          displayName,
+          role: isDev ? 'developer' : 'creator',
+          rememberDays: 14,
+          daysRemaining: 14,
+          isDeveloper: isDev,
+        });
+      }
+    } catch (ssrErr) {
+      // Non-blocking fallback
     }
 
-    return NextResponse.json({
-      authenticated: true,
-      userId: check.userId,
-      email: check.email,
-      displayName,
-      role: check.role,
-      rememberDays: check.days,
-      expiresAt: new Date(check.expiresAt || 0).toISOString(),
-      daysRemaining,
-    });
+    return NextResponse.json({ authenticated: false }, { status: 200 });
   } catch (error: any) {
-    return NextResponse.json({ authenticated: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ authenticated: false, error: error.message }, { status: 200 });
   }
 }
 

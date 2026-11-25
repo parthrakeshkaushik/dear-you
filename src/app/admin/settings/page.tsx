@@ -74,6 +74,8 @@ function SettingsContent() {
 
     async function fetchProfile() {
       setIsLoadingProfile(true);
+
+      // 1. Primary: Server-side Profile API
       try {
         const res = await fetch('/api/auth/profile');
         if (res.ok) {
@@ -89,29 +91,82 @@ function SettingsContent() {
         console.warn('Profile fetch error:', err);
       }
 
-      // Fallback: check session API
+      // 2. Secondary fallback: check session API
       try {
         const sessRes = await fetch('/api/auth/session');
         if (sessRes.ok) {
           const sessData = await sessRes.json();
           if (sessData.authenticated && isMounted) {
+            const email = (sessData.email || '').toLowerCase().trim();
             const isDev =
-              sessData.email === 'kaushikparth363@gmail.com' ||
-              sessData.email === 'kaushikparth353@gmail.com' ||
-              sessData.role === 'developer';
+              email === 'kaushikparth363@gmail.com' ||
+              email === 'kaushikparth353@gmail.com' ||
+              sessData.role === 'developer' ||
+              sessData.isDeveloper === true;
 
             const resolved: UserProfile = {
               id: sessData.userId || '',
-              email: sessData.email || 'Email unavailable',
+              email: email,
               displayName: sessData.displayName || null,
               role: isDev ? 'developer' : 'creator',
               accountType: isDev ? 'Developer' : 'Creator',
             };
             setProfile(resolved);
             setDisplayNameInput(resolved.displayName || '');
+            setIsLoadingProfile(false);
+            return;
           }
         }
       } catch {}
+
+      // 3. Direct Client Fallback: Supabase Client Auth & Database lookup
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user && isMounted) {
+          const email = (user.email || '').toLowerCase().trim();
+          const isDev =
+            email === 'kaushikparth363@gmail.com' ||
+            email === 'kaushikparth353@gmail.com' ||
+            user.app_metadata?.role === 'developer';
+
+          let resolvedDisplayName =
+            user.user_metadata?.display_name ||
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            null;
+
+          try {
+            const { data: dbUser } = await supabase
+              .from('admin_users')
+              .select('display_name, role, account_status')
+              .eq('id', user.id)
+              .maybeSingle();
+            if (dbUser?.display_name) {
+              resolvedDisplayName = dbUser.display_name;
+            }
+          } catch {}
+
+          const resolved: UserProfile = {
+            id: user.id,
+            email: email,
+            displayName: resolvedDisplayName,
+            role: isDev ? 'developer' : 'creator',
+            accountType: isDev ? 'Developer' : 'Creator',
+            avatarUrl: user.user_metadata?.avatar_url || null,
+            createdAt: user.created_at,
+          };
+          setProfile(resolved);
+          setDisplayNameInput(resolved.displayName || '');
+          setIsLoadingProfile(false);
+          return;
+        }
+      } catch (clientAuthErr) {
+        console.warn('Direct client auth fallback note:', clientAuthErr);
+      }
 
       if (isMounted) setIsLoadingProfile(false);
     }
@@ -250,20 +305,30 @@ function SettingsContent() {
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h2 className="text-base sm:text-lg font-bold text-platform-dark">
-                      {profile?.displayName || 'Your Account'}
+                      {isLoadingProfile ? (
+                        <span className="inline-block h-5 w-32 bg-stone-200 animate-pulse rounded" />
+                      ) : (
+                        profile?.displayName || 'Your Account'
+                      )}
                     </h2>
-                    <span
-                      className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
-                        profile?.role === 'developer'
-                          ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                          : 'bg-purple-100 text-purple-800 border border-purple-200'
-                      }`}
-                    >
-                      {profile?.role === 'developer' ? 'Platform Developer / Super Admin' : 'Gift Creator'}
-                    </span>
+                    {!isLoadingProfile && (
+                      <span
+                        className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
+                          profile?.role === 'developer'
+                            ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                            : 'bg-purple-100 text-purple-800 border border-purple-200'
+                        }`}
+                      >
+                        {profile?.role === 'developer' ? 'Platform Developer / Super Admin' : 'Gift Creator'}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-platform-muted mt-0.5 font-mono">
-                    {profile?.email || 'Email unavailable'}
+                    {isLoadingProfile ? (
+                      <span className="inline-block h-3.5 w-44 bg-stone-200 animate-pulse rounded mt-1" />
+                    ) : (
+                      profile?.email || 'Email unavailable'
+                    )}
                   </p>
                 </div>
               </div>
@@ -326,7 +391,7 @@ function SettingsContent() {
                   <div className="relative">
                     <input
                       type="email"
-                      value={profile?.email || ''}
+                      value={isLoadingProfile ? 'Loading authenticated identity...' : (profile?.email || '')}
                       readOnly
                       disabled
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm bg-stone-100 text-stone-700 cursor-not-allowed select-all font-mono"

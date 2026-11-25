@@ -3396,6 +3396,157 @@ test('Developer Console architecture across Overview, Gifts, Analytics and Audit
   assert.strictEqual(giftDetailPage.includes("viewState === 'loading'"), true, 'Gift detail must check loading state');
 });
 
+// -------------------------------------------------------------
+// 44. DEVELOPER CONSOLE AUTHENTICATION & SETTINGS PROFILE RESOLUTION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 44. Developer Console Authentication & Settings Profile Resolution Tests ---');
+
+test('Developer authorization engine supports Supabase SSR cookies and authorized email allowlist', () => {
+  const rolesCode = fs.readFileSync('src/lib/auth/roles.ts', 'utf8');
+
+  // Verify createServerClient import from @supabase/ssr
+  assert.strictEqual(
+    rolesCode.includes("import { createServerClient } from '@supabase/ssr'"),
+    true,
+    'roles.ts must import createServerClient from @supabase/ssr'
+  );
+
+  // Verify getAuthenticatedDeveloper inspects Supabase SSR session cookies
+  assert.strictEqual(
+    rolesCode.includes('request.cookies.getAll()'),
+    true,
+    'getAuthenticatedDeveloper must inspect Supabase SSR cookies via request.cookies.getAll()'
+  );
+  assert.strictEqual(
+    rolesCode.includes('await supabase.auth.getUser()'),
+    true,
+    'getAuthenticatedDeveloper must query supabase.auth.getUser() from SSR client'
+  );
+
+  // Verify designated developer accounts
+  assert.strictEqual(
+    rolesCode.includes("'kaushikparth363@gmail.com'"),
+    true,
+    'AUTHORIZED_DEVELOPER_EMAILS must include kaushikparth363@gmail.com'
+  );
+  assert.strictEqual(
+    rolesCode.includes("'kaushikparth353@gmail.com'"),
+    true,
+    'AUTHORIZED_DEVELOPER_EMAILS must include kaushikparth353@gmail.com'
+  );
+});
+
+test('Auth profile and session APIs support Supabase SSR cookies seamlessly', () => {
+  const profileRoute = fs.readFileSync('src/app/api/auth/profile/route.ts', 'utf8');
+  const sessionRoute = fs.readFileSync('src/app/api/auth/session/route.ts', 'utf8');
+
+  // Verify profile route checks Supabase SSR cookies
+  assert.strictEqual(
+    profileRoute.includes("import { createServerClient } from '@supabase/ssr'"),
+    true,
+    'Profile route must import createServerClient'
+  );
+  assert.strictEqual(
+    profileRoute.includes('request.cookies.getAll()'),
+    true,
+    'Profile route must inspect cookies via request.cookies.getAll()'
+  );
+
+  // Verify session route checks Supabase SSR cookies
+  assert.strictEqual(
+    sessionRoute.includes("import { createServerClient } from '@supabase/ssr'"),
+    true,
+    'Session route must import createServerClient'
+  );
+  assert.strictEqual(
+    sessionRoute.includes('request.cookies.getAll()'),
+    true,
+    'Session route must inspect cookies via request.cookies.getAll()'
+  );
+});
+
+test('Creator Settings implements 3 tiers of profile resolution and eliminates Email unavailable flash', () => {
+  const settingsCode = fs.readFileSync('src/app/admin/settings/page.tsx', 'utf8');
+
+  // Tier 1: Profile API
+  assert.strictEqual(
+    settingsCode.includes("fetch('/api/auth/profile')"),
+    true,
+    'Settings must call /api/auth/profile as tier 1'
+  );
+
+  // Tier 2: Session API
+  assert.strictEqual(
+    settingsCode.includes("fetch('/api/auth/session')"),
+    true,
+    'Settings must call /api/auth/session as tier 2'
+  );
+
+  // Tier 3: Supabase client auth + database lookup
+  assert.strictEqual(
+    settingsCode.includes('await supabase.auth.getUser()'),
+    true,
+    'Settings must include Supabase client auth getUser fallback as tier 3'
+  );
+  assert.strictEqual(
+    settingsCode.includes(".from('admin_users')"),
+    true,
+    'Settings must query admin_users in client fallback'
+  );
+
+  // Verify email input shows loading state instead of blank when loading
+  assert.strictEqual(
+    settingsCode.includes("isLoadingProfile ? 'Loading authenticated identity...' : (profile?.email || '')"),
+    true,
+    'Email input must display loading state when isLoadingProfile is true'
+  );
+});
+
+test('Developer layout and overview implement error boundary, loading state and mobile drawer', () => {
+  const layoutCode = fs.readFileSync('src/app/developer/layout.tsx', 'utf8');
+  const overviewCode = fs.readFileSync('src/app/developer/page.tsx', 'utf8');
+
+  // Verify DeveloperConsoleErrorBoundary exists in layout
+  assert.strictEqual(
+    layoutCode.includes('DeveloperConsoleErrorBoundary'),
+    true,
+    'Developer layout must wrap children in DeveloperConsoleErrorBoundary'
+  );
+
+  // Verify 3 auth states in developer layout
+  assert.strictEqual(
+    layoutCode.includes("useState<'checking' | 'authorized' | 'unauthorized'>('checking')"),
+    true,
+    'Developer layout must track checking, authorized, and unauthorized states'
+  );
+
+  // Verify unauthorized state has return to creator admin button
+  assert.strictEqual(
+    layoutCode.includes('Return to Creator Dashboard'),
+    true,
+    'Developer layout unauthorized screen must provide Return to Creator Dashboard button'
+  );
+
+  // Verify mobile drawer positioning
+  assert.strictEqual(
+    layoutCode.includes('fixed inset-x-0 bottom-0 top-[65px] z-50 block'),
+    true,
+    'Mobile drawer must properly position below header when open'
+  );
+
+  // Verify overview page has loading skeleton and error retry
+  assert.strictEqual(
+    overviewCode.includes('isLoading ?'),
+    true,
+    'Overview page must render loading skeleton when isLoading is true'
+  );
+  assert.strictEqual(
+    overviewCode.includes('fetchError &&'),
+    true,
+    'Overview page must render error banner with retry when fetchError exists'
+  );
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);
