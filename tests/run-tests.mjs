@@ -2198,26 +2198,24 @@ test('Create Your Own Gift section appears strictly after sender content and not
   assert.strictEqual(journeyRenderOrder[journeyRenderOrder.length - 1], 'platform_create_your_own_gift_cta');
 });
 
-test('Create Your Own Gift section contains specified heading, subtitle, primary CTA and secondary link', () => {
+test('Create Your Own Gift section contains consolidated prominent CTA opening homepage in new tab', () => {
   const ctaContent = {
     heading: 'Your turn to make someone smile!',
     subtitle: 'Create a beautiful digital surprise for someone special. Your memories, your stories, your way.',
-    primaryButton: {
-      label: 'Create Your Own Gift',
+    consolidatedButton: {
+      label: 'Discover Dear You & Create Your Own Gift',
       href: '/',
-    },
-    secondaryLink: {
-      label: 'Discover Dear You',
-      href: '/',
+      target: '_blank',
+      rel: 'noopener noreferrer',
     },
   };
 
   assert.strictEqual(ctaContent.heading, 'Your turn to make someone smile!');
   assert.strictEqual(ctaContent.subtitle.includes('memories, your stories, your way'), true);
-  assert.strictEqual(ctaContent.primaryButton.label, 'Create Your Own Gift');
-  assert.strictEqual(ctaContent.primaryButton.href, '/');
-  assert.strictEqual(ctaContent.secondaryLink.label, 'Discover Dear You');
-  assert.strictEqual(ctaContent.secondaryLink.href, '/');
+  assert.strictEqual(ctaContent.consolidatedButton.label, 'Discover Dear You & Create Your Own Gift');
+  assert.strictEqual(ctaContent.consolidatedButton.href, '/');
+  assert.strictEqual(ctaContent.consolidatedButton.target, '_blank');
+  assert.strictEqual(ctaContent.consolidatedButton.rel, 'noopener noreferrer');
 });
 
 test('Expired screen preserves custom closing message and provides Back to Home & Create Gift CTAs without exposing private content', () => {
@@ -3048,6 +3046,62 @@ test('Creator Studio blocks publishing when slug is taken, checking, invalid or 
   assert.strictEqual(createPageCode.includes('slugStatus === \'checking\''), true, 'Must check if slug is checking');
   assert.strictEqual(createPageCode.includes('https://dear-you-wine.vercel.app/g/'), true, 'Must render production link preview');
   assert.strictEqual(createPageCode.includes('renderSlugInputSection'), true, 'Must provide full slug control with visual status');
+});
+
+// -------------------------------------------------------------
+// 40. CONSOLIDATED PROMOTIONAL CTA & NEW TAB NAVIGATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 40. Consolidated Promotional CTA & New Tab Navigation Tests ---');
+
+test('Promotional section consolidates to exactly one prominent CTA with exact label', () => {
+  const ctaCode = fs.readFileSync('src/components/recipient/CreateYourOwnGiftSection.tsx', 'utf8');
+
+  // Verify exactly one CTA button exists with the specified consolidated text
+  assert.strictEqual(
+    ctaCode.includes('Discover Dear You & Create Your Own Gift'),
+    true,
+    'Must contain consolidated CTA label "Discover Dear You & Create Your Own Gift"'
+  );
+
+  // Verify the old duplicate buttons are completely removed
+  assert.strictEqual(
+    ctaCode.includes('<span>Create Your Own Gift</span>'),
+    false,
+    'Old separate "Create Your Own Gift" button must be removed'
+  );
+  assert.strictEqual(
+    ctaCode.includes('<span>Discover Dear You</span>'),
+    false,
+    'Old separate "Discover Dear You" button must be removed'
+  );
+
+  // Verify emotional subtitle is preserved
+  assert.strictEqual(
+    ctaCode.includes('Create a beautiful digital surprise for someone special. Your memories, your stories, your way.'),
+    true,
+    'Must preserve exact emotional supporting message'
+  );
+});
+
+test('Consolidated CTA strictly opens homepage in a new tab without interrupting recipient session', () => {
+  const ctaCode = fs.readFileSync('src/components/recipient/CreateYourOwnGiftSection.tsx', 'utf8');
+
+  // Verify destination is root homepage
+  assert.strictEqual(ctaCode.includes('href="/"'), true, 'Must target production homepage "/"');
+
+  // Verify target="_blank"
+  assert.strictEqual(
+    ctaCode.includes('target="_blank"'),
+    true,
+    'Must have target="_blank" to open in new tab'
+  );
+
+  // Verify rel="noopener noreferrer"
+  assert.strictEqual(
+    ctaCode.includes('rel="noopener noreferrer"'),
+    true,
+    'Must have rel="noopener noreferrer" security protection'
+  );
 });
 
 console.log(`\n==============================================`);

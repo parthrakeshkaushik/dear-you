@@ -41,22 +41,17 @@ export function CreateYourOwnGiftSection() {
             Create a beautiful digital surprise for someone special. Your memories, your stories, your way.
           </p>
 
-          {/* Conversion Call to Action Buttons */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5">
+          {/* Consolidated Prominent Call to Action (Opens Homepage in New Browser Tab) */}
+          <div className="mt-8 flex justify-center">
             <Link
               href="/"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[var(--theme-primary)] text-white text-xs sm:text-sm font-semibold hover:brightness-110 active:scale-95 transition-all shadow-md cursor-pointer"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-full bg-[var(--theme-primary)] text-white text-xs sm:text-sm font-semibold hover:brightness-110 active:scale-95 transition-all shadow-md hover:shadow-lg cursor-pointer"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Create Your Own Gift</span>
-              <ArrowRight className="w-4 h-4 ml-0.5" />
-            </Link>
-
-            <Link
-              href="/"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-3 rounded-full text-xs font-medium text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all"
-            >
-              <span>Discover Dear You</span>
+              <Sparkles className="w-4 h-4 text-amber-200 shrink-0" />
+              <span>Discover Dear You & Create Your Own Gift</span>
+              <ArrowRight className="w-4 h-4 shrink-0" />
             </Link>
           </div>
 
