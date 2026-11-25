@@ -12,6 +12,7 @@ import {
   getUniquePhotos,
   PlatformContentLimits,
 } from '@/lib/config/content-limits';
+import { validateSlugFormat, normalizeSlug } from '@/lib/gifts/slug-rules';
 import { Gift } from '@/types/gift';
 
 const DEMO_CARD_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
@@ -327,6 +328,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     const targetId = draft_id || existingProvidedId;
+    const supabaseAdmin = createAdminClient();
 
     // Check if updating an existing card/draft owned by this user
     let existingGift: Gift | undefined = undefined;
@@ -334,6 +336,20 @@ export async function POST(request: NextRequest) {
       existingGift = Object.values(MOCK_GIFTS).find(
         (g) => g.id === targetId && (g.owner_id === userId || userId === 'anonymous-creator')
       );
+      if (!existingGift) {
+        try {
+          const { data: dbExisting } = await supabaseAdmin
+            .from('gifts')
+            .select('*')
+            .eq('id', targetId)
+            .maybeSingle();
+          if (dbExisting && (dbExisting.owner_id === userId || userId === 'anonymous-creator')) {
+            existingGift = dbExisting as Gift;
+          }
+        } catch (dbLookupErr) {
+          console.warn('Lookup existing gift warning:', dbLookupErr);
+        }
+      }
     }
 
     // Server-side enforcement of word limits and 15-photo maximum
@@ -343,22 +359,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    // Generate unique slug
-    let finalSlug: string = existingGift?.slug || '';
-    if (!finalSlug) {
-      let baseSlug = (requestedSlug || `${recipient_name || 'gift'}-surprise`)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+    // Enforce slug normalization, validation and uniqueness
+    const rawSlugCandidate = (
+      requestedSlug ||
+      existingGift?.slug ||
+      `${recipient_name || 'gift'}-surprise`
+    ).trim();
 
-      if (!baseSlug || baseSlug === 'demo' || baseSlug === 'demo-gift') {
-        baseSlug = `${baseSlug || 'gift'}-${Date.now().toString().slice(-4)}`;
-      }
+    const slugValidation = validateSlugFormat(rawSlugCandidate);
+    if (!slugValidation.valid) {
+      return NextResponse.json({ error: slugValidation.error }, { status: 400 });
+    }
 
-      finalSlug = baseSlug;
-      if (MOCK_GIFTS[finalSlug] && MOCK_GIFTS[finalSlug].id !== targetId) {
-        finalSlug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
+    const finalSlug = slugValidation.normalized;
+
+    // Check slug collision in memory
+    const existingMemGift =
+      MOCK_GIFTS[finalSlug] ||
+      Object.values(MOCK_GIFTS).find((g) => g.slug === finalSlug);
+    if (existingMemGift && existingMemGift.id !== targetId) {
+      return NextResponse.json(
+        { error: 'This custom URL slug is already taken. Please choose a different URL slug.' },
+        { status: 409 }
+      );
+    }
+
+    // Check slug collision in database
+    try {
+      const { data: dbCollision } = await supabaseAdmin
+        .from('gifts')
+        .select('id')
+        .eq('slug', finalSlug)
+        .maybeSingle();
+
+      if (dbCollision && dbCollision.id !== targetId) {
+        return NextResponse.json(
+          { error: 'This custom URL slug is already taken. Please choose a different URL slug.' },
+          { status: 409 }
+        );
       }
+    } catch (colErr) {
+      console.warn('Slug collision check warning:', colErr);
     }
 
     // Generate fresh UUID if new card
@@ -433,12 +474,16 @@ export async function POST(request: NextRequest) {
           : null,
     };
 
+    // Clean up old slug key if slug has been modified
+    if (existingGift?.slug && existingGift.slug !== finalSlug) {
+      delete MOCK_GIFTS[existingGift.slug];
+    }
+
     // Store in memory repository
     MOCK_GIFTS[finalSlug] = savedGift;
 
     // Persist to Supabase
     try {
-      const supabaseAdmin = createAdminClient();
       const payload: Record<string, any> = {
         id: finalId,
         owner_id: userId,
@@ -474,15 +519,40 @@ export async function POST(request: NextRequest) {
       };
 
       if (existingGift) {
-        await supabaseAdmin
+        const { error: updateError } = await supabaseAdmin
           .from('gifts')
           .update(payload)
           .eq('id', finalId)
           .eq('owner_id', userId);
+
+        if (updateError) {
+          if (updateError.code === '23505') {
+            return NextResponse.json(
+              { error: 'This custom URL slug is already taken. Please choose a different URL slug.' },
+              { status: 409 }
+            );
+          }
+          console.warn('Database update error:', updateError.message);
+        }
       } else {
-        await supabaseAdmin.from('gifts').insert(payload);
+        const { error: insertError } = await supabaseAdmin.from('gifts').insert(payload);
+        if (insertError) {
+          if (insertError.code === '23505') {
+            return NextResponse.json(
+              { error: 'This custom URL slug is already taken. Please choose a different URL slug.' },
+              { status: 409 }
+            );
+          }
+          console.warn('Database insert error:', insertError.message);
+        }
       }
-    } catch (dbErr) {
+    } catch (dbErr: any) {
+      if (dbErr?.code === '23505') {
+        return NextResponse.json(
+          { error: 'This custom URL slug is already taken. Please choose a different URL slug.' },
+          { status: 409 }
+        );
+      }
       console.warn('Database save note:', dbErr);
     }
 

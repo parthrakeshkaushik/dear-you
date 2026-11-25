@@ -32,7 +32,9 @@ import {
   RefreshCw,
   AlertCircle,
   Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
+import { validateSlugFormat, normalizeSlug } from '@/lib/gifts/slug-rules';
 import {
   DEFAULT_CONTENT_LIMITS,
   PlatformContentLimits,
@@ -335,6 +337,10 @@ function GiftBuilderInner() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [isPublishedSuccess, setIsPublishedSuccess] = useState(false);
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
+
+  // Slug Availability & Validation State
+  const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'reserved'>('idle');
+  const [slugMessage, setSlugMessage] = useState<string>('');
 
   // Active section mapping for live preview
   const activeSectionId = WIZARD_PAGES[currentStep - 1]?.previewSectionId || 'welcome';
@@ -867,7 +873,80 @@ function GiftBuilderInner() {
     saveDraft,
   ]);
 
+  // Real-time debounced slug availability checking
+  useEffect(() => {
+    if (!slug) {
+      setSlugStatus('invalid');
+      setSlugMessage('Please enter a URL slug.');
+      return;
+    }
+
+    const validation = validateSlugFormat(slug);
+    if (!validation.valid) {
+      if (validation.error?.includes('reserved')) {
+        setSlugStatus('reserved');
+      } else {
+        setSlugStatus('invalid');
+      }
+      setSlugMessage(validation.error || 'Invalid URL slug format.');
+      return;
+    }
+
+    setSlugStatus('checking');
+    setSlugMessage('Checking URL availability...');
+
+    const timer = setTimeout(async () => {
+      try {
+        const queryParams = new URLSearchParams({
+          slug: validation.normalized,
+          ...(draftId ? { currentGiftId: draftId } : {}),
+        });
+
+        const res = await fetch(`/api/gifts/check-slug?${queryParams.toString()}`);
+        const data = await res.json();
+
+        if (data.available) {
+          setSlugStatus('available');
+          setSlugMessage(data.isCurrentGift ? '✓ Current URL for this gift' : '✓ This URL is available!');
+        } else {
+          if (data.reason?.includes('reserved')) {
+            setSlugStatus('reserved');
+          } else {
+            setSlugStatus('taken');
+          }
+          setSlugMessage(data.reason || '✕ This URL is already taken. Please choose another one.');
+        }
+      } catch {
+        setSlugStatus('idle');
+        setSlugMessage('');
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [slug, draftId]);
+
   const handlePublish = async () => {
+    if (!recipientName.trim() || !title.trim() || !password.trim()) {
+      setPublishError('Please ensure Recipient Name, Card Title, and Password are provided.');
+      return;
+    }
+
+    const validation = validateSlugFormat(slug);
+    if (!validation.valid) {
+      setPublishError(validation.error || 'Please enter a valid URL slug.');
+      return;
+    }
+
+    if (slugStatus === 'taken' || slugStatus === 'reserved' || slugStatus === 'invalid') {
+      setPublishError(slugMessage || 'Please choose an available URL slug before publishing.');
+      return;
+    }
+
+    if (slugStatus === 'checking') {
+      setPublishError('Please wait a moment while we verify URL slug availability.');
+      return;
+    }
+
     setIsPublishing(true);
     setPublishError(null);
 
@@ -885,6 +964,97 @@ function GiftBuilderInner() {
       setIsPublishing(false);
     }
   };
+
+  const renderSlugInputSection = () => (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="block text-xs font-semibold text-platform-dark">
+          Custom URL Slug *
+        </label>
+        <span className="text-[10px] text-platform-muted">
+          Unique recipient link
+        </span>
+      </div>
+
+      <div className="relative flex items-center rounded-xl border border-black/10 bg-stone-50 overflow-hidden focus-within:border-platform-violet focus-within:ring-2 focus-within:ring-platform-violet/30 transition-all">
+        <span className="pl-3.5 pr-1 text-xs font-mono font-medium text-platform-muted select-none">
+          /g/
+        </span>
+        <input
+          type="text"
+          value={slug}
+          onChange={(e) => {
+            const raw = e.target.value
+              .toLowerCase()
+              .replace(/[\s_]+/g, '-')
+              .replace(/[^a-z0-9-]/g, '')
+              .replace(/-+/g, '-');
+            setSlug(raw);
+            if (publishError) setPublishError(null);
+          }}
+          onBlur={() => {
+            setSlug((prev) => normalizeSlug(prev));
+          }}
+          placeholder="e.g. ananya-birthday"
+          className="flex-1 py-3 pr-10 bg-transparent text-xs sm:text-sm font-mono font-medium text-platform-dark focus:outline-none"
+        />
+        <div className="absolute right-3 flex items-center pointer-events-none">
+          {slugStatus === 'checking' && (
+            <Loader2 className="w-4 h-4 text-platform-violet animate-spin" />
+          )}
+          {slugStatus === 'available' && (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          )}
+          {(slugStatus === 'taken' || slugStatus === 'reserved') && (
+            <AlertCircle className="w-4 h-4 text-rose-500" />
+          )}
+          {slugStatus === 'invalid' && (
+            <AlertCircle className="w-4 h-4 text-amber-500" />
+          )}
+        </div>
+      </div>
+
+      {/* Live Availability Status Message */}
+      {slugStatus === 'checking' && (
+        <p className="text-xs text-platform-violet flex items-center gap-1.5 font-medium mt-1">
+          <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
+          <span>Checking URL availability...</span>
+        </p>
+      )}
+      {slugStatus === 'available' && (
+        <p className="text-xs text-emerald-600 flex items-center gap-1.5 font-medium mt-1">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <span>{slugMessage}</span>
+        </p>
+      )}
+      {slugStatus === 'taken' && (
+        <p className="text-xs text-rose-600 flex items-center gap-1.5 font-medium mt-1">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{slugMessage}</span>
+        </p>
+      )}
+      {slugStatus === 'reserved' && (
+        <p className="text-xs text-amber-600 flex items-center gap-1.5 font-medium mt-1">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{slugMessage}</span>
+        </p>
+      )}
+      {slugStatus === 'invalid' && (
+        <p className="text-xs text-stone-500 flex items-center gap-1.5 font-medium mt-1">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{slugMessage}</span>
+        </p>
+      )}
+
+      {/* Full Live Gift Link Preview */}
+      <div className="p-2.5 rounded-xl bg-stone-100/70 border border-black/5 text-[11px] font-mono text-platform-muted break-all flex items-center gap-1.5">
+        <span className="text-stone-400 shrink-0 font-sans font-medium">Recipient URL:</span>
+        <span className="text-platform-dark font-medium font-mono">
+          https://dear-you-wine.vercel.app/g/{slug || '...'}
+        </span>
+      </div>
+    </div>
+  );
 
   const activePageConfig = WIZARD_PAGES[currentStep - 1];
 
@@ -1227,13 +1397,15 @@ function GiftBuilderInner() {
                 </div>
 
                 {/* Password & Security Configuration */}
-                <div className="pt-4 border-t border-black/5 space-y-3">
+                <div className="pt-4 border-t border-black/5 space-y-4">
                   <div className="flex items-center gap-2">
                     <Lock className="w-4 h-4 text-platform-dark" />
                     <h3 className="text-xs font-semibold text-platform-dark uppercase tracking-wider">
-                      Password & Security Settings
+                      URL & Access Security Settings
                     </h3>
                   </div>
+
+                  {renderSlugInputSection()}
 
                   <div>
                     <label className="block text-xs font-semibold text-platform-dark mb-1.5">
@@ -2156,20 +2328,7 @@ function GiftBuilderInner() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-platform-dark mb-1.5">
-                      Custom URL Slug
-                    </label>
-                    <div className="flex items-center px-4 py-3 rounded-xl border border-black/10 text-xs sm:text-sm bg-stone-50">
-                      <span className="text-platform-muted font-mono">/g/</span>
-                      <input
-                        type="text"
-                        value={slug}
-                        onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                        className="flex-1 bg-transparent font-mono font-medium focus:outline-none"
-                      />
-                    </div>
-                  </div>
+                  {renderSlugInputSection()}
 
                   {publishError && (
                     <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
@@ -2199,7 +2358,16 @@ function GiftBuilderInner() {
                     <button
                       type="button"
                       onClick={handlePublish}
-                      disabled={isPublishing || !recipientName || !title || !password}
+                      disabled={
+                        isPublishing ||
+                        !recipientName ||
+                        !title ||
+                        !password ||
+                        slugStatus === 'checking' ||
+                        slugStatus === 'taken' ||
+                        slugStatus === 'reserved' ||
+                        slugStatus === 'invalid'
+                      }
                       className="w-full py-4 rounded-2xl bg-platform-dark text-white text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                     >
                       <Sparkles className="w-4 h-4 text-amber-300" />

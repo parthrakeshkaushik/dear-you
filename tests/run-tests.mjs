@@ -2919,6 +2919,137 @@ test('Previewing Expiry Screen or Password Gate is isolated and never alters pro
   assert.strictEqual(recExpCode.includes('if (isPreview || !isUnlocked) return;'), true, 'Previewing must never trigger recipient session invalidation');
 });
 
+// -------------------------------------------------------------
+// 39. LOGIN PASSWORD VISIBILITY & UNIQUE URL SLUG VALIDATION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 39. Login Password Visibility & Unique URL Slug Validation Tests ---');
+
+import {
+  normalizeSlug,
+  validateSlugFormat,
+  RESERVED_SLUGS,
+} from '../src/lib/gifts/slug-rules.ts';
+
+test('Password Visibility Toggle is implemented consistently across Login, Signup and Reset forms', () => {
+  const loginCode = fs.readFileSync('src/app/login/page.tsx', 'utf8');
+  const signupCode = fs.readFileSync('src/app/signup/page.tsx', 'utf8');
+  const resetCode = fs.readFileSync('src/app/reset-password/page.tsx', 'utf8');
+
+  // Login page verification
+  assert.strictEqual(loginCode.includes('showPassword'), true, 'Login must have showPassword state');
+  assert.strictEqual(loginCode.includes("showPassword ? 'text' : 'password'"), true, 'Login must toggle input type');
+  assert.strictEqual(loginCode.includes('type="button"'), true, 'Login eye toggle must be type="button" to avoid form submission');
+  assert.strictEqual(loginCode.includes('aria-label='), true, 'Login eye toggle must have accessible aria-label');
+  assert.strictEqual(loginCode.includes('Eye') && loginCode.includes('EyeOff'), true, 'Login must render Eye/EyeOff icons');
+
+  // Signup page verification
+  assert.strictEqual(signupCode.includes('showPassword'), true, 'Signup must have showPassword state');
+  assert.strictEqual(signupCode.includes("showPassword ? 'text' : 'password'"), true, 'Signup must toggle input type');
+  assert.strictEqual(signupCode.includes('type="button"'), true, 'Signup eye toggle must be type="button"');
+  assert.strictEqual(signupCode.includes('aria-label='), true, 'Signup eye toggle must have accessible aria-label');
+
+  // Reset password verification
+  assert.strictEqual(resetCode.includes('showNewPassword'), true, 'Reset password must have showNewPassword state');
+  assert.strictEqual(resetCode.includes('showConfirmPassword'), true, 'Reset password must have showConfirmPassword state');
+});
+
+test('Slug Normalization converts spaces, underscores, invalid characters and collapses hyphens', () => {
+  assert.strictEqual(normalizeSlug('Ananya Birthday'), 'ananya-birthday');
+  assert.strictEqual(normalizeSlug('ananya_birthday_2026'), 'ananya-birthday-2026');
+  assert.strictEqual(normalizeSlug('Ananya--Surprise---Gift'), 'ananya-surprise-gift');
+  assert.strictEqual(normalizeSlug('-leading-and-trailing-'), 'leading-and-trailing');
+  assert.strictEqual(normalizeSlug('Special!@#$%^&*()Gift'), 'specialgift');
+  assert.strictEqual(normalizeSlug(''), '');
+});
+
+test('Slug Validation strictly rejects too short, too long, invalid characters and reserved routes', () => {
+  // Empty & length checks
+  assert.strictEqual(validateSlugFormat('').valid, false);
+  assert.strictEqual(validateSlugFormat('a').valid, false);
+  assert.strictEqual(validateSlugFormat('ab').valid, false);
+  assert.strictEqual(validateSlugFormat('abc').valid, true);
+
+  // Exceeds 60 characters
+  const longSlug = 'a'.repeat(61);
+  assert.strictEqual(validateSlugFormat(longSlug).valid, false);
+
+  // Reserved slugs verification
+  const reservedSamples = [
+    'admin',
+    'developer',
+    'login',
+    'signup',
+    'settings',
+    'dashboard',
+    'api',
+    'auth',
+    'reset-password',
+    'forgot-password',
+    'demo',
+    'demo-gift',
+    'g',
+    'gifts',
+    'privacy',
+    'terms',
+  ];
+
+  for (const reserved of reservedSamples) {
+    const res = validateSlugFormat(reserved);
+    assert.strictEqual(res.valid, false, `Slug "${reserved}" must be marked invalid`);
+    assert.strictEqual(res.error.includes('reserved'), true, `Slug "${reserved}" must state it is reserved`);
+  }
+
+  // Valid custom slugs
+  assert.strictEqual(validateSlugFormat('ananya-birthday').valid, true);
+  assert.strictEqual(validateSlugFormat('rahul-turns-30').valid, true);
+  assert.strictEqual(validateSlugFormat('anniversary-2026').valid, true);
+});
+
+test('Slug Check API endpoint handles availability, collisions, current-gift ownership and reserved routes', async () => {
+  const checkSlugCode = fs.readFileSync('src/app/api/gifts/check-slug/route.ts', 'utf8');
+
+  assert.strictEqual(checkSlugCode.includes('validateSlugFormat'), true, 'Must validate slug format');
+  assert.strictEqual(checkSlugCode.includes('MOCK_GIFTS'), true, 'Must check in-memory gifts');
+  assert.strictEqual(checkSlugCode.includes('currentGiftId'), true, 'Must accept currentGiftId for editing ownership');
+  assert.strictEqual(checkSlugCode.includes('isCurrentGift'), true, 'Must return isCurrentGift flag when slug belongs to current gift');
+  assert.strictEqual(checkSlugCode.includes('createAdminClient'), true, 'Must query Supabase database gifts table');
+});
+
+test('Gift Save/Publish API enforces uniqueness, catches Postgres 23505 and blocks silent slug clobbering', () => {
+  const apiCode = fs.readFileSync('src/app/api/gifts/route.ts', 'utf8');
+
+  // Verify format validation
+  assert.strictEqual(apiCode.includes('validateSlugFormat'), true, 'POST must validate slug format');
+
+  // Verify in-memory collision check
+  assert.strictEqual(
+    apiCode.includes('This custom URL slug is already taken. Please choose a different URL slug.'),
+    true,
+    'Must return descriptive 409 error on slug collision'
+  );
+
+  // Verify Postgres 23505 catch
+  assert.strictEqual(apiCode.includes("23505"), true, 'Must catch Postgres unique violation error code 23505');
+
+  // Verify old slug cleanup in MOCK_GIFTS on slug update
+  assert.strictEqual(
+    apiCode.includes('delete MOCK_GIFTS[existingGift.slug]'),
+    true,
+    'Must delete old slug key from memory when slug is updated'
+  );
+});
+
+test('Creator Studio blocks publishing when slug is taken, checking, invalid or reserved', () => {
+  const createPageCode = fs.readFileSync('src/app/admin/create/page.tsx', 'utf8');
+
+  assert.strictEqual(createPageCode.includes('slugStatus'), true, 'Must maintain slugStatus state');
+  assert.strictEqual(createPageCode.includes('/api/gifts/check-slug'), true, 'Must call check-slug API');
+  assert.strictEqual(createPageCode.includes('slugStatus === \'taken\''), true, 'Must check if slug is taken');
+  assert.strictEqual(createPageCode.includes('slugStatus === \'checking\''), true, 'Must check if slug is checking');
+  assert.strictEqual(createPageCode.includes('https://dear-you-wine.vercel.app/g/'), true, 'Must render production link preview');
+  assert.strictEqual(createPageCode.includes('renderSlugInputSection'), true, 'Must provide full slug control with visual status');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

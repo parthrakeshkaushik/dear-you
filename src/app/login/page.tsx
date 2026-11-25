@@ -13,6 +13,8 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
@@ -27,6 +29,7 @@ function AuthPageContent() {
   // Form Fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [agreedToPolicies, setAgreedToPolicies] = useState(false);
 
@@ -465,7 +468,7 @@ function AuthPageContent() {
               </label>
               <div className="relative flex items-center">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -475,9 +478,18 @@ function AuthPageContent() {
                   autoComplete={isSignUp ? 'new-password' : 'current-password'}
                   required
                   minLength={isSignUp ? 6 : undefined}
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
-                <Lock className="w-4 h-4 text-platform-muted absolute left-3" />
+                <Lock className="w-4 h-4 text-platform-muted absolute left-3 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="p-1.5 text-platform-muted hover:text-platform-dark absolute right-2.5 focus:outline-none transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
               {!isSignUp && (
                 <div className="flex justify-end mt-1.5">
