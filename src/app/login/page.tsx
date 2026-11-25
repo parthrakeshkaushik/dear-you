@@ -40,6 +40,12 @@ function AuthPageContent() {
 
   // Check URL parameters and restore existing active sessions on mount
   useEffect(() => {
+    const resetSuccess = searchParams?.get('reset_success') === 'true';
+    if (resetSuccess) {
+      setSuccessMessage('Your password has been reset successfully. Please sign in with your new password.');
+      return;
+    }
+
     const expired = searchParams?.get('expired') === 'true';
     if (expired) {
       setErrorMessage('Your session has expired. Please sign in again.');

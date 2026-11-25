@@ -4,6 +4,8 @@ import { verifyCaptchaToken } from '@/lib/security/captcha';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
 import { isValidE164Phone, normalizePhoneNumber } from '@/lib/security/phone-utils';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -20,8 +22,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Rate limiting (3 recovery attempts per 15 minutes)
-    const rateCheck = checkRateLimit(`pwd_reset:${ip}`, 3, 15 * 60 * 1000);
+    // 2. Rate limiting (5 recovery requests per 15 minutes per IP)
+    const rateCheck = checkRateLimit(`pwd_reset:${ip}`, 5, 15 * 60 * 1000);
     if (!rateCheck.allowed) {
       return NextResponse.json(
         {
@@ -37,29 +39,68 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_APP_URL ||
       'http://localhost:3000';
 
-    if (method === 'email') {
-      const email = identifier?.trim()?.toLowerCase();
-      if (!email || !email.includes('@')) {
+    // ==========================================
+    // 3. EMAIL PASSWORD RECOVERY (PRIMARY)
+    // ==========================================
+    if (method === 'email' || !method) {
+      const email = identifier ? String(identifier).trim().toLowerCase() : '';
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+      if (!email || !emailRegex.test(email)) {
         return NextResponse.json(
           { error: 'Please enter a valid email address.' },
           { status: 400 }
         );
       }
 
+      const genericConfirmationResponse = {
+        success: true,
+        message: 'If an account exists with this email address, a password reset link will be sent.',
+      };
+
       try {
-        await supabaseAdmin.auth.resetPasswordForEmail(email, {
-          redirectTo: `${origin}/auth/reset-password`,
-        });
+        // Check account eligibility in admin_users table
+        const { data: dbUser } = await supabaseAdmin
+          .from('admin_users')
+          .select('id, email, status')
+          .ilike('email', email)
+          .maybeSingle();
+
+        // Account is eligible if present and not permanently suspended
+        const isEligible = Boolean(dbUser?.id && dbUser?.status !== 'suspended');
+
+        if (isEligible) {
+          // Direct users to the dedicated /reset-password route.
+          // Note: Supabase Project Auth whitelist explicitly matches 'https://dear-you-madhavas.vercel.app/reset-password'
+          // and wildcards. On localhost, use local origin; in production, use the verified allowed route.
+          const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
+          const redirectUrl = isLocal
+            ? `${origin}/reset-password`
+            : 'https://dear-you-madhavas.vercel.app/reset-password';
+
+          const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+            redirectTo: redirectUrl,
+          });
+
+          if (resetErr) {
+            console.error('[AUTH_DIAGNOSTIC] Supabase resetPasswordForEmail error:', resetErr.message);
+          }
+        } else {
+          // Simulate standard processing time to prevent timing side-channel enumeration attacks
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
       } catch (err: any) {
-        console.warn('Supabase password reset email note:', err?.message);
+        // Securely log technical diagnostics without leaking details to public caller
+        console.error('[AUTH_DIAGNOSTIC] Error during password reset lookup:', err?.message || err);
       }
 
-      return NextResponse.json({
-        success: true,
-        message: 'If an account exists with this email, password reset instructions have been sent.',
-      });
+      // Mandatory security requirement: Return the exact same generic message for both registered and unregistered accounts
+      return NextResponse.json(genericConfirmationResponse, { status: 200 });
     }
 
+    // ==========================================
+    // 4. MOBILE SMS RECOVERY (PRESERVED BACKEND)
+    // ==========================================
     if (method === 'mobile') {
       const code = country_code || '+91';
       const e164Phone = normalizePhoneNumber(code, identifier || '');
@@ -72,7 +113,6 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        // Send SMS OTP for password recovery
         await supabaseAdmin.auth.signInWithOtp({
           phone: e164Phone,
           options: {
@@ -80,7 +120,7 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (err: any) {
-        console.warn('Supabase mobile password reset OTP note:', err?.message);
+        console.error('[AUTH_DIAGNOSTIC] Supabase mobile OTP error:', err?.message || err);
       }
 
       return NextResponse.json({
@@ -94,10 +134,11 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   } catch (error: any) {
-    console.error('Password reset API error:', error);
-    return NextResponse.json(
-      { error: error.message || 'An error occurred while processing password reset.' },
-      { status: 500 }
-    );
+    console.error('[AUTH_DIAGNOSTIC] Fatal password reset API error:', error);
+    // Generic fallback to prevent enumeration
+    return NextResponse.json({
+      success: true,
+      message: 'If an account exists with this email address, a password reset link will be sent.',
+    });
   }
 }

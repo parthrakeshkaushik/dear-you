@@ -1,10 +1,40 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Sparkles, Gift, Lock, Heart, ArrowRight, ShieldCheck, Palette, Calendar } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function LandingPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Immediate recovery detection: Catch recovery token fragment (#access_token=...&type=recovery)
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash;
+      if (hash.includes('type=recovery') || (hash.includes('access_token=') && !hash.includes('type=signup'))) {
+        window.location.replace('/reset-password' + hash);
+        return;
+      }
+    }
+
+    // Listen for Supabase auth state change for PASSWORD_RECOVERY event
+    try {
+      const supabase = createClient();
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          window.location.replace('/reset-password');
+        }
+      });
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch {}
+  }, [router]);
   return (
     <div className="relative min-h-screen bg-[#FAF8F5] text-[#1A1625] overflow-hidden flex flex-col justify-between">
       {/* Soft Ambient Glowing Orbs */}

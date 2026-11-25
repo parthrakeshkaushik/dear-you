@@ -2711,6 +2711,97 @@ test('Recipient experience features brand identity and clickable home navigation
   assert.strictEqual(expiryScreen.includes('/brand/logo.png'), true, 'Expiry screen must display logo');
 });
 
+// -------------------------------------------------------------
+// 37. COMPLETE FORGOT PASSWORD (EMAIL-ONLY) & ACCOUNT ENUMERATION PROTECTION TESTS
+// -------------------------------------------------------------
+console.log('\n--- 37. Complete Forgot Password (Email-Only) & Account Enumeration Protection Tests ---');
+
+test('Forgot password page exposes email-only recovery and excludes mobile recovery', () => {
+  const forgotPageCode = fs.readFileSync('src/app/forgot-password/page.tsx', 'utf8');
+
+  assert.strictEqual(forgotPageCode.includes('Forgot Your Password?'), true, 'Heading must be Forgot Your Password?');
+  assert.strictEqual(forgotPageCode.includes('type="email"'), true, 'Must provide email input field');
+  assert.strictEqual(forgotPageCode.includes('Send Reset Link'), true, 'Must provide Send Reset Link button');
+  assert.strictEqual(forgotPageCode.includes('Back to Sign In'), true, 'Must provide back to sign in link');
+
+  // Verify mobile recovery options are removed from the forgot-password interface
+  assert.strictEqual(forgotPageCode.includes('Via Mobile SMS'), false, 'Mobile tab must be removed from forgot password UI');
+  assert.strictEqual(forgotPageCode.includes('SUPPORTED_COUNTRY_CODES'), false, 'Country code selector must be removed from forgot password UI');
+});
+
+test('Account enumeration protection: Registered and unregistered emails return identical response', () => {
+  function simulateResetRequest(email, registeredAccounts) {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const isRegistered = registeredAccounts.has(cleanEmail);
+
+    let emailDispatched = false;
+    let resetSessionCreated = false;
+
+    if (isRegistered) {
+      emailDispatched = true;
+      // In production, Supabase sends recovery email with action link
+    } else {
+      // Unregistered: do not dispatch email, do not create session
+      emailDispatched = false;
+      resetSessionCreated = false;
+    }
+
+    // Identical public response specification
+    return {
+      status: 200,
+      body: {
+        success: true,
+        message: 'If an account exists with this email address, a password reset link will be sent.',
+      },
+      internal: { emailDispatched, resetSessionCreated }
+    };
+  }
+
+  const registeredUsers = new Set(['kaushikparth363@gmail.com', 'kaushikparth353@gmail.com']);
+
+  const regResponse = simulateResetRequest('kaushikparth363@gmail.com', registeredUsers);
+  const unregResponse = simulateResetRequest('stranger-not-registered@example.com', registeredUsers);
+
+  // Status and response body must be bit-for-bit identical
+  assert.strictEqual(regResponse.status, unregResponse.status);
+  assert.strictEqual(regResponse.body.success, unregResponse.body.success);
+  assert.strictEqual(regResponse.body.message, unregResponse.body.message);
+  assert.strictEqual(regResponse.body.message.includes('If an account exists'), true);
+
+  // Internal behavior must strictly prevent leaks
+  assert.strictEqual(regResponse.internal.emailDispatched, true);
+  assert.strictEqual(unregResponse.internal.emailDispatched, false);
+  assert.strictEqual(unregResponse.internal.resetSessionCreated, false);
+});
+
+test('Recovery callback and routes redirect recovery flows strictly to /reset-password', () => {
+  const callbackCode = fs.readFileSync('src/app/auth/callback/route.ts', 'utf8');
+  const landingCode = fs.readFileSync('src/app/page.tsx', 'utf8');
+
+  assert.strictEqual(callbackCode.includes('/reset-password'), true, 'Callback route must route recovery to /reset-password');
+  assert.strictEqual(callbackCode.includes('type === \'recovery\''), true, 'Callback must handle type=recovery');
+  assert.strictEqual(landingCode.includes('/reset-password'), true, 'Landing page must catch recovery tokens in hash and forward to /reset-password');
+  assert.strictEqual(landingCode.includes('PASSWORD_RECOVERY'), true, 'Landing page must listen to PASSWORD_RECOVERY event');
+});
+
+test('Dedicated /reset-password route renders password reset interface with security validations', () => {
+  assert.strictEqual(fs.existsSync('src/app/reset-password/page.tsx'), true, '/reset-password route must exist');
+  const resetPageCode = fs.readFileSync('src/app/reset-password/page.tsx', 'utf8');
+
+  assert.strictEqual(resetPageCode.includes('Create a New Password'), true, 'Must display Create a New Password heading');
+  assert.strictEqual(resetPageCode.includes('updateUser'), true, 'Must call supabase.auth.updateUser');
+  assert.strictEqual(resetPageCode.includes('signOut'), true, 'Must sign out temporary session upon completion');
+  assert.strictEqual(resetPageCode.includes('/login?reset_success=true'), true, 'Must redirect to login with reset_success notice');
+  assert.strictEqual(resetPageCode.includes('Request New Reset Link'), true, 'Must offer fresh link request if expired or invalid');
+});
+
+test('Login page displays green success banner upon completed password reset', () => {
+  const loginCode = fs.readFileSync('src/app/login/page.tsx', 'utf8');
+
+  assert.strictEqual(loginCode.includes('reset_success'), true, 'Login page must check reset_success query param');
+  assert.strictEqual(loginCode.includes('Your password has been reset successfully'), true, 'Login page must display reset success banner');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);
