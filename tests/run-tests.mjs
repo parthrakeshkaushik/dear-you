@@ -3168,6 +3168,28 @@ test('Diagnostics securely mask email addresses and exclude sensitive auth token
   assert.strictEqual(resetRouteCode.includes('[AUTH_DIAGNOSTIC]'), true, 'Must tag diagnostics with [AUTH_DIAGNOSTIC]');
 });
 
+import {
+  getAppBaseUrl,
+  getResetPasswordUrl,
+  PRODUCTION_BASE_URL,
+} from '../src/lib/config/app-url.ts';
+
+test('App URL resolution strictly enforces production Vercel domain and never leaks localhost', () => {
+  const resetRouteCode = fs.readFileSync('src/app/api/auth/reset-password/route.ts', 'utf8');
+
+  // Verify reset route uses centralized getResetPasswordUrl
+  assert.strictEqual(
+    resetRouteCode.includes('getResetPasswordUrl(request)'),
+    true,
+    'Reset password route must call getResetPasswordUrl(request)'
+  );
+
+  // In standard runtime without local bypass, getAppBaseUrl must return production URL
+  assert.strictEqual(getAppBaseUrl(), PRODUCTION_BASE_URL);
+  assert.strictEqual(getResetPasswordUrl(), 'https://dear-you-wine.vercel.app/reset-password');
+  assert.strictEqual(getResetPasswordUrl().includes('localhost'), false, 'Production reset URL must never contain localhost');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

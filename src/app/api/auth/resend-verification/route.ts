@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
+import { getAuthCallbackUrl } from '@/lib/config/app-url';
 import { isDisposableEmail } from '@/lib/security/disposable-email';
 
 export async function POST(request: NextRequest) {
@@ -36,18 +37,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const origin =
-      request.headers.get('origin') ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
-
     try {
       const supabaseAdmin = createAdminClient();
       await supabaseAdmin.auth.resend({
         type: 'signup',
         email,
         options: {
-          emailRedirectTo: `${origin}/auth/callback`,
+          emailRedirectTo: getAuthCallbackUrl(request),
         },
       });
     } catch (supaErr) {

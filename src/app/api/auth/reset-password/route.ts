@@ -4,6 +4,7 @@ import { verifyCaptchaToken } from '@/lib/security/captcha';
 import { checkRateLimit } from '@/lib/security/rate-limiter';
 import { isValidE164Phone, normalizePhoneNumber } from '@/lib/security/phone-utils';
 import { dispatchRecoveryEmail } from '@/lib/security/recovery-email';
+import { getResetPasswordUrl } from '@/lib/config/app-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,10 +36,6 @@ export async function POST(request: NextRequest) {
     }
 
     const supabaseAdmin = createAdminClient();
-    const origin =
-      request.headers.get('origin') ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
 
     // ==========================================
     // 3. EMAIL PASSWORD RECOVERY (PRIMARY)
@@ -66,12 +63,8 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
-        const redirectUrl = isLocal
-          ? `${origin}/reset-password`
-          : origin.includes('dear-you')
-          ? `${origin}/reset-password`
-          : 'https://dear-you-wine.vercel.app/reset-password';
+        // Enforce trusted canonical recovery URL: strictly https://dear-you-wine.vercel.app/reset-password for production
+        const redirectUrl = getResetPasswordUrl(request);
 
         // 1. Check account suspension in admin_users table (correct column: account_status)
         let isSuspended = false;
