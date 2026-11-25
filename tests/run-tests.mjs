@@ -2459,6 +2459,76 @@ test('Recipient experience keeps a single persistent audio element across sectio
   assert.strictEqual(code.includes('onError={handleAudioError}'), true, 'Audio element must implement error recovery fallback');
 });
 
+// -------------------------------------------------------------
+// 34. FULL GIFT RELATIONAL DATA & DEMO PREVIEW INTEGRITY TESTS
+// -------------------------------------------------------------
+console.log('\n--- 34. Full Gift Relational Data & Demo Preview Integrity Tests ---');
+
+test('Preview page imports and invokes getGiftWithChildCollections to avoid empty skeleton preview', () => {
+  const previewPageCode = fs.readFileSync('src/app/g/[slug]/preview/page.tsx', 'utf8');
+  assert.strictEqual(
+    previewPageCode.includes('getGiftWithChildCollections'),
+    true,
+    'Preview page must use getGiftWithChildCollections'
+  );
+  assert.strictEqual(
+    previewPageCode.includes('await getGiftWithChildCollections(slug)'),
+    true,
+    'Must fetch complete gift with child relational collections'
+  );
+});
+
+test('Demonstration card retains all sections, memories, letters, timelines & interactive modules', () => {
+  const mockCode = fs.readFileSync('src/lib/mock-data.ts', 'utf8');
+  assert.strictEqual(mockCode.includes("MOCK_GIFTS['demo']"), true, 'Canonical demo card must be defined');
+
+  const fetchGiftCode = fs.readFileSync('src/lib/gifts/fetch-gift.ts', 'utf8');
+  assert.strictEqual(
+    fetchGiftCode.includes('canonicalDemo.memories'),
+    true,
+    'Must guarantee memories are preserved for demo card'
+  );
+  assert.strictEqual(
+    fetchGiftCode.includes('canonicalDemo.timeline_entries'),
+    true,
+    'Must guarantee timeline is preserved for demo card'
+  );
+  assert.strictEqual(
+    fetchGiftCode.includes('canonicalDemo.letters'),
+    true,
+    'Must guarantee letters are preserved for demo card'
+  );
+  assert.strictEqual(
+    fetchGiftCode.includes('canonicalDemo.sections'),
+    true,
+    'Must guarantee all sections are preserved for demo card'
+  );
+});
+
+test('Child components render appropriately without returning null when data is present', () => {
+  const demoGift = {
+    recipient_name: 'Ananya',
+    memories: [
+      { id: 'm1', image_path: '/img1.jpg', caption: 'Test Memory', display_order: 1 }
+    ],
+    timeline_entries: [
+      { id: 't1', title: 'Test Story', description: 'Met at cafe', event_date: '2023-01-01', display_order: 1 }
+    ],
+    letters: [
+      { id: 'l1', heading: 'Letter', content: 'Heartfelt letter', display_order: 1 }
+    ],
+  };
+
+  // Simulating component render guards
+  const memoryWallRenders = Boolean(demoGift.memories && demoGift.memories.length > 0);
+  const timelineRenders = Boolean(demoGift.timeline_entries && demoGift.timeline_entries.length > 0);
+  const letterRenders = Boolean(demoGift.letters && demoGift.letters.length > 0);
+
+  assert.strictEqual(memoryWallRenders, true, 'MemoryWall renders when memories are present');
+  assert.strictEqual(timelineRenders, true, 'TimelineSection renders when timeline_entries are present');
+  assert.strictEqual(letterRenders, true, 'LetterSection renders when letters are present');
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

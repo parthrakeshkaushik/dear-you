@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper, logDeveloperAction } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
+import { getGiftWithChildCollections } from '@/lib/gifts/fetch-gift';
 
 interface RouteContext {
   params: {
@@ -33,11 +34,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     const { data: giftRecord } = await query.maybeSingle();
 
-    const fallbackGift =
-      MOCK_GIFTS[giftIdOrSlug] ||
-      Object.values(MOCK_GIFTS).find((g) => g.id === giftIdOrSlug || g.slug === giftIdOrSlug);
-
-    const gift = giftRecord || fallbackGift;
+    let gift = await getGiftWithChildCollections(giftIdOrSlug);
+    if (!gift && giftRecord) {
+      gift = giftRecord as any;
+    }
 
     if (!gift) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });

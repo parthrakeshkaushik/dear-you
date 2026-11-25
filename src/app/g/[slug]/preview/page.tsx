@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient as createServerSupabase } from '@/lib/supabase/server';
 import { verifySessionExpiryToken, SESSION_COOKIE_NAME } from '@/lib/auth/persistent-session';
 import { isAuthorizedDeveloperEmail } from '@/lib/auth/roles';
+import { getGiftWithChildCollections } from '@/lib/gifts/fetch-gift';
 import { Gift } from '@/types/gift';
 import { Eye, ArrowLeft } from 'lucide-react';
 
@@ -67,25 +68,8 @@ export default async function GiftPreviewPage({ params }: PageProps) {
     redirect(`/login?redirect=/g/${encodeURIComponent(slug)}/preview`);
   }
 
-  // 2. Fetch gift from database or mock repository
-  const supabaseAdmin = createAdminClient();
-  let gift: Gift | null = null;
-
-  try {
-    const { data: dbGift } = await supabaseAdmin
-      .from('gifts')
-      .select('*')
-      .eq('slug', slug)
-      .maybeSingle();
-
-    if (dbGift) {
-      gift = dbGift as Gift;
-    }
-  } catch {}
-
-  if (!gift) {
-    gift = MOCK_GIFTS[slug] || null;
-  }
+  // 2. Fetch gift with all child relational collections (sections, memories, timeline, letters, quiz, etc.)
+  const gift = await getGiftWithChildCollections(slug);
 
   if (!gift) {
     notFound();

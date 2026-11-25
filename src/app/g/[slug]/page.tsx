@@ -2,6 +2,7 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
+import { getGiftWithChildCollections } from '@/lib/gifts/fetch-gift';
 import { RecipientExperience } from '@/components/recipient/RecipientExperience';
 import { RecipientUnavailableScreen } from '@/components/recipient/RecipientUnavailableScreen';
 
@@ -12,7 +13,7 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const gift = MOCK_GIFTS[params.slug];
+  const gift = await getGiftWithChildCollections(params.slug);
   if (!gift || gift.moderation_status === 'deleted' || gift.deleted_at) {
     return {
       title: 'Dear You — A Special Surprise',
@@ -32,8 +33,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function RecipientGiftPage({ params }: PageProps) {
   const { slug } = params;
 
-  // Look up gift in repository/mock
-  const gift = MOCK_GIFTS[slug];
+  // Look up gift in database & mock repository with all child relational collections
+  const gift = await getGiftWithChildCollections(slug);
 
   if (!gift || gift.moderation_status === 'deleted' || gift.deleted_at) {
     notFound();
