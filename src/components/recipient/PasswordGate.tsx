@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { KeyRound, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle, ShieldAlert } from 'lucide-react';
+import { KeyRound, ArrowRight, Eye, EyeOff, Sparkles, AlertCircle, ShieldAlert, Gift } from 'lucide-react';
 
 interface PasswordGateProps {
   giftTitle: string;
@@ -53,13 +54,38 @@ export function PasswordGate({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 relative z-10">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md p-8 sm:p-10 rounded-3xl bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-2xl backdrop-blur-xl text-center relative overflow-hidden"
-      >
+    <div className="min-h-screen flex flex-col justify-between px-4 py-5 sm:py-6 relative z-10">
+      {/* Top Navigation Header: Logo on left, Back to Home on right */}
+      <header className="max-w-5xl w-full mx-auto flex items-center justify-between z-20">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 sm:gap-2.5 group cursor-pointer active:scale-95 transition-transform"
+          title="Dear You Homepage"
+        >
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[var(--theme-primary)]/15 border border-[var(--theme-primary)]/20 flex items-center justify-center text-[var(--theme-primary)] shadow-2xs group-hover:scale-105 group-hover:bg-[var(--theme-primary)]/25 transition-all">
+            <Gift className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+          </div>
+          <span className="font-serif text-lg sm:text-xl font-semibold tracking-tight text-[var(--theme-text)] group-hover:opacity-85 transition-opacity">
+            Dear You
+          </span>
+        </Link>
+
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[var(--theme-muted)] hover:text-[var(--theme-text)] active:scale-95 transition-all px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+        >
+          <span>← Back to Home</span>
+        </Link>
+      </header>
+
+      {/* Main Centered Password Card */}
+      <div className="flex-1 flex items-center justify-center py-6 sm:py-10">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md p-8 sm:p-10 rounded-3xl bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-2xl backdrop-blur-xl text-center relative overflow-hidden"
+        >
         {/* Subtle accent glow top */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-[var(--theme-primary)] to-transparent opacity-80" />
 
@@ -192,6 +218,12 @@ export function PasswordGate({
           Protected digital gift • Private & encrypted
         </p>
       </motion.div>
+      </div>
+
+      {/* Subtle Footer Note */}
+      <footer className="text-center py-2 text-[11px] text-[var(--theme-muted)]/60">
+        <span>Protected digital surprise • Powered by Dear You</span>
+      </footer>
     </div>
   );
 }

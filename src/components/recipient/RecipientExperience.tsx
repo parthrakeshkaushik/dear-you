@@ -20,6 +20,7 @@ import { ExpiryScreen } from './ExpiryScreen';
 import { MusicPlayerBar } from './MusicPlayerBar';
 import { SectionNavigation } from './SectionNavigation';
 import { DownloadKeepsakeModal } from './DownloadKeepsakeModal';
+import { CreateYourOwnGiftSection } from './CreateYourOwnGiftSection';
 import { Download } from 'lucide-react';
 
 interface RecipientExperienceProps {
@@ -413,6 +414,9 @@ export function RecipientExperience({
               return null;
           }
         })}
+
+        {/* Platform Call to Action: Separate, elegant promotional section appearing strictly after sender's content */}
+        <CreateYourOwnGiftSection />
       </main>
 
       {/* Recipient Keepsake Download Modal */}

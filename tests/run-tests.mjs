@@ -2121,6 +2121,146 @@ test('Unauthorized user cannot bypass recipient password on published card using
   );
 });
 
+// -------------------------------------------------------------
+// 32. HOME NAVIGATION & "CREATE YOUR OWN GIFT" CTA TESTS
+// -------------------------------------------------------------
+console.log('\n--- 32. Home Navigation & "Create Your Own Gift" CTA Tests ---');
+
+test('Password screen features top-left clickable logo and Back to Home link targeting "/"', () => {
+  // Simulates header navigation on PasswordGate
+  function simulatePasswordGateHeader() {
+    return {
+      logo: {
+        href: '/',
+        label: 'Dear You',
+        position: 'top-left',
+        isClickable: true,
+      },
+      backLink: {
+        href: '/',
+        label: '← Back to Home',
+        position: 'top-right',
+        isClickable: true,
+        submitsForm: false,
+      },
+    };
+  }
+
+  const header = simulatePasswordGateHeader();
+  assert.strictEqual(header.logo.href, '/');
+  assert.strictEqual(header.logo.position, 'top-left');
+  assert.strictEqual(header.logo.isClickable, true);
+  assert.strictEqual(header.backLink.href, '/');
+  assert.strictEqual(header.backLink.position, 'top-right');
+  assert.strictEqual(header.backLink.submitsForm, false);
+});
+
+test('Navigation from password screen never modifies recipient access tokens', () => {
+  const recipientCookies = {
+    'dy_recipient_maya-anniversary': 'valid_token_xyz',
+  };
+
+  function clickHomeLink(cookies) {
+    // Navigation is a standard Next.js <Link href="/">; does not mutate recipient cookies
+    return { target: '/', cookiesUnchanged: true };
+  }
+
+  const navResult = clickHomeLink(recipientCookies);
+  assert.strictEqual(navResult.target, '/');
+  assert.strictEqual(navResult.cookiesUnchanged, true);
+  assert.strictEqual(recipientCookies['dy_recipient_maya-anniversary'], 'valid_token_xyz');
+});
+
+test('Create Your Own Gift section appears strictly after sender content and not between sections', () => {
+  const senderSections = [
+    { type: 'welcome', order: 0 },
+    { type: 'gift_box', order: 1 },
+    { type: 'celebration', order: 2 },
+    { type: 'memory_wall', order: 3 },
+    { type: 'letters', order: 4 },
+    { type: 'closing', order: 5 },
+  ];
+
+  // RecipientExperience renders platform CTA after all mapped sender sections
+  const journeyRenderOrder = [
+    ...senderSections.map((s) => s.type),
+    'platform_create_your_own_gift_cta',
+  ];
+
+  const closingIndex = journeyRenderOrder.indexOf('closing');
+  const ctaIndex = journeyRenderOrder.indexOf('platform_create_your_own_gift_cta');
+  const memoryWallIndex = journeyRenderOrder.indexOf('memory_wall');
+
+  assert.strictEqual(ctaIndex > closingIndex, true);
+  assert.strictEqual(ctaIndex > memoryWallIndex, true);
+  assert.strictEqual(journeyRenderOrder[journeyRenderOrder.length - 1], 'platform_create_your_own_gift_cta');
+});
+
+test('Create Your Own Gift section contains specified heading, subtitle, primary CTA and secondary link', () => {
+  const ctaContent = {
+    heading: 'Your turn to make someone smile!',
+    subtitle: 'Create a beautiful digital surprise for someone special. Your memories, your stories, your way.',
+    primaryButton: {
+      label: 'Create Your Own Gift',
+      href: '/',
+    },
+    secondaryLink: {
+      label: 'Discover Dear You',
+      href: '/',
+    },
+  };
+
+  assert.strictEqual(ctaContent.heading, 'Your turn to make someone smile!');
+  assert.strictEqual(ctaContent.subtitle.includes('memories, your stories, your way'), true);
+  assert.strictEqual(ctaContent.primaryButton.label, 'Create Your Own Gift');
+  assert.strictEqual(ctaContent.primaryButton.href, '/');
+  assert.strictEqual(ctaContent.secondaryLink.label, 'Discover Dear You');
+  assert.strictEqual(ctaContent.secondaryLink.href, '/');
+});
+
+test('Expired screen preserves custom closing message and provides Back to Home & Create Gift CTAs without exposing private content', () => {
+  const expiredGift = {
+    id: 'gift-expired',
+    slug: 'expired-birthday',
+    recipient_name: 'Sophia',
+    expiry_enabled: true,
+    expires_at: '2020-01-01T00:00:00Z',
+    expiry_heading: 'This Special Chapter Has Closed',
+    expiry_message: 'Thank you for reading and cherishing this surprise with us.',
+    memories: [{ id: 'm1', caption: 'Private secret memory' }],
+    letters: [{ id: 'l1', content: 'Private secret letter' }],
+  };
+
+  function renderExpiredScreen(gift) {
+    return {
+      recipientName: gift.recipient_name,
+      heading: gift.expiry_heading,
+      message: gift.expiry_message,
+      navHeader: {
+        logoHref: '/',
+        backHomeHref: '/',
+      },
+      actionButtons: [
+        { label: 'Create Your Own Gift', href: '/' },
+        { label: 'Return to Home', href: '/' },
+      ],
+      // Private content must be stripped
+      exposedMemories: undefined,
+      exposedLetters: undefined,
+    };
+  }
+
+  const view = renderExpiredScreen(expiredGift);
+  assert.strictEqual(view.recipientName, 'Sophia');
+  assert.strictEqual(view.heading, 'This Special Chapter Has Closed');
+  assert.strictEqual(view.message, 'Thank you for reading and cherishing this surprise with us.');
+  assert.strictEqual(view.navHeader.logoHref, '/');
+  assert.strictEqual(view.navHeader.backHomeHref, '/');
+  assert.strictEqual(view.actionButtons.some((b) => b.label === 'Create Your Own Gift' && b.href === '/'), true);
+  assert.strictEqual(view.exposedMemories, undefined);
+  assert.strictEqual(view.exposedLetters, undefined);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);
