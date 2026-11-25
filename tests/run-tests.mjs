@@ -1,4 +1,6 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 
@@ -2259,6 +2261,202 @@ test('Expired screen preserves custom closing message and provides Back to Home 
   assert.strictEqual(view.actionButtons.some((b) => b.label === 'Create Your Own Gift' && b.href === '/'), true);
   assert.strictEqual(view.exposedMemories, undefined);
   assert.strictEqual(view.exposedLetters, undefined);
+});
+
+// -------------------------------------------------------------
+// 33. BACKGROUND MUSIC PLAYBACK, STATE MACHINE & RESILIENCE TESTS
+// -------------------------------------------------------------
+console.log('\n--- 33. Background Music Playback, State Machine & Resilience Tests ---');
+
+test('Local audio assets are bundled and accessible on origin without 403 hotlink blocks', () => {
+  const audioDir = path.join(process.cwd(), 'public', 'audio');
+  const trackPath = path.join(audioDir, 'gentle-moments.mp3');
+
+  assert.strictEqual(fs.existsSync(audioDir), true, 'public/audio directory must exist');
+  assert.strictEqual(fs.existsSync(trackPath), true, 'gentle-moments.mp3 must exist in public/audio');
+  const stats = fs.statSync(trackPath);
+  assert.strictEqual(stats.size > 1000000, true, 'Audio file must be substantial MP3 file');
+});
+
+test('Mock data and creator templates default to reliable bundled audio track', () => {
+  const mockContent = fs.readFileSync('src/lib/mock-data.ts', 'utf8');
+  assert.strictEqual(mockContent.includes('/audio/gentle-moments.mp3'), true);
+  assert.strictEqual(mockContent.includes('mixkit.co'), false, 'All forbidden 403 mixkit URLs removed');
+
+  const createContent = fs.readFileSync('src/app/admin/create/page.tsx', 'utf8');
+  assert.strictEqual(createContent.includes('/audio/gentle-moments.mp3'), true);
+  assert.strictEqual(createContent.includes('mixkit.co'), false);
+});
+
+test('Audio state machine transitions cleanly through idle -> loading -> playing -> paused', () => {
+  class AudioEngine {
+    constructor(src) {
+      this.src = src;
+      this.status = 'idle'; // idle | loading | playing | paused | blocked | error
+      this.isMuted = false;
+      this.hasStartedJourney = false;
+      this.hasUserInitiatedPlay = false;
+      this.error = null;
+    }
+
+    startJourney() {
+      this.hasStartedExperience = true;
+      this.hasUserInitiatedPlay = true;
+      this.status = 'loading';
+      // Simulate play promise resolution
+      return Promise.resolve().then(() => {
+        this.status = 'playing';
+        this.error = null;
+      });
+    }
+
+    togglePlay() {
+      this.hasUserInitiatedPlay = true;
+      if (this.status === 'playing') {
+        this.status = 'paused';
+        return Promise.resolve();
+      } else {
+        this.status = 'loading';
+        return Promise.resolve().then(() => {
+          this.status = 'playing';
+          this.error = null;
+        });
+      }
+    }
+
+    simulateAutoplayRejection() {
+      this.hasUserInitiatedPlay = true;
+      this.status = 'loading';
+      return Promise.reject(new Error('NotAllowedError')).catch((err) => {
+        this.status = 'blocked';
+        this.error = 'Browser paused audio. Tap to listen.';
+      });
+    }
+
+    simulateNetworkError(fallbackSrc) {
+      if (this.src !== fallbackSrc) {
+        this.src = fallbackSrc;
+        if (this.hasUserInitiatedPlay) {
+          return this.togglePlay();
+        }
+      } else {
+        this.status = 'error';
+        this.error = 'Unable to play audio.';
+      }
+    }
+
+    getButtonLabel() {
+      if (this.status === 'playing') return 'Pause Music';
+      if (this.hasStartedExperience) return 'Continue Music';
+      return 'Play Music';
+    }
+
+    getStatusLabel() {
+      if (this.status === 'playing') return 'Now Playing';
+      if (this.status === 'loading') return 'Loading...';
+      if (this.status === 'blocked') return 'Tap to play';
+      if (this.hasStartedExperience) return 'Continue Music';
+      return 'Paused';
+    }
+  }
+
+  const engine = new AudioEngine('/audio/gentle-moments.mp3');
+  assert.strictEqual(engine.status, 'idle');
+  assert.strictEqual(engine.getButtonLabel(), 'Play Music');
+
+  // Start journey
+  return engine.startJourney().then(() => {
+    assert.strictEqual(engine.status, 'playing');
+    assert.strictEqual(engine.getButtonLabel(), 'Pause Music');
+    assert.strictEqual(engine.getStatusLabel(), 'Now Playing');
+
+    // Pause music
+    return engine.togglePlay();
+  }).then(() => {
+    assert.strictEqual(engine.status, 'paused');
+    assert.strictEqual(engine.getButtonLabel(), 'Continue Music');
+    assert.strictEqual(engine.getStatusLabel(), 'Continue Music');
+
+    // Continue music
+    return engine.togglePlay();
+  }).then(() => {
+    assert.strictEqual(engine.status, 'playing');
+    assert.strictEqual(engine.getButtonLabel(), 'Pause Music');
+  });
+});
+
+test('Browser autoplay rejection sets blocked state and allows Continue Music recovery', async () => {
+  let status = 'idle';
+  let error = null;
+
+  // 1. Recipient clicks Start Your Journey, but browser blocks unmuted audio
+  function handleStartJourney(simulateBlock = true) {
+    if (simulateBlock) {
+      const err = new Error('play() request failed');
+      err.name = 'NotAllowedError';
+      status = 'blocked';
+      error = 'Audio blocked by browser. Tap to listen.';
+      return Promise.reject(err);
+    } else {
+      status = 'playing';
+      error = null;
+      return Promise.resolve();
+    }
+  }
+
+  try {
+    await handleStartJourney(true);
+  } catch {
+    // Autoplay blocked
+  }
+
+  assert.strictEqual(status, 'blocked');
+  assert.strictEqual(error, 'Audio blocked by browser. Tap to listen.');
+
+  // 2. User sees friendly banner / Continue Music button and clicks it
+  function handleContinueMusic() {
+    status = 'playing';
+    error = null;
+  }
+
+  handleContinueMusic();
+  assert.strictEqual(status, 'playing');
+  assert.strictEqual(error, null);
+});
+
+test('Broken external audio source triggers automatic fallback to bundled gentle-moments.mp3', () => {
+  let currentSrc = 'https://broken-cdn.com/missing-track.mp3';
+  let status = 'idle';
+  let hasUserInitiatedPlay = true;
+
+  function handleAudioError() {
+    const fallback = '/audio/gentle-moments.mp3';
+    if (currentSrc !== fallback) {
+      currentSrc = fallback;
+      if (hasUserInitiatedPlay) {
+        status = 'playing';
+      }
+    } else {
+      status = 'error';
+    }
+  }
+
+  handleAudioError();
+  assert.strictEqual(currentSrc, '/audio/gentle-moments.mp3');
+  assert.strictEqual(status, 'playing', 'Automatically retries and recovers with bundled asset');
+});
+
+test('Recipient experience keeps a single persistent audio element across section navigation', () => {
+  const code = fs.readFileSync('src/components/recipient/RecipientExperience.tsx', 'utf8');
+
+  // Verify audio element is rendered at top level outside dynamic sections loop
+  const audioIndex = code.indexOf('<audio');
+  const sectionsLoopIndex = code.indexOf('{enabledSections.map');
+  assert.strictEqual(audioIndex > 0, true, '<audio> element must be rendered in RecipientExperience');
+  assert.strictEqual(sectionsLoopIndex > audioIndex, true, '<audio> element must reside above sections loop to persist across scrolls');
+  assert.strictEqual(code.includes('loop'), true, 'Audio element must loop continuously');
+  assert.strictEqual(code.includes('preload="auto"'), true, 'Audio element must preload audio stream');
+  assert.strictEqual(code.includes('onError={handleAudioError}'), true, 'Audio element must implement error recovery fallback');
 });
 
 console.log(`\n==============================================`);

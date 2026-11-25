@@ -491,7 +491,7 @@ function GiftBuilderInner() {
     expiry_timezone: expiryTimezone,
     expiry_heading: expiryHeading,
     expiry_message: expiryMessage,
-    music_url: enabledFeatures.music ? 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3' : undefined,
+    music_url: enabledFeatures.music ? '/audio/gentle-moments.mp3' : undefined,
     music_title: 'Gentle Moments',
     memory_wall_config: {
       layout_mode: wallLayoutMode,
@@ -611,7 +611,7 @@ function GiftBuilderInner() {
           expiry_timezone: expiryTimezone,
           expiry_heading: expiryHeading,
           expiry_message: expiryMessage,
-          music_url: enabledFeatures.music ? 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3' : undefined,
+          music_url: enabledFeatures.music ? '/audio/gentle-moments.mp3' : undefined,
           music_title: 'Gentle Moments',
           memory_wall_config: { layout_mode: wallLayoutMode, enable_hanging_effect: true },
           sections: [

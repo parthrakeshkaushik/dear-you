@@ -17,7 +17,7 @@ import { FutureWishesSection } from './FutureWishesSection';
 import { LetterSection } from './LetterSection';
 import { ClosingSection } from './ClosingSection';
 import { ExpiryScreen } from './ExpiryScreen';
-import { MusicPlayerBar } from './MusicPlayerBar';
+import { MusicPlayerBar, AudioPlaybackStatus } from './MusicPlayerBar';
 import { SectionNavigation } from './SectionNavigation';
 import { DownloadKeepsakeModal } from './DownloadKeepsakeModal';
 import { CreateYourOwnGiftSection } from './CreateYourOwnGiftSection';
@@ -43,11 +43,59 @@ export function RecipientExperience({
 
   const isDemo = gift.is_demo === true || gift.slug === 'demo' || gift.slug === 'demo-gift';
 
-  // Audio state
+  // Audio state & persistence
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [audioSrc, setAudioSrc] = useState<string | undefined>(
+    gift.music_url || '/audio/gentle-moments.mp3'
+  );
+  const [playbackStatus, setPlaybackStatus] = useState<AudioPlaybackStatus>('idle');
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const hasUserInitiatedPlay = useRef(false);
+
+  // Synchronize audioSrc when creator/gift settings update
+  useEffect(() => {
+    if (gift.music_url) {
+      setAudioSrc(gift.music_url);
+    }
+  }, [gift.music_url]);
+
+  // Graceful fallback to bundled high-fidelity audio asset if an external URL fails
+  const handleAudioError = useCallback(() => {
+    const fallbackSrc = '/audio/gentle-moments.mp3';
+    if (audioSrc !== fallbackSrc) {
+      console.warn(`Primary audio src failed (${audioSrc}), automatically failing over to bundled audio asset (${fallbackSrc})`);
+      setAudioSrc(fallbackSrc);
+    } else {
+      setPlaybackStatus('error');
+      setAudioError('Unable to load audio. Tap to retry.');
+    }
+  }, [audioSrc]);
+
+  // If user has already initiated play and source changed (e.g. fallback triggered), resume playback seamlessly
+  useEffect(() => {
+    if (hasUserInitiatedPlay.current && audioRef.current && audioSrc) {
+      audioRef.current.load();
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setPlaybackStatus('playing');
+            setAudioError(null);
+          })
+          .catch((err) => {
+            console.warn('Playback error after source update:', err);
+            if (err.name === 'NotAllowedError') {
+              setPlaybackStatus('blocked');
+              setAudioError('Audio blocked by browser. Tap to listen.');
+            } else {
+              setPlaybackStatus('error');
+              setAudioError('Could not start audio. Tap to retry.');
+            }
+          });
+      }
+    }
+  }, [audioSrc]);
 
   // Check Expiry (In preview mode, creator explicitly uses the Closing Screen tab to preview expiry)
   const isExpired = useMemo(() => {
@@ -106,7 +154,7 @@ export function RecipientExperience({
           setIsUnlocked(false);
           if (audioRef.current) {
             audioRef.current.pause();
-            setIsAudioPlaying(false);
+            setPlaybackStatus('paused');
           }
           setRevocationNotice(
             data.message || 'The card password has been updated. Please enter the new password to continue.'
@@ -123,24 +171,40 @@ export function RecipientExperience({
 
   // Play / Pause toggle
   const handleTogglePlay = useCallback(() => {
-    if (!audioRef.current || !gift.music_url) return;
-    if (isAudioPlaying) {
+    if (!audioRef.current) return;
+    hasUserInitiatedPlay.current = true;
+
+    if (!audioRef.current.paused && playbackStatus === 'playing') {
       audioRef.current.pause();
-      setIsAudioPlaying(false);
+      setPlaybackStatus('paused');
     } else {
-      audioRef.current
-        .play()
-        .then(() => {
-          setIsAudioPlaying(true);
-          setAudioError(null);
-        })
-        .catch((err) => {
-          console.warn('Audio play request prevented:', err);
-          setIsAudioPlaying(false);
-          setAudioError('Audio blocked by browser. Tap to listen.');
-        });
+      setAudioError(null);
+      setPlaybackStatus('loading');
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setPlaybackStatus('playing');
+            setAudioError(null);
+          })
+          .catch((err) => {
+            console.warn('Audio play request prevented:', err);
+            if (err.name === 'NotAllowedError') {
+              setPlaybackStatus('blocked');
+              setAudioError('Audio blocked by browser. Tap to listen.');
+            } else {
+              const fallbackSrc = '/audio/gentle-moments.mp3';
+              if (audioSrc !== fallbackSrc) {
+                setAudioSrc(fallbackSrc);
+              } else {
+                setPlaybackStatus('error');
+                setAudioError('Could not start audio. Tap to retry.');
+              }
+            }
+          });
+      }
     }
-  }, [isAudioPlaying, gift.music_url]);
+  }, [playbackStatus, audioSrc]);
 
   // Mute / Unmute toggle
   const handleToggleMute = useCallback(() => {
@@ -154,21 +218,35 @@ export function RecipientExperience({
   // Directly starts background music from the user's primary click/tap gesture!
   const handleStartJourney = useCallback(() => {
     setHasStartedExperience(true);
+    hasUserInitiatedPlay.current = true;
 
     // 1. Initiate music playback synchronously in this click handler
-    if (gift.music_url && audioRef.current) {
-      audioRef.current
-        .play()
-        .then(() => {
-          setIsAudioPlaying(true);
-          setAudioError(null);
-        })
-        .catch((err) => {
-          console.warn('Audio playback could not start automatically:', err);
-          setIsAudioPlaying(false);
-          // Non-blocking: record error so persistent control shows friendly retry prompt
-          setAudioError('Browser paused audio. Tap to listen.');
-        });
+    if (audioRef.current && (audioSrc || gift.music_url)) {
+      setAudioError(null);
+      setPlaybackStatus('loading');
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setPlaybackStatus('playing');
+            setAudioError(null);
+          })
+          .catch((err) => {
+            console.warn('Audio playback could not start automatically:', err);
+            if (err.name === 'NotAllowedError') {
+              setPlaybackStatus('blocked');
+              setAudioError('Browser paused audio. Tap to listen.');
+            } else {
+              const fallbackSrc = '/audio/gentle-moments.mp3';
+              if (audioSrc !== fallbackSrc) {
+                setAudioSrc(fallbackSrc);
+              } else {
+                setPlaybackStatus('error');
+                setAudioError('Audio blocked by browser. Tap to listen.');
+              }
+            }
+          });
+      }
     }
 
     // 2. Smoothly transition to the first gift section
@@ -177,7 +255,7 @@ export function RecipientExperience({
     if (firstSec) {
       firstSec.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [gift.music_url, enabledSections]);
+  }, [audioSrc, gift.music_url, enabledSections]);
 
   // Handle password verification with server endpoint
   const handleVerifyPassword = async (password: string) => {
@@ -253,22 +331,41 @@ export function RecipientExperience({
   return (
     <ThemeContainer themeId={gift.selected_theme} customConfig={gift.theme_config}>
       {/* Background HTML5 Audio Element (Continuous playback, never unmounts across sections) */}
-      {gift.music_url && (
+      {audioSrc && (
         <audio
           ref={audioRef}
-          src={gift.music_url}
+          src={audioSrc}
           loop
           preload="auto"
-          onPlay={() => setIsAudioPlaying(true)}
-          onPause={() => setIsAudioPlaying(false)}
-          onEnded={() => setIsAudioPlaying(false)}
+          onPlay={() => {
+            setPlaybackStatus('playing');
+            setAudioError(null);
+          }}
+          onPlaying={() => {
+            setPlaybackStatus('playing');
+            setAudioError(null);
+          }}
+          onPause={() => {
+            setPlaybackStatus((prev) => (prev === 'error' || prev === 'blocked' ? prev : 'paused'));
+          }}
+          onWaiting={() => {
+            setPlaybackStatus('loading');
+          }}
+          onCanPlay={() => {
+            setPlaybackStatus((prev) => (prev === 'loading' ? 'paused' : prev));
+          }}
+          onEnded={() => {
+            setPlaybackStatus('paused');
+          }}
+          onError={handleAudioError}
         />
       )}
 
       {/* Persistent Floating Music Control (Appears and reflects playback across the journey) */}
-      {gift.music_url && (
+      {audioSrc && (
         <MusicPlayerBar
-          isPlaying={isAudioPlaying}
+          isPlaying={playbackStatus === 'playing'}
+          playbackStatus={playbackStatus}
           isMuted={isAudioMuted}
           trackTitle={gift.music_title || 'Gentle Moments'}
           audioError={audioError}
@@ -300,8 +397,8 @@ export function RecipientExperience({
             message={gift.welcome_message}
             buttonText={gift.welcome_button_text}
             coverImage={gift.cover_image}
-            hasMusic={Boolean(gift.music_url)}
-            musicTitle={gift.music_title}
+            hasMusic={Boolean(audioSrc)}
+            musicTitle={gift.music_title || 'Gentle Moments'}
             onProceed={handleStartJourney}
           />
         </div>

@@ -245,8 +245,8 @@ export const MOCK_GIFTS: Record<string, Gift> = {
     gift_box_message: 'May this year unfold like a gentle dawn, brimming with soft surprises, hearty laughter, and dreams taking flight.',
     scratch_card_hidden_text: 'You have this rare, quiet magic of making everyone around you feel valued and at home. Never stop being you!',
     closing_message: 'No matter how fast the world moves, know that you have friends who celebrate you endlessly. Happy Birthday!',
-    music_url: 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3',
-    music_title: 'Celestial Waltz',
+    music_url: '/audio/gentle-moments.mp3',
+    music_title: 'Gentle Moments',
     memory_wall_config: {
       layout_mode: 'both',
       enable_hanging_effect: true,
