@@ -9,19 +9,19 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-6">
-      <header className="max-w-4xl w-full mx-auto flex items-center justify-between pb-8 border-b border-black/5">
+    <div className="min-h-screen bg-platform-bg text-platform-text flex flex-col justify-between p-6 transition-colors duration-200">
+      <header className="max-w-4xl w-full mx-auto flex items-center justify-between pb-8 border-b border-platform-border">
         <Link href="/" className="flex items-center gap-2.5 group">
           <img
             src="/brand/logo.png"
             alt="Dear You"
             className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-xl font-semibold tracking-tight">Dear You</span>
+          <span className="font-serif text-xl font-semibold tracking-tight text-platform-text">Dear You</span>
         </Link>
         <Link
           href="/login"
-          className="text-xs text-platform-muted hover:text-platform-dark inline-flex items-center gap-1 transition-colors"
+          className="text-xs text-platform-muted hover:text-platform-text inline-flex items-center gap-1 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Sign In</span>
@@ -30,11 +30,11 @@ export default function TermsPage() {
 
       <main className="max-w-3xl w-full mx-auto my-12 flex-1 space-y-8">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-platform-violet text-xs font-semibold mb-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/40 text-platform-violet text-xs font-semibold mb-3 border border-purple-100 dark:border-purple-800/40">
             <FileText className="w-3.5 h-3.5" />
             <span>Platform Legal Terms</span>
           </div>
-          <h1 className="font-serif text-3xl sm:text-4xl text-platform-dark font-normal">
+          <h1 className="font-serif text-3xl sm:text-4xl text-platform-text font-normal">
             Terms and Conditions
           </h1>
           <p className="mt-2 text-xs text-platform-muted">
@@ -43,19 +43,19 @@ export default function TermsPage() {
         </div>
 
         {/* Notice of Placeholder Terms */}
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3">
-          <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div>
             <strong className="block font-semibold">Legal Notice / Document Placeholder</strong>
-            <p className="mt-0.5 text-amber-800 leading-relaxed">
+            <p className="mt-0.5 text-amber-800 dark:text-amber-300 leading-relaxed">
               This document serves as the official placeholder for the Dear You Terms and Conditions. The final comprehensive legal terms will be published prior to public launch. Acceptance of these terms acknowledges your agreement to platform guidelines and respectful usage.
             </p>
           </div>
         </div>
 
-        <div className="bg-white p-8 sm:p-10 rounded-3xl border border-black/5 shadow-xs space-y-6 text-xs sm:text-sm text-stone-700 leading-relaxed">
+        <div className="bg-platform-card p-8 sm:p-10 rounded-3xl border border-platform-border shadow-xs space-y-6 text-xs sm:text-sm text-platform-muted leading-relaxed">
           <section className="space-y-2">
-            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-dark">
+            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-text">
               1. Platform Purpose & Scope
             </h2>
             <p>
@@ -64,7 +64,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-dark">
+            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-text">
               2. User Accounts & Responsibilities
             </h2>
             <p>
@@ -73,7 +73,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-dark">
+            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-text">
               3. Content Ownership & Respectful Use
             </h2>
             <p>
@@ -82,7 +82,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-dark">
+            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-text">
               4. Developer Inspection & Support
             </h2>
             <p>
@@ -91,7 +91,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-dark">
+            <h2 className="font-serif text-base sm:text-lg font-semibold text-platform-text">
               5. Expiry and Termination
             </h2>
             <p>
@@ -101,7 +101,7 @@ export default function TermsPage() {
         </div>
       </main>
 
-      <footer className="max-w-4xl w-full mx-auto pt-6 border-t border-black/5 text-center text-xs text-platform-muted">
+      <footer className="max-w-4xl w-full mx-auto pt-6 border-t border-platform-border text-center text-xs text-platform-muted">
         © {new Date().getFullYear()} Dear You. Thoughtfully designed for meaningful connections.
       </footer>
     </div>

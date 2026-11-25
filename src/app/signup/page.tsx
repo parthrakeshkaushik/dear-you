@@ -135,7 +135,7 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-4 sm:p-6">
+    <div className="min-h-screen bg-platform-bg text-platform-text flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
       {/* Top Header */}
       <header className="max-w-6xl w-full mx-auto flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -144,11 +144,11 @@ export default function SignUpPage() {
             alt="Dear You"
             className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-xl font-semibold tracking-tight">Dear You</span>
+          <span className="font-serif text-xl font-semibold tracking-tight text-platform-text">Dear You</span>
         </Link>
         <Link
           href="/login"
-          className="text-xs text-platform-muted hover:text-platform-dark transition-colors font-medium"
+          className="text-xs text-platform-muted hover:text-platform-text transition-colors font-medium"
         >
           Already have an account? <span className="text-platform-violet font-semibold underline">Sign In</span>
         </Link>
@@ -160,7 +160,7 @@ export default function SignUpPage() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative overflow-hidden"
+          className="w-full max-w-md p-6 sm:p-9 rounded-3xl bg-platform-card border border-platform-border shadow-xl text-center relative overflow-hidden"
         >
           {/* Official Brand Logo */}
           <div className="w-16 h-16 mx-auto flex items-center justify-center mb-3">
@@ -171,7 +171,7 @@ export default function SignUpPage() {
             />
           </div>
 
-          <h2 className="font-serif text-2xl font-normal text-platform-dark mb-1">
+          <h2 className="font-serif text-2xl font-normal text-platform-text mb-1">
             Create Your Account
           </h2>
           <p className="text-xs text-platform-muted mb-6">
@@ -185,9 +185,9 @@ export default function SignUpPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 text-left"
+                className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/30 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2 text-left"
               >
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                 <span>{errorMessage}</span>
               </motion.div>
             )}
@@ -197,9 +197,9 @@ export default function SignUpPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 text-left"
+                className="mb-4 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 text-left"
               >
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>{successMessage}</span>
               </motion.div>
             )}
@@ -209,7 +209,7 @@ export default function SignUpPage() {
           <form onSubmit={handleSubmit} className="space-y-4 text-left">
             {/* 1. Full Name */}
             <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1">
+              <label className="block text-xs font-semibold text-platform-text mb-1">
                 Full Name
               </label>
               <div className="relative flex items-center">
@@ -222,7 +222,7 @@ export default function SignUpPage() {
                   }}
                   placeholder="e.g. Maya Sharma"
                   required
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-platform-text text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
                 <User className="w-4 h-4 text-platform-muted absolute left-3" />
               </div>
@@ -230,7 +230,7 @@ export default function SignUpPage() {
 
             {/* 2. Valid Email */}
             <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1">
+              <label className="block text-xs font-semibold text-platform-text mb-1">
                 Valid Email Address
               </label>
               <div className="relative flex items-center">
@@ -244,7 +244,7 @@ export default function SignUpPage() {
                   placeholder="you@example.com"
                   autoComplete="email"
                   required
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-platform-text text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
                 <Mail className="w-4 h-4 text-platform-muted absolute left-3" />
               </div>
@@ -252,7 +252,7 @@ export default function SignUpPage() {
 
             {/* 3. Password */}
             <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1">
+              <label className="block text-xs font-semibold text-platform-text mb-1">
                 Password
               </label>
               <div className="relative flex items-center">
@@ -267,13 +267,13 @@ export default function SignUpPage() {
                   autoComplete="new-password"
                   required
                   minLength={6}
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
+                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-platform-text text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/40 focus:border-platform-violet"
                 />
                 <Lock className="w-4 h-4 text-platform-muted absolute left-3 pointer-events-none" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="p-1.5 text-platform-muted hover:text-platform-dark absolute right-2.5 focus:outline-none transition-colors"
+                  className="p-1.5 text-platform-muted hover:text-platform-text absolute right-2.5 focus:outline-none transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -284,7 +284,7 @@ export default function SignUpPage() {
 
             {/* 4. Terms and Privacy Checkbox */}
             <div className="pt-1">
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50/50 border border-purple-100/70">
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-100/70 dark:border-purple-500/20">
                 <input
                   type="checkbox"
                   id="policyAgreementCheckbox"
@@ -298,13 +298,13 @@ export default function SignUpPage() {
                 />
                 <label
                   htmlFor="policyAgreementCheckbox"
-                  className="text-xs text-stone-700 leading-snug cursor-pointer select-none"
+                  className="text-xs text-platform-text leading-snug cursor-pointer select-none"
                 >
                   I agree to the{' '}
                   <Link
                     href="/terms"
                     target="_blank"
-                    className="font-semibold text-platform-violet underline hover:text-purple-900"
+                    className="font-semibold text-platform-violet underline hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Terms and Conditions
                   </Link>{' '}
@@ -312,7 +312,7 @@ export default function SignUpPage() {
                   <Link
                     href="/privacy"
                     target="_blank"
-                    className="font-semibold text-platform-violet underline hover:text-purple-900"
+                    className="font-semibold text-platform-violet underline hover:text-purple-900 dark:hover:text-purple-300"
                   >
                     Privacy Policy
                   </Link>
@@ -322,7 +322,7 @@ export default function SignUpPage() {
             </div>
 
             {/* Session Persistence Notice */}
-            <div className="text-[11px] text-stone-500 font-light pl-1 flex items-center gap-1.5">
+            <div className="text-[11px] text-platform-muted font-light pl-1 flex items-center gap-1.5">
               <span>✓ Stays signed in for 14 days on this device</span>
             </div>
 
@@ -330,7 +330,7 @@ export default function SignUpPage() {
             <button
               type="submit"
               disabled={isLoading || !agreedToPolicies}
-              className="w-full mt-4 py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full mt-4 py-3 rounded-xl bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -344,10 +344,10 @@ export default function SignUpPage() {
           </form>
 
           {/* Bottom link to Sign In */}
-          <div className="mt-6 pt-4 border-t border-black/5 text-center">
+          <div className="mt-6 pt-4 border-t border-platform-border text-center">
             <p className="text-xs text-platform-muted">
               Already have an account?{' '}
-              <Link href="/login" className="underline font-semibold text-platform-dark">
+              <Link href="/login" className="underline font-semibold text-platform-text">
                 Sign in here
               </Link>
             </p>

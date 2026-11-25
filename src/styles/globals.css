@@ -28,6 +28,17 @@
   --platform-nav-bg: rgba(250, 248, 245, 0.9);
   --platform-nav-border: rgba(0, 0, 0, 0.06);
 
+  /* Button and Component Semantic Tokens */
+  --platform-btn-bg: #1A1625;
+  --platform-btn-text: #FFFFFF;
+  --platform-btn-hover: #000000;
+  --platform-text-on-light: #1A1625;
+  --platform-text-on-dark: #FFFFFF;
+  --platform-text-muted-on-light: #6B637B;
+  --platform-text-muted-on-dark: #94A3B8;
+  --platform-modal-bg: #FFFFFF;
+  --platform-placeholder: #94A3B8;
+
   /* Defaults for individual gift container (Independently overridden by ThemeContainer) */
   --theme-bg: #0D0B18;
   --theme-surface: #18142C;
@@ -57,6 +68,17 @@
   --platform-hover: rgba(255, 255, 255, 0.07);
   --platform-nav-bg: rgba(10, 14, 23, 0.9);
   --platform-nav-border: rgba(255, 255, 255, 0.08);
+
+  /* Button and Component Semantic Tokens */
+  --platform-btn-bg: #7E699B;
+  --platform-btn-text: #FFFFFF;
+  --platform-btn-hover: #8F78B0;
+  --platform-text-on-light: #1A1625;
+  --platform-text-on-dark: #FFFFFF;
+  --platform-text-muted-on-light: #6B637B;
+  --platform-text-muted-on-dark: #94A3B8;
+  --platform-modal-bg: #121826;
+  --platform-placeholder: #64748B;
 }
 
 body {

@@ -88,7 +88,7 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-purple-100/80 shadow-xs mb-8"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-platform-cardSubtle border border-platform-border shadow-xs mb-8"
         >
           <Sparkles className="w-3.5 h-3.5 text-platform-violet" />
           <span className="text-xs font-medium text-platform-muted tracking-wide">
@@ -100,7 +100,7 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.1, ease: "easeOut" }}
-          className="font-serif text-4xl sm:text-5xl md:text-6xl text-[#1A1625] leading-[1.18] font-normal tracking-tight"
+          className="font-serif text-4xl sm:text-5xl md:text-6xl text-platform-text leading-[1.18] font-normal tracking-tight"
         >
           One platform. Unlimited gifts.
           <br />
@@ -127,14 +127,14 @@ export default function LandingPage() {
         >
           <Link
             href="/g/demo-gift"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-full bg-[#1A1625] text-white text-sm font-medium hover:bg-black transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-full bg-platform-btnBg text-platform-btnText text-sm font-medium hover:bg-platform-btnHover transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
           >
             <span>Open Sample Gift</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
             href="/admin"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-white/80 border border-black/10 text-platform-dark text-sm font-medium hover:bg-white transition-all shadow-xs"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-platform-card border border-platform-border text-platform-text text-sm font-medium hover:bg-platform-cardSubtle transition-all shadow-xs"
           >
             <span>Creator Dashboard</span>
           </Link>

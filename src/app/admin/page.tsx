@@ -54,9 +54,9 @@ export default function AdminOverviewPage() {
   return (
     <div className="space-y-8">
       {/* Top Banner & Quick Create */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-black/5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-platform-border">
         <div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-platform-dark font-normal">
+          <h1 className="font-serif text-2xl sm:text-3xl text-platform-text font-normal">
             Dashboard Overview
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-platform-muted">
@@ -66,7 +66,7 @@ export default function AdminOverviewPage() {
 
         <Link
           href="/admin/create"
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-platform-dark text-white text-xs sm:text-sm font-medium hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer shrink-0"
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-medium hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer shrink-0"
         >
           <PlusCircle className="w-4 h-4" />
           <span>Create New Gift</span>
@@ -75,41 +75,41 @@ export default function AdminOverviewPage() {
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div className="p-5 rounded-2xl bg-white border border-black/5 shadow-xs">
+        <div className="p-5 rounded-2xl bg-platform-card border border-platform-border shadow-xs">
           <div className="flex items-center justify-between text-platform-muted mb-3">
             <span className="text-xs font-medium uppercase tracking-wider">Total Gifts</span>
             <Gift className="w-4 h-4 text-platform-violet" />
           </div>
-          <div className="text-2xl sm:text-3xl font-semibold text-platform-dark">{totalGifts}</div>
+          <div className="text-2xl sm:text-3xl font-semibold text-platform-text">{totalGifts}</div>
           <span className="text-[11px] text-platform-muted mt-1 block">Created by you</span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-black/5 shadow-xs">
+        <div className="p-5 rounded-2xl bg-platform-card border border-platform-border shadow-xs">
           <div className="flex items-center justify-between text-platform-muted mb-3">
             <span className="text-xs font-medium uppercase tracking-wider">Published</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-semibold text-platform-dark">
+          <div className="text-2xl sm:text-3xl font-semibold text-platform-text">
             {publishedGifts}
           </div>
-          <span className="text-[11px] text-emerald-600 font-medium mt-1 block">Live & Accessible</span>
+          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 block">Live & Accessible</span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-black/5 shadow-xs">
+        <div className="p-5 rounded-2xl bg-platform-card border border-platform-border shadow-xs">
           <div className="flex items-center justify-between text-platform-muted mb-3">
             <span className="text-xs font-medium uppercase tracking-wider">Drafts</span>
-            <FileEdit className="w-4 h-4 text-amber-500" />
+            <FileEdit className="w-4 h-4 text-amber-500 dark:text-amber-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-semibold text-platform-dark">{draftGifts}</div>
-          <span className="text-[11px] text-amber-600 font-medium mt-1 block">In Progress</span>
+          <div className="text-2xl sm:text-3xl font-semibold text-platform-text">{draftGifts}</div>
+          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1 block">In Progress</span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-black/5 shadow-xs">
+        <div className="p-5 rounded-2xl bg-platform-card border border-platform-border shadow-xs">
           <div className="flex items-center justify-between text-platform-muted mb-3">
             <span className="text-xs font-medium uppercase tracking-wider">Archived</span>
-            <Archive className="w-4 h-4 text-stone-500" />
+            <Archive className="w-4 h-4 text-stone-500 dark:text-stone-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-semibold text-platform-dark">{archivedGifts}</div>
+          <div className="text-2xl sm:text-3xl font-semibold text-platform-text">{archivedGifts}</div>
           <span className="text-[11px] text-platform-muted mt-1 block">Stored Inactive</span>
         </div>
       </div>
@@ -117,7 +117,7 @@ export default function AdminOverviewPage() {
       {/* Recent Gifts Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-serif text-xl font-normal text-platform-dark">
+          <h2 className="font-serif text-xl font-normal text-platform-text">
             My Cards
           </h2>
           {giftsList.length > 0 && (
@@ -133,17 +133,17 @@ export default function AdminOverviewPage() {
 
         {/* Loading Spinner */}
         {isLoading ? (
-          <div className="p-12 text-center bg-white rounded-3xl border border-black/5">
+          <div className="p-12 text-center bg-platform-card rounded-3xl border border-platform-border">
             <div className="w-8 h-8 rounded-full border-2 border-platform-violet border-t-transparent animate-spin mx-auto mb-2" />
             <p className="text-xs text-platform-muted">Loading your cards...</p>
           </div>
         ) : giftsList.length === 0 ? (
           /* Empty State */
-          <div className="text-center py-12 px-6 bg-white rounded-3xl border border-black/5 shadow-xs">
-            <div className="w-16 h-16 rounded-2xl bg-purple-50 text-platform-violet mx-auto flex items-center justify-center mb-4 shadow-2xs">
+          <div className="text-center py-12 px-6 bg-platform-card rounded-3xl border border-platform-border shadow-xs">
+            <div className="w-16 h-16 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-platform-violet mx-auto flex items-center justify-center mb-4 shadow-2xs border border-purple-100 dark:border-purple-500/20">
               <Gift className="w-8 h-8" />
             </div>
-            <h3 className="font-serif text-xl sm:text-2xl font-normal text-platform-dark mb-2">
+            <h3 className="font-serif text-xl sm:text-2xl font-normal text-platform-text mb-2">
               My Cards
             </h3>
             <p className="text-xs sm:text-sm text-platform-muted max-w-md mx-auto mb-6 leading-relaxed">
@@ -151,7 +151,7 @@ export default function AdminOverviewPage() {
             </p>
             <Link
               href="/admin/create"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-platform-dark text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
               <span>Create Your First Card</span>
@@ -174,11 +174,11 @@ export default function AdminOverviewPage() {
               return (
                 <div
                   key={gift.id}
-                  className="p-5 sm:p-6 rounded-2xl bg-white border border-black/5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
+                  className="p-5 sm:p-6 rounded-2xl bg-platform-card border border-platform-border shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-purple-50 text-purple-800 border border-purple-100">
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20">
                         {gift.event_type}
                       </span>
 
@@ -186,32 +186,32 @@ export default function AdminOverviewPage() {
                       <span
                         className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
                           isExpired
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/20'
                             : gift.status === 'published'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/20'
+                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20'
                         }`}
                       >
                         {isExpired ? 'Expired' : gift.status.toUpperCase()}
                       </span>
                     </div>
 
-                    <h3 className="font-serif text-lg font-medium text-platform-dark">
+                    <h3 className="font-serif text-lg font-medium text-platform-text">
                       {gift.title}
                     </h3>
                     <p className="text-xs text-platform-muted mt-1">
-                      For: <strong className="text-platform-dark font-medium">{gift.recipient_name}</strong>
+                      For: <strong className="text-platform-text font-medium">{gift.recipient_name}</strong>
                     </p>
 
                     <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-platform-muted">
-                      <span className="inline-flex items-center gap-1 bg-black/5 px-2.5 py-1 rounded-md">
+                      <span className="inline-flex items-center gap-1 bg-black/5 dark:bg-white/5 border border-platform-border px-2.5 py-1 rounded-md">
                         <Sparkles className="w-3 h-3 text-platform-violet" />
                         <span>{themeDef?.name || 'Custom Theme'}</span>
                       </span>
 
                       {gift.expiry_enabled && gift.expires_at && (
-                        <span className="inline-flex items-center gap-1 bg-black/5 px-2.5 py-1 rounded-md">
-                          <Clock className="w-3 h-3 text-amber-600" />
+                        <span className="inline-flex items-center gap-1 bg-black/5 dark:bg-white/5 border border-platform-border px-2.5 py-1 rounded-md">
+                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                           <span>Expires: {formatDateTimeZone(gift.expires_at, gift.expiry_timezone)}</span>
                         </span>
                       )}
@@ -219,7 +219,7 @@ export default function AdminOverviewPage() {
                   </div>
 
                   {/* Card Actions */}
-                  <div className="mt-6 pt-4 border-t border-black/5 flex items-center justify-between text-xs">
+                  <div className="mt-6 pt-4 border-t border-platform-border flex items-center justify-between text-xs">
                     <span className="text-platform-muted text-[11px]">
                       Updated {formatDate(gift.updated_at)}
                     </span>
@@ -228,7 +228,7 @@ export default function AdminOverviewPage() {
                       <Link
                         href={`/g/${gift.slug}/preview`}
                         target="_blank"
-                        className="px-3 py-1.5 rounded-lg border border-black/10 hover:bg-black/5 transition-colors inline-flex items-center gap-1 font-medium text-platform-dark"
+                        className="px-3 py-1.5 rounded-lg border border-platform-border hover:bg-platform-hover transition-colors inline-flex items-center gap-1 font-medium text-platform-text"
                       >
                         <Eye className="w-3 h-3" />
                         <span>Preview</span>
@@ -236,7 +236,7 @@ export default function AdminOverviewPage() {
                       {gift.status === 'draft' ? (
                         <Link
                           href={`/admin/create?draftId=${gift.id}`}
-                          className="px-3 py-1.5 rounded-lg bg-platform-dark text-white hover:bg-black transition-colors inline-flex items-center gap-1 font-medium"
+                          className="px-3 py-1.5 rounded-lg bg-platform-btnBg text-platform-btnText hover:bg-platform-btnHover transition-colors inline-flex items-center gap-1 font-medium"
                         >
                           <FileEdit className="w-3 h-3" />
                           <span>Continue Editing</span>
@@ -245,7 +245,7 @@ export default function AdminOverviewPage() {
                         <Link
                           href={`/g/${gift.slug}`}
                           target="_blank"
-                          className="px-3 py-1.5 rounded-lg bg-platform-dark text-white hover:bg-black transition-colors inline-flex items-center gap-1 font-medium"
+                          className="px-3 py-1.5 rounded-lg bg-platform-btnBg text-platform-btnText hover:bg-platform-btnHover transition-colors inline-flex items-center gap-1 font-medium"
                         >
                           <ExternalLink className="w-3 h-3" />
                           <span>Live Gift</span>

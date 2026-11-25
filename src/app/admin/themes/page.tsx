@@ -12,8 +12,8 @@ export default function AdminThemesPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="pb-6 border-b border-black/5">
-        <h1 className="font-serif text-2xl sm:text-3xl text-platform-dark font-normal">
+      <div className="pb-6 border-b border-platform-border">
+        <h1 className="font-serif text-2xl sm:text-3xl text-platform-text font-normal">
           Theme Design Tokens & Presets
         </h1>
         <p className="mt-1 text-xs sm:text-sm text-platform-muted">
@@ -45,7 +45,7 @@ export default function AdminThemesPage() {
                   </span>
                 </div>
 
-                <h3 className="font-serif text-lg font-semibold text-platform-dark">
+                <h3 className="font-serif text-lg font-semibold text-platform-text">
                   {theme.name}
                 </h3>
                 <p className="text-xs text-platform-muted mt-1 leading-relaxed">
@@ -77,7 +77,7 @@ export default function AdminThemesPage() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-3 border-t border-black/5 flex items-center justify-between text-xs">
+              <div className="mt-6 pt-3 border-t border-platform-border flex items-center justify-between text-xs">
                 <span className="text-platform-muted">{theme.typography.headingFont}</span>
                 {isSelected ? (
                   <span className="text-platform-violet font-semibold flex items-center gap-1">
@@ -94,7 +94,7 @@ export default function AdminThemesPage() {
 
       {/* Live Sample Component Sandbox in Active Theme */}
       <div className="space-y-4">
-        <h2 className="font-serif text-xl font-normal text-platform-dark">
+        <h2 className="font-serif text-xl font-normal text-platform-text">
           Live Component Rendering: {activeTheme.name}
         </h2>
 

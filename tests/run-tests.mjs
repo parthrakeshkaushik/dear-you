@@ -3831,6 +3831,170 @@ test('ScratchCardSection component and recipient experience integration', () => 
   );
 });
 
+// -------------------------------------------------------------
+// 47. GLOBAL THEME ENGINE, DARK MODE TOKENS & CONTRAST RATIO TESTS
+// -------------------------------------------------------------
+console.log('\n--- 47. Global Theme Engine, Dark Mode Tokens & Contrast Tests ---');
+
+function getLuminance(hex) {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16) / 255;
+  const g = parseInt(clean.substring(2, 4), 16) / 255;
+  const b = parseInt(clean.substring(4, 6), 16) / 255;
+
+  const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function getContrastRatio(hex1, hex2) {
+  const lum1 = getLuminance(hex1);
+  const lum2 = getLuminance(hex2);
+  const brightest = Math.max(lum1, lum2);
+  const darkest = Math.min(lum1, lum2);
+  return (brightest + 0.05) / (darkest + 0.05);
+}
+
+test('Theme tokens in globals.css provide high contrast in Light and Dark modes', () => {
+  const globalsCss = fs.readFileSync('src/styles/globals.css', 'utf8');
+
+  // Verify tokens are defined for light mode
+  assert.strictEqual(globalsCss.includes('--platform-btn-bg: #1A1625;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-btn-text: #FFFFFF;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-card: #FFFFFF;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-bg: #FAF8F5;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-text: #1A1625;'), true);
+
+  // Verify tokens are defined for dark mode
+  assert.strictEqual(globalsCss.includes('--platform-btn-bg: #7E699B;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-btn-text: #FFFFFF;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-card: #121826;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-bg: #0A0E17;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-text: #F8FAFC;'), true);
+  assert.strictEqual(globalsCss.includes('--platform-text-on-light: #1A1625;'), true);
+
+  // Check WCAG contrast ratios
+  // Light Mode Button: #1A1625 on #FFFFFF text -> 15.6:1 (AAA)
+  const lightBtnContrast = getContrastRatio('#1A1625', '#FFFFFF');
+  assert.strictEqual(lightBtnContrast >= 15, true, `Light mode button contrast (${lightBtnContrast}) >= 15:1`);
+
+  // Dark Mode Button: #7E699B on #FFFFFF text -> 4.79:1 (AA normal, AAA bold/large)
+  const darkBtnContrast = getContrastRatio('#7E699B', '#FFFFFF');
+  assert.strictEqual(darkBtnContrast >= 4.5, true, `Dark mode button contrast (${darkBtnContrast}) >= 4.5:1`);
+
+  // Dark Mode Card: #121826 background vs #F8FAFC text -> 17.6:1 (AAA)
+  const darkCardContrast = getContrastRatio('#121826', '#F8FAFC');
+  assert.strictEqual(darkCardContrast >= 15, true, `Dark mode card contrast (${darkCardContrast}) >= 15:1`);
+
+  // Light Mode Card: #FFFFFF background vs #1A1625 text -> 15.6:1 (AAA)
+  const lightCardContrast = getContrastRatio('#FFFFFF', '#1A1625');
+  assert.strictEqual(lightCardContrast >= 15, true, `Light mode card contrast (${lightCardContrast}) >= 15:1`);
+
+  // Dark Mode Canvas: #0A0E17 background vs #F8FAFC text -> 19.3:1 (AAA)
+  const darkCanvasContrast = getContrastRatio('#0A0E17', '#F8FAFC');
+  assert.strictEqual(darkCanvasContrast >= 18, true, `Dark mode canvas contrast (${darkCanvasContrast}) >= 18:1`);
+});
+
+test('Tailwind configuration maps semantic platform tokens safely', () => {
+  const tailwindConfig = fs.readFileSync('tailwind.config.ts', 'utf8');
+
+  assert.strictEqual(tailwindConfig.includes('btnBg: "var(--platform-btn-bg)"'), true);
+  assert.strictEqual(tailwindConfig.includes('btnText: "var(--platform-btn-text)"'), true);
+  assert.strictEqual(tailwindConfig.includes('btnHover: "var(--platform-btn-hover)"'), true);
+  assert.strictEqual(tailwindConfig.includes('textOnLight: "var(--platform-text-on-light)"'), true);
+  assert.strictEqual(tailwindConfig.includes('card: "var(--platform-card)"'), true);
+  assert.strictEqual(tailwindConfig.includes('cardSubtle: "var(--platform-card-subtle)"'), true);
+  assert.strictEqual(tailwindConfig.includes('border: "var(--platform-border)"'), true);
+
+  // platform.dark is safely mapped to var(--platform-btn-bg) to prevent white-on-white text
+  assert.strictEqual(tailwindConfig.includes('dark: "var(--platform-btn-bg)"'), true);
+});
+
+test('Creator Dashboard Overview (admin/page.tsx) uses semantic tokens without white-on-white text', () => {
+  const dashboardCode = fs.readFileSync('src/app/admin/page.tsx', 'utf8');
+
+  // KPI cards must use bg-platform-card and border-platform-border
+  assert.strictEqual(
+    dashboardCode.includes('bg-platform-card border border-platform-border shadow-xs'),
+    true,
+    'KPI cards must use bg-platform-card to adapt between Light and Dark mode'
+  );
+
+  // Numbers must use text-platform-text
+  assert.strictEqual(
+    dashboardCode.includes('text-2xl sm:text-3xl font-semibold text-platform-text'),
+    true,
+    'KPI numbers must use text-platform-text to ensure crisp visibility in Dark Mode'
+  );
+
+  // Primary Create New Gift button must use semantic btn tokens
+  assert.strictEqual(
+    dashboardCode.includes('bg-platform-btnBg text-platform-btnText hover:bg-platform-btnHover'),
+    true,
+    'Top Create New Gift button must use bg-platform-btnBg text-platform-btnText'
+  );
+
+  // Empty state card must use bg-platform-card and text-platform-text
+  assert.strictEqual(
+    dashboardCode.includes('bg-platform-card rounded-3xl border border-platform-border shadow-xs'),
+    true,
+    'Empty state card must use bg-platform-card and border-platform-border'
+  );
+});
+
+test('Creator Layout (admin/layout.tsx) profile menu and active sidebar items adapt correctly', () => {
+  const layoutCode = fs.readFileSync('src/app/admin/layout.tsx', 'utf8');
+
+  // Profile button must use bg-platform-cardSubtle
+  assert.strictEqual(layoutCode.includes('bg-platform-cardSubtle') && layoutCode.includes('border-platform-border'), true);
+
+  // Profile dropdown menu must use bg-platform-card border-platform-border
+  assert.strictEqual(layoutCode.includes('bg-platform-card rounded-2xl shadow-xl border border-platform-border'), true);
+
+  // Active navigation items must use bg-platform-btnBg text-platform-btnText
+  assert.strictEqual(layoutCode.includes('bg-platform-btnBg text-platform-btnText shadow-xs font-semibold'), true);
+});
+
+test('Gift Management, Builder, and Settings pages use theme-adaptive inputs and cards', () => {
+  const giftsCode = fs.readFileSync('src/app/admin/gifts/page.tsx', 'utf8');
+  const createCode = fs.readFileSync('src/app/admin/create/page.tsx', 'utf8');
+  const settingsCode = fs.readFileSync('src/app/admin/settings/page.tsx', 'utf8');
+  const wordLimitCode = fs.readFileSync('src/components/admin/WordLimitIndicator.tsx', 'utf8');
+
+  // Gifts page
+  assert.strictEqual(giftsCode.includes('bg-platform-btnBg') && giftsCode.includes('bg-platform-card'), true);
+
+  // Create page
+  assert.strictEqual(createCode.includes('bg-platform-card') && createCode.includes('bg-platform-btnBg'), true);
+
+  // Settings page
+  assert.strictEqual(settingsCode.includes('bg-platform-card') && settingsCode.includes('bg-platform-inputBg'), true);
+
+  // WordLimitIndicator inputs
+  assert.strictEqual(wordLimitCode.includes('bg-platform-inputBg') && wordLimitCode.includes('text-platform-text'), true);
+});
+
+test('Authentication, Verification, and Static Legal pages adapt cleanly to Dark Mode', () => {
+  const loginCode = fs.readFileSync('src/app/login/page.tsx', 'utf8');
+  const signupCode = fs.readFileSync('src/app/signup/page.tsx', 'utf8');
+  const verifyOtpCode = fs.readFileSync('src/app/verify-otp/page.tsx', 'utf8');
+  const privacyCode = fs.readFileSync('src/app/privacy/page.tsx', 'utf8');
+  const termsCode = fs.readFileSync('src/app/terms/page.tsx', 'utf8');
+  const modalCode = fs.readFileSync('src/components/recipient/DownloadKeepsakeModal.tsx', 'utf8');
+
+  // Verify auth pages
+  assert.strictEqual(loginCode.includes('bg-platform-bg') && loginCode.includes('bg-platform-card'), true);
+  assert.strictEqual(signupCode.includes('bg-platform-bg') && signupCode.includes('bg-platform-card'), true);
+  assert.strictEqual(verifyOtpCode.includes('bg-platform-card') && verifyOtpCode.includes('bg-platform-btnBg'), true);
+
+  // Verify privacy and terms pages
+  assert.strictEqual(privacyCode.includes('bg-platform-bg') && privacyCode.includes('bg-platform-card'), true);
+  assert.strictEqual(termsCode.includes('bg-platform-bg') && termsCode.includes('bg-platform-card'), true);
+
+  // Verify keepsakes modal
+  assert.strictEqual(modalCode.includes('bg-platform-card rounded-3xl max-w-lg w-full'), true);
+  assert.strictEqual(modalCode.includes('bg-platform-btnBg text-platform-btnText'), true);
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

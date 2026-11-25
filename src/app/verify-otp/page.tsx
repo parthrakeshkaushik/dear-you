@@ -197,7 +197,7 @@ function VerifyOtpContent() {
   const isEmail = method === 'email';
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-6">
+    <div className="min-h-screen bg-platform-bg text-platform-text flex flex-col justify-between p-6 transition-colors duration-200">
       {/* Header */}
       <div className="max-w-md w-full mx-auto flex items-center justify-between">
         <Link href="/" className="inline-flex items-center gap-2.5 group">
@@ -206,13 +206,13 @@ function VerifyOtpContent() {
             alt="Dear You"
             className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-xl text-[#1A1625] font-semibold tracking-tight">
+          <span className="font-serif text-xl text-platform-text font-semibold tracking-tight">
             Dear You
           </span>
         </Link>
         <Link
           href="/login"
-          className="text-xs text-platform-muted hover:text-platform-dark transition-colors inline-flex items-center gap-1 font-medium"
+          className="text-xs text-platform-muted hover:text-platform-text transition-colors inline-flex items-center gap-1 font-medium"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Change {isEmail ? 'Email' : 'Mobile'}</span>
@@ -224,11 +224,11 @@ function VerifyOtpContent() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="max-w-md w-full mx-auto my-8 p-7 sm:p-9 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative"
+        className="max-w-md w-full mx-auto my-8 p-7 sm:p-9 rounded-3xl bg-platform-card border border-platform-border shadow-xl text-center relative"
       >
         {/* Animated Icon */}
         <div className="relative w-18 h-18 mx-auto mb-5 flex items-center justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-purple-50 text-platform-violet border border-purple-100 flex items-center justify-center shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-platform-violet border border-purple-100 dark:border-purple-800/40 flex items-center justify-center shadow-xs">
             {isEmail ? (
               <Mail className="w-8 h-8 text-platform-violet" />
             ) : (
@@ -237,11 +237,11 @@ function VerifyOtpContent() {
           </div>
         </div>
 
-        <span className="text-[10px] font-semibold tracking-wider text-platform-violet uppercase font-mono bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">
+        <span className="text-[10px] font-semibold tracking-wider text-platform-violet uppercase font-mono bg-purple-50 dark:bg-purple-950/40 px-2.5 py-0.5 rounded-full border border-purple-100 dark:border-purple-800/40">
           Mandatory Verification
         </span>
 
-        <h1 className="font-serif text-2xl sm:text-3xl text-platform-dark font-normal mt-2.5">
+        <h1 className="font-serif text-2xl sm:text-3xl text-platform-text font-normal mt-2.5">
           {isEmail ? 'Verify your email address' : 'Verify your mobile number'}
         </h1>
 
@@ -250,7 +250,7 @@ function VerifyOtpContent() {
         </p>
 
         {/* Masked Destination Pill */}
-        <div className="mt-2 py-1.5 px-3.5 rounded-xl bg-purple-50/70 border border-purple-100/80 inline-flex items-center gap-2 text-xs font-mono font-medium text-platform-dark">
+        <div className="mt-2 py-1.5 px-3.5 rounded-xl bg-platform-cardSubtle border border-platform-border inline-flex items-center gap-2 text-xs font-mono font-medium text-platform-text">
           <span>{displayDestination || (isEmail ? 'your email' : 'your phone')}</span>
         </div>
 
@@ -274,13 +274,13 @@ function VerifyOtpContent() {
                 onPaste={handlePaste}
                 className={`w-11 h-13 sm:w-12 sm:h-14 text-center font-mono text-xl font-bold rounded-xl border transition-all outline-none ${
                   digit
-                    ? 'border-platform-violet bg-purple-50/30 text-platform-dark shadow-xs'
-                    : 'border-black/15 bg-stone-50/50 text-stone-800 focus:border-platform-violet focus:bg-white focus:ring-2 focus:ring-platform-violet/20'
+                    ? 'border-platform-violet bg-platform-cardSubtle text-platform-text shadow-xs'
+                    : 'border-platform-inputBorder bg-platform-inputBg text-platform-text focus:border-platform-violet focus:ring-2 focus:ring-platform-violet/20'
                 }`}
               />
             ))}
           </div>
-          <p className="text-[11px] text-stone-600 mt-2 font-mono">
+          <p className="text-[11px] text-platform-muted mt-2 font-mono">
             Enter 6 digits or paste complete code
           </p>
         </div>
@@ -316,7 +316,7 @@ function VerifyOtpContent() {
         <button
           onClick={() => handleVerify()}
           disabled={isVerifying || otpDigits.join('').length !== 6}
-          className="w-full mt-6 py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full mt-6 py-3 rounded-xl bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isVerifying ? (
             <RefreshCw className="w-4 h-4 animate-spin" />
@@ -329,11 +329,11 @@ function VerifyOtpContent() {
         </button>
 
         {/* Resend & Cooldown */}
-        <div className="mt-6 pt-5 border-t border-black/5 flex flex-col items-center gap-2">
+        <div className="mt-6 pt-5 border-t border-platform-border flex flex-col items-center gap-2">
           <button
             onClick={handleResend}
             disabled={resendCooldown > 0 || isResending}
-            className="text-xs text-platform-dark font-medium hover:text-platform-violet transition-colors inline-flex items-center gap-1.5 cursor-pointer disabled:text-stone-400 disabled:cursor-not-allowed"
+            className="text-xs text-platform-text font-medium hover:text-platform-violet transition-colors inline-flex items-center gap-1.5 cursor-pointer disabled:text-stone-400 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
             <span>
@@ -347,7 +347,7 @@ function VerifyOtpContent() {
 
           <Link
             href="/login"
-            className="text-[11px] text-stone-500 hover:text-stone-800 transition-colors mt-2"
+            className="text-[11px] text-platform-muted hover:text-platform-text transition-colors mt-2"
           >
             Entered wrong {isEmail ? 'email' : 'phone number'}? Change here
           </Link>
@@ -366,7 +366,7 @@ export default function VerifyOtpPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6">
+        <div className="min-h-screen bg-platform-bg flex items-center justify-center p-6">
           <div className="w-8 h-8 rounded-full border-2 border-platform-violet border-t-transparent animate-spin" />
         </div>
       }

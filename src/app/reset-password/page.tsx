@@ -325,14 +325,14 @@ function ResetPasswordContent() {
               <div className="mt-6 space-y-2">
                 <Link
                   href="/forgot-password"
-                  className="w-full py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Request New Reset Link</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
                 <Link
                   href="/login"
-                  className="w-full py-2.5 text-xs text-platform-muted hover:text-platform-dark transition-colors flex items-center justify-center"
+                  className="w-full py-2.5 text-xs text-platform-muted hover:text-platform-text transition-colors flex items-center justify-center"
                 >
                   <span>Return to Sign In</span>
                 </Link>
@@ -411,18 +411,18 @@ function ResetPasswordContent() {
               </div>
 
               {/* Requirement Checklist */}
-              <div className="p-3 rounded-xl bg-black/5 text-[11px] space-y-1.5 text-stone-600">
+              <div className="p-3 rounded-xl bg-platform-cardSubtle border border-platform-border text-[11px] space-y-1.5 text-platform-muted">
                 <div className="flex items-center gap-1.5">
                   <span
                     className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${
                       isLengthValid
                         ? 'bg-emerald-500 text-white'
-                        : 'bg-stone-300 text-stone-600'
+                        : 'bg-stone-300 dark:bg-stone-700 text-stone-600 dark:text-stone-300'
                     }`}
                   >
                     {isLengthValid ? '✓' : '•'}
                   </span>
-                  <span className={isLengthValid ? 'text-emerald-700 font-medium' : ''}>
+                  <span className={isLengthValid ? 'text-emerald-700 dark:text-emerald-400 font-medium' : ''}>
                     At least 6 characters in length
                   </span>
                 </div>
@@ -431,12 +431,12 @@ function ResetPasswordContent() {
                     className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${
                       isMatchValid
                         ? 'bg-emerald-500 text-white'
-                        : 'bg-stone-300 text-stone-600'
+                        : 'bg-stone-300 dark:bg-stone-700 text-stone-600 dark:text-stone-300'
                     }`}
                   >
                     {isMatchValid ? '✓' : '•'}
                   </span>
-                  <span className={isMatchValid ? 'text-emerald-700 font-medium' : ''}>
+                  <span className={isMatchValid ? 'text-emerald-700 dark:text-emerald-400 font-medium' : ''}>
                     Passwords match
                   </span>
                 </div>
@@ -449,9 +449,9 @@ function ResetPasswordContent() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2"
+                    className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/30 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2"
                   >
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                     <span>{errorMessage}</span>
                   </motion.div>
                 )}
@@ -461,7 +461,7 @@ function ResetPasswordContent() {
               <button
                 type="submit"
                 disabled={isSubmitting || !isFormValid}
-                className="w-full py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>
@@ -491,7 +491,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6">
+        <div className="min-h-screen bg-platform-bg flex items-center justify-center p-6">
           <div className="w-8 h-8 rounded-full border-2 border-platform-violet border-t-transparent animate-spin" />
         </div>
       }

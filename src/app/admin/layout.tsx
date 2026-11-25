@@ -210,7 +210,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <button
           type="button"
           onClick={() => setProfileDropdownOpen((prev) => !prev)}
-          className="w-full flex items-center justify-between p-2 sm:p-2.5 rounded-2xl bg-black/5 hover:bg-black/10 transition-all text-left cursor-pointer border border-black/5 focus:outline-none focus:ring-2 focus:ring-platform-violet/20"
+          className="w-full flex items-center justify-between p-2 sm:p-2.5 rounded-2xl bg-platform-cardSubtle hover:bg-platform-hover transition-all text-left cursor-pointer border border-platform-border focus:outline-none focus:ring-2 focus:ring-platform-violet/20"
           aria-label="Account identity and profile options"
           aria-expanded={profileDropdownOpen}
         >
@@ -229,7 +229,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
             {/* Name & Truncated Email */}
             <div className="min-w-0 flex-1">
-              <span className="block text-xs font-semibold text-platform-dark truncate leading-snug">
+              <span className="block text-xs font-semibold text-platform-text truncate leading-snug">
                 {displayName}
               </span>
               <span
@@ -251,10 +251,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="absolute bottom-full left-0 mb-2 w-full min-w-[240px] bg-white rounded-2xl shadow-xl border border-black/10 p-2 z-50 overflow-hidden"
+              className="absolute bottom-full left-0 mb-2 w-full min-w-[240px] bg-platform-card rounded-2xl shadow-xl border border-platform-border p-2 z-50 overflow-hidden text-platform-text"
             >
               {/* Account Identity Details */}
-              <div className="p-3 bg-stone-50 rounded-xl mb-1.5 border border-black/5">
+              <div className="p-3 bg-platform-cardSubtle rounded-xl mb-1.5 border border-platform-border">
                 <div className="flex items-center gap-2.5 mb-2">
                   <div className="w-9 h-9 rounded-full bg-platform-violet/20 text-platform-violet font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
                     {profile?.avatarUrl ? (
@@ -268,7 +268,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="block text-xs font-bold text-platform-dark truncate">
+                    <span className="block text-xs font-bold text-platform-text truncate">
                       {displayName}
                     </span>
                     <span className="block text-[11px] text-platform-muted break-all leading-tight font-mono">
@@ -277,13 +277,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-black/5">
-                  <span className="text-[10px] text-stone-500 font-medium">Account Role:</span>
+                <div className="flex items-center justify-between pt-2 border-t border-platform-border">
+                  <span className="text-[10px] text-platform-muted font-medium">Account Role:</span>
                   <span
                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                       isDevRole
-                        ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                        : 'bg-purple-100 text-purple-800 border border-purple-200'
+                        ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30'
+                        : 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30'
                     }`}
                   >
                     {accountRoleLabel}
@@ -299,7 +299,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     setProfileDropdownOpen(false);
                     if (isMobile) setMobileMenuOpen(false);
                   }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-platform-text hover:bg-black/5 dark:hover:bg-white/10 transition-colors font-medium"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-platform-text hover:bg-platform-hover transition-colors font-medium"
                 >
                   <User className="w-3.5 h-3.5 text-platform-muted" />
                   <span>Profile Settings</span>
@@ -332,7 +332,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     handleLogout(false);
                   }}
                   disabled={isLoggingOut}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer font-medium disabled:opacity-50"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-left cursor-pointer font-medium disabled:opacity-50"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
@@ -413,8 +413,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
                     isActive
-                      ? 'bg-platform-text text-platform-bg shadow-xs font-semibold'
-                      : 'text-platform-muted hover:bg-black/5 dark:hover:bg-white/10 hover:text-platform-text'
+                      ? 'bg-platform-btnBg text-platform-btnText shadow-xs font-semibold'
+                      : 'text-platform-muted hover:bg-platform-hover hover:text-platform-text'
                   }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />

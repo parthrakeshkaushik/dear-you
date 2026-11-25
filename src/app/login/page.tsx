@@ -374,15 +374,15 @@ function AuthPageContent() {
               }}
               className={`px-4 py-1.5 rounded-full transition-all font-medium cursor-pointer ${
                 isSignUp
-                  ? 'bg-white shadow-xs text-platform-dark font-semibold'
-                  : 'text-platform-muted hover:text-platform-dark'
+                  ? 'bg-platform-card shadow-xs text-platform-text font-semibold'
+                  : 'text-platform-muted hover:text-platform-text'
               }`}
             >
               Sign Up
             </button>
           </div>
 
-          <h2 className="font-serif text-2xl font-normal text-platform-dark mb-1">
+          <h2 className="font-serif text-2xl font-normal text-platform-text mb-1">
             {isSignUp ? 'Join Dear You' : 'Welcome Back'}
           </h2>
           <p className="text-xs text-platform-muted mb-6">
@@ -519,20 +519,20 @@ function AuthPageContent() {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded text-platform-violet border-black/20 focus:ring-platform-violet/40 cursor-pointer"
                     />
-                    <span className="text-xs font-semibold text-platform-dark">
+                    <span className="text-xs font-semibold text-platform-text">
                       Remember me for {rememberDuration} days
                     </span>
                   </label>
 
                   {rememberMe && (
-                    <div className="inline-flex items-center bg-black/5 p-0.5 rounded-lg text-[10px] font-mono">
+                    <div className="inline-flex items-center bg-black/5 dark:bg-white/10 p-0.5 rounded-lg text-[10px] font-mono border border-platform-border">
                       <button
                         type="button"
                         onClick={() => setRememberDuration(7)}
                         className={`px-2 py-0.5 rounded-md transition-all ${
                           rememberDuration === 7
-                            ? 'bg-white shadow-xs font-semibold text-platform-dark'
-                            : 'text-stone-500 hover:text-stone-800'
+                            ? 'bg-platform-card shadow-xs font-semibold text-platform-text'
+                            : 'text-platform-muted hover:text-platform-text'
                         }`}
                       >
                         7 days
@@ -542,8 +542,8 @@ function AuthPageContent() {
                         onClick={() => setRememberDuration(14)}
                         className={`px-2 py-0.5 rounded-md transition-all ${
                           rememberDuration === 14
-                            ? 'bg-white shadow-xs font-semibold text-platform-dark'
-                            : 'text-stone-500 hover:text-stone-800'
+                            ? 'bg-platform-card shadow-xs font-semibold text-platform-text'
+                            : 'text-platform-muted hover:text-platform-text'
                         }`}
                       >
                         14 days
@@ -551,7 +551,7 @@ function AuthPageContent() {
                     </div>
                   )}
                 </div>
-                <p className="text-[11px] text-stone-500 font-light pl-6">
+                <p className="text-[11px] text-platform-muted font-light pl-6">
                   {rememberMe
                     ? `Stay signed in for ${rememberDuration} days on this device.`
                     : 'Session will end when you close your browser.'}
@@ -562,7 +562,7 @@ function AuthPageContent() {
             {/* Terms and Conditions Checkbox (SignUp Only) */}
             {isSignUp && (
               <div className="pt-1">
-                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50/50 border border-purple-100/70">
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-100/70 dark:border-purple-500/20">
                   <input
                     type="checkbox"
                     id="policyAgreementCheckbox"
@@ -576,13 +576,13 @@ function AuthPageContent() {
                   />
                   <label
                     htmlFor="policyAgreementCheckbox"
-                    className="text-xs text-stone-700 leading-snug cursor-pointer select-none"
+                    className="text-xs text-platform-text leading-snug cursor-pointer select-none"
                   >
                     I agree to the{' '}
                     <Link
                       href="/terms"
                       target="_blank"
-                      className="font-semibold text-platform-violet underline hover:text-purple-900"
+                      className="font-semibold text-platform-violet underline hover:text-purple-900 dark:hover:text-purple-300"
                     >
                       Terms and Conditions
                     </Link>{' '}
@@ -590,14 +590,14 @@ function AuthPageContent() {
                     <Link
                       href="/privacy"
                       target="_blank"
-                      className="font-semibold text-platform-violet underline hover:text-purple-900"
+                      className="font-semibold text-platform-violet underline hover:text-purple-900 dark:hover:text-purple-300"
                     >
                       Privacy Policy
                     </Link>
                     .
                   </label>
                 </div>
-                <div className="text-[11px] text-stone-500 font-light mt-2 pl-1 flex items-center gap-1.5">
+                <div className="text-[11px] text-platform-muted font-light mt-2 pl-1 flex items-center gap-1.5">
                   <span>✓ Stays signed in for 14 days on this device</span>
                 </div>
               </div>
@@ -607,7 +607,7 @@ function AuthPageContent() {
             <button
               type="submit"
               disabled={isLoading || (isSignUp && !agreedToPolicies)}
-              className="w-full mt-4 py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full mt-4 py-3 rounded-xl bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -621,10 +621,10 @@ function AuthPageContent() {
           </form>
 
           {/* Quick link hint for Developer Team entry */}
-          <div className="mt-6 pt-4 border-t border-black/5 text-center">
+          <div className="mt-6 pt-4 border-t border-platform-border text-center">
             <p className="text-[11px] text-platform-muted">
               Platform Developers: Sign in with your authorized email to access the{' '}
-              <Link href="/developer" className="underline font-semibold text-platform-dark">
+              <Link href="/developer" className="underline font-semibold text-platform-text">
                 Developer Console
               </Link>
               .
@@ -646,7 +646,7 @@ function AuthPageContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#FAF8F5]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-platform-bg" />}>
       <AuthPageContent />
     </Suspense>
   );

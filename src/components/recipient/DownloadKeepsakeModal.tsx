@@ -86,12 +86,12 @@ export function DownloadKeepsakeModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.3 }}
-          className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-black/10 relative overflow-hidden text-left"
+          className="bg-platform-card rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-platform-border relative overflow-hidden text-left text-platform-text"
         >
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 p-2 rounded-full hover:bg-black/5 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+            className="absolute top-5 right-5 p-2 rounded-full hover:bg-platform-hover text-platform-muted hover:text-platform-text transition-colors cursor-pointer"
             aria-label="Close download modal"
           >
             <X className="w-5 h-5" />
@@ -99,14 +99,14 @@ export function DownloadKeepsakeModal({
 
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-platform-violet border border-purple-100 flex items-center justify-center shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-platform-violet border border-purple-100 dark:border-purple-800/40 flex items-center justify-center shadow-xs">
               <Sparkles className="w-6 h-6 text-platform-violet" />
             </div>
             <div>
               <span className="text-[10px] font-mono uppercase tracking-wider font-semibold text-platform-violet">
                 Personal Keepsake
               </span>
-              <h3 className="font-serif text-xl sm:text-2xl text-platform-dark font-normal">
+              <h3 className="font-serif text-xl sm:text-2xl text-platform-text font-normal">
                 Save & Keep This Gift
               </h3>
             </div>
@@ -114,27 +114,27 @@ export function DownloadKeepsakeModal({
 
           <p className="text-xs text-platform-muted leading-relaxed mb-6 font-light">
             Keep a permanent offline copy of this special surprise crafted for{' '}
-            <strong className="font-semibold text-platform-dark">{gift.recipient_name}</strong>.
+            <strong className="font-semibold text-platform-text">{gift.recipient_name}</strong>.
             You can revisit the memories, photos, and heartfelt words anytime—even after the online card closes.
           </p>
 
           {/* Download Options List */}
           <div className="space-y-3.5">
             {/* Option 1: Standalone Offline ZIP */}
-            <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/40 hover:bg-purple-50/70 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 rounded-2xl border border-purple-200 dark:border-purple-800/40 bg-purple-50/40 dark:bg-purple-950/20 hover:bg-purple-50/70 dark:hover:bg-purple-950/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-platform-violet text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
                   <FileArchive className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-semibold text-platform-dark flex items-center gap-1.5">
+                  <h4 className="text-xs font-semibold text-platform-text flex items-center gap-1.5">
                     <span>Offline Interactive Package (ZIP)</span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-200 text-purple-900 font-bold">
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-200 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-bold">
                       RECOMMENDED
                     </span>
                   </h4>
                   <p className="text-[11px] text-platform-muted mt-0.5 leading-snug">
-                    Complete standalone website. Unzip & double-click <code className="font-mono text-purple-800">index.html</code> in any browser without internet.
+                    Complete standalone website. Unzip & double-click <code className="font-mono text-platform-violet">index.html</code> in any browser without internet.
                   </p>
                 </div>
               </div>
@@ -142,7 +142,7 @@ export function DownloadKeepsakeModal({
               <button
                 onClick={handleDownloadZip}
                 disabled={isDownloading}
-                className="px-4 py-2.5 rounded-xl bg-[#1A1625] text-white text-xs font-semibold hover:bg-black transition-all shadow-sm shrink-0 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl bg-platform-btnBg text-platform-btnText text-xs font-semibold hover:bg-platform-btnHover transition-all shadow-sm shrink-0 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {isDownloading ? (
                   <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -156,13 +156,13 @@ export function DownloadKeepsakeModal({
             </div>
 
             {/* Option 2: Printable PDF */}
-            <div className="p-4 rounded-2xl border border-black/10 bg-stone-50/60 hover:bg-stone-50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 rounded-2xl border border-platform-border bg-platform-cardSubtle hover:bg-platform-hover transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-stone-200 text-stone-700 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-xl bg-platform-card border border-platform-border text-platform-text flex items-center justify-center shrink-0 mt-0.5">
                   <Printer className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-semibold text-platform-dark">
+                  <h4 className="text-xs font-semibold text-platform-text">
                     Printable Keepsake (PDF)
                   </h4>
                   <p className="text-[11px] text-platform-muted mt-0.5 leading-snug">
@@ -173,7 +173,7 @@ export function DownloadKeepsakeModal({
 
               <button
                 onClick={handlePrintPdf}
-                className="px-4 py-2.5 rounded-xl border border-black/15 bg-white hover:bg-black/5 text-platform-dark text-xs font-semibold transition-all shadow-xs shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl border border-platform-border bg-platform-card hover:bg-platform-hover text-platform-text text-xs font-semibold transition-all shadow-xs shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Print / PDF</span>
@@ -197,7 +197,7 @@ export function DownloadKeepsakeModal({
           )}
 
           {/* Footer note */}
-          <div className="mt-6 pt-4 border-t border-black/5 flex items-center justify-between text-[11px] text-platform-muted">
+          <div className="mt-6 pt-4 border-t border-platform-border flex items-center justify-between text-[11px] text-platform-muted">
             <span className="flex items-center gap-1">
               <Heart className="w-3 h-3 text-platform-violet" />
               <span>Forever your memory</span>

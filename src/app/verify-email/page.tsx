@@ -101,7 +101,7 @@ function VerifyEmailContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#1A1625] flex flex-col justify-between p-6">
+    <div className="min-h-screen bg-platform-bg text-platform-text flex flex-col justify-between p-6 transition-colors duration-200">
       {/* Top Header */}
       <div className="max-w-md w-full mx-auto flex items-center justify-between">
         <Link href="/" className="inline-flex items-center gap-2.5 group">
@@ -110,13 +110,13 @@ function VerifyEmailContent() {
             alt="Dear You"
             className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
           />
-          <span className="font-serif text-xl text-[#1A1625] font-semibold tracking-tight">
+          <span className="font-serif text-xl text-platform-text font-semibold tracking-tight">
             Dear You
           </span>
         </Link>
         <Link
           href="/login"
-          className="text-xs text-platform-muted hover:text-platform-dark transition-colors inline-flex items-center gap-1 font-medium"
+          className="text-xs text-platform-muted hover:text-platform-text transition-colors inline-flex items-center gap-1 font-medium"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Sign In</span>
@@ -128,12 +128,12 @@ function VerifyEmailContent() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="max-w-md w-full mx-auto my-12 p-8 sm:p-10 rounded-3xl bg-white border border-black/5 shadow-xl text-center relative"
+        className="max-w-md w-full mx-auto my-12 p-8 sm:p-10 rounded-3xl bg-platform-card border border-platform-border shadow-xl text-center relative"
       >
         {/* Animated Mail Icon with Glowing Ring */}
         <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
           <div className="absolute inset-0 rounded-full bg-platform-violet/15 animate-ping opacity-30" />
-          <div className="w-20 h-20 rounded-full bg-platform-violet/15 border border-platform-violet/30 flex items-center justify-center text-platform-dark shadow-inner">
+          <div className="w-20 h-20 rounded-full bg-platform-violet/15 border border-platform-violet/30 flex items-center justify-center text-platform-text shadow-inner">
             <Mail className="w-9 h-9 text-[#8B7AA8]" />
           </div>
         </div>
@@ -142,7 +142,7 @@ function VerifyEmailContent() {
           Step 2 of Registration
         </span>
 
-        <h1 className="font-serif text-2xl sm:text-3xl text-platform-dark font-normal mt-2">
+        <h1 className="font-serif text-2xl sm:text-3xl text-platform-text font-normal mt-2">
           Verify your email address
         </h1>
 
@@ -151,15 +151,15 @@ function VerifyEmailContent() {
         </p>
 
         {/* Highlighted Email Box */}
-        <div className="mt-2 py-2 px-4 rounded-xl bg-purple-50/60 border border-purple-100 flex items-center justify-center gap-2 text-xs font-medium text-platform-dark max-w-sm mx-auto">
-          <span className="font-mono text-purple-900 break-all">{email || 'your email'}</span>
+        <div className="mt-2 py-2 px-4 rounded-xl bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-500/30 flex items-center justify-center gap-2 text-xs font-medium text-platform-text max-w-sm mx-auto">
+          <span className="font-mono text-purple-900 dark:text-purple-200 break-all">{email || 'your email'}</span>
           {!isEditingEmail && (
             <button
               onClick={() => {
                 setIsEditingEmail(true);
                 setNewEmailInput(email);
               }}
-              className="text-platform-violet hover:text-platform-dark p-1 rounded-md transition-colors"
+              className="text-platform-violet hover:text-platform-text p-1 rounded-md transition-colors"
               title="Change email address"
             >
               <Edit3 className="w-3.5 h-3.5" />
@@ -190,9 +190,9 @@ function VerifyEmailContent() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               onSubmit={handleUpdateEmail}
-              className="mt-4 p-4 rounded-2xl bg-black/5 text-left space-y-3"
+              className="mt-4 p-4 rounded-2xl bg-platform-cardSubtle border border-platform-border text-left space-y-3"
             >
-              <label className="block text-[11px] font-semibold text-platform-dark uppercase">
+              <label className="block text-[11px] font-semibold text-platform-text uppercase">
                 Correct your email address:
               </label>
               <input
@@ -200,21 +200,21 @@ function VerifyEmailContent() {
                 required
                 value={newEmailInput}
                 onChange={(e) => setNewEmailInput(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-black/10 text-xs bg-white text-platform-dark focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
+                className="w-full px-3 py-2 rounded-xl border border-platform-inputBorder text-xs bg-platform-inputBg text-platform-text focus:outline-none focus:ring-2 focus:ring-platform-violet/40"
                 placeholder="new.email@example.com"
               />
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
                   disabled={isResending}
-                  className="px-4 py-2 rounded-xl bg-platform-dark text-white text-xs font-medium hover:bg-black transition-all cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-platform-btnBg text-platform-btnText text-xs font-medium hover:bg-platform-btnHover transition-all cursor-pointer disabled:opacity-50"
                 >
                   Save & Resend
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditingEmail(false)}
-                  className="px-3 py-2 rounded-xl border border-black/10 text-xs text-platform-muted hover:text-platform-dark"
+                  className="px-3 py-2 rounded-xl border border-platform-border text-xs text-platform-muted hover:text-platform-text hover:bg-platform-hover"
                 >
                   Cancel
                 </button>
@@ -225,25 +225,25 @@ function VerifyEmailContent() {
 
         {/* Feedback Messages */}
         {successMessage && (
-          <div className="mt-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 text-left">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="mt-5 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 text-left">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{successMessage}</span>
           </div>
         )}
 
         {errorMessage && (
-          <div className="mt-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 text-left">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <div className="mt-5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/30 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2 text-left">
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
 
         {/* Resend Action */}
-        <div className="mt-8 pt-6 border-t border-black/5 flex flex-col items-center gap-3">
+        <div className="mt-8 pt-6 border-t border-platform-border flex flex-col items-center gap-3">
           <button
             onClick={handleResend}
             disabled={resendCooldown > 0 || isResending}
-            className="w-full py-3 rounded-xl bg-platform-dark text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
             <span>
@@ -276,7 +276,7 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6">
+        <div className="min-h-screen bg-platform-bg flex items-center justify-center p-6">
           <div className="w-8 h-8 rounded-full border-2 border-platform-violet border-t-transparent animate-spin" />
         </div>
       }

@@ -135,7 +135,7 @@ function ForgotPasswordContent() {
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-left">
             <div>
-              <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+              <label className="block text-xs font-semibold text-platform-text mb-1.5">
                 Registered Email Address
               </label>
               <div className="relative flex items-center">
@@ -180,14 +180,14 @@ function ForgotPasswordContent() {
             <button
               type="submit"
               disabled={isLoading || !captchaToken}
-              className="w-full py-3 rounded-xl bg-[#1A1625] text-white text-xs sm:text-sm font-semibold hover:bg-black transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-platform-btnBg text-platform-btnText text-xs sm:text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 cursor-pointer disabled:opacity-50"
             >
               {isLoading ? 'Sending Reset Link...' : 'Send Reset Link'}
             </button>
           </form>
         )}
 
-        <div className="mt-6 pt-4 border-t border-black/5 flex flex-col items-center gap-2">
+        <div className="mt-6 pt-4 border-t border-platform-border flex flex-col items-center gap-2">
           <Link
             href="/login"
             className="text-xs text-platform-violet hover:underline transition-colors font-medium inline-flex items-center gap-1"
@@ -209,7 +209,7 @@ export default function ForgotPasswordPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6">
+        <div className="min-h-screen bg-platform-bg flex items-center justify-center p-6">
           <div className="w-8 h-8 rounded-full border-2 border-platform-violet border-t-transparent animate-spin" />
         </div>
       }

@@ -245,9 +245,9 @@ function SettingsContent() {
   return (
     <div className="space-y-8 max-w-4xl">
       {/* Header */}
-      <div className="pb-6 border-b border-black/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="pb-6 border-b border-platform-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-platform-dark font-normal">
+          <h1 className="font-serif text-2xl sm:text-3xl text-platform-text font-normal">
             Account & Platform Settings
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-platform-muted">
@@ -256,14 +256,14 @@ function SettingsContent() {
         </div>
 
         {/* Tab Toggle */}
-        <div className="flex items-center gap-1.5 p-1 bg-black/5 rounded-2xl self-start sm:self-auto border border-black/5">
+        <div className="flex items-center gap-1.5 p-1 bg-platform-cardSubtle rounded-2xl self-start sm:self-auto border border-platform-border">
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === 'profile'
-                ? 'bg-white text-platform-dark shadow-xs'
-                : 'text-platform-muted hover:text-platform-dark'
+                ? 'bg-platform-card text-platform-text shadow-xs'
+                : 'text-platform-muted hover:text-platform-text'
             }`}
           >
             <User className="w-3.5 h-3.5" />
@@ -274,8 +274,8 @@ function SettingsContent() {
             onClick={() => setActiveTab('platform')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === 'platform'
-                ? 'bg-white text-platform-dark shadow-xs'
-                : 'text-platform-muted hover:text-platform-dark'
+                ? 'bg-platform-card text-platform-text shadow-xs'
+                : 'text-platform-muted hover:text-platform-text'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
@@ -290,8 +290,8 @@ function SettingsContent() {
       {activeTab === 'profile' && (
         <div className="space-y-6">
           {/* Identity Summary Card */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-white border border-black/5 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-black/5">
+          <div className="p-6 sm:p-8 rounded-3xl bg-platform-card border border-platform-border shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-platform-border">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-platform-violet/15 text-platform-violet font-bold text-xl flex items-center justify-center shrink-0 border-2 border-platform-violet/30 shadow-inner">
                   {profile?.avatarUrl ? (
@@ -306,9 +306,9 @@ function SettingsContent() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <h2 className="text-base sm:text-lg font-bold text-platform-dark">
+                    <h2 className="text-base sm:text-lg font-bold text-platform-text">
                       {isLoadingProfile ? (
-                        <span className="inline-block h-5 w-32 bg-stone-200 animate-pulse rounded" />
+                        <span className="inline-block h-5 w-32 bg-stone-200 dark:bg-stone-700 animate-pulse rounded" />
                       ) : (
                         profile?.displayName || 'Your Account'
                       )}
@@ -317,8 +317,8 @@ function SettingsContent() {
                       <span
                         className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
                           profile?.role === 'developer'
-                            ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                            : 'bg-purple-100 text-purple-800 border border-purple-200'
+                            ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30'
+                            : 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30'
                         }`}
                       >
                         {profile?.role === 'developer' ? 'Platform Developer / Super Admin' : 'Gift Creator'}
@@ -327,7 +327,7 @@ function SettingsContent() {
                   </div>
                   <p className="text-xs text-platform-muted mt-0.5 font-mono">
                     {isLoadingProfile ? (
-                      <span className="inline-block h-3.5 w-44 bg-stone-200 animate-pulse rounded mt-1" />
+                      <span className="inline-block h-3.5 w-44 bg-stone-200 dark:bg-stone-700 animate-pulse rounded mt-1" />
                     ) : (
                       profile?.email || 'Email unavailable'
                     )}
@@ -348,14 +348,14 @@ function SettingsContent() {
               <div
                 className={`mt-4 p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
                   profileNotice.type === 'success'
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
+                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30'
                 }`}
               >
                 {profileNotice.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                 )}
                 <span>{profileNotice.message}</span>
               </div>
@@ -366,7 +366,7 @@ function SettingsContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {/* Full Name (Editable) */}
                 <div>
-                  <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                  <label className="block text-xs font-semibold text-platform-text mb-1.5">
                     Full Name
                   </label>
                   <input
@@ -374,7 +374,7 @@ function SettingsContent() {
                     value={displayNameInput}
                     onChange={(e) => setDisplayNameInput(e.target.value)}
                     placeholder="e.g. Parth Kaushik"
-                    className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-platform-violet/20 focus:border-platform-violet"
+                    className="w-full px-4 py-2.5 rounded-xl border border-platform-inputBorder text-xs sm:text-sm bg-platform-inputBg text-platform-text focus:outline-none focus:ring-2 focus:ring-platform-violet/20 focus:border-platform-violet"
                     disabled={isLoadingProfile || isUpdatingName}
                   />
                   <p className="text-[11px] text-platform-muted mt-1">
@@ -384,9 +384,9 @@ function SettingsContent() {
 
                 {/* Email Address (Protected / Read-only) */}
                 <div>
-                  <label className="block text-xs font-semibold text-platform-dark mb-1.5 flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-platform-text mb-1.5 flex items-center justify-between">
                     <span>Authenticated Email Address</span>
-                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200/60">
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full font-medium border border-emerald-200/60 dark:border-emerald-500/30">
                       Verified Identity
                     </span>
                   </label>
@@ -396,9 +396,9 @@ function SettingsContent() {
                       value={isLoadingProfile ? 'Loading authenticated identity...' : (profile?.email || '')}
                       readOnly
                       disabled
-                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm bg-stone-100 text-stone-700 cursor-not-allowed select-all font-mono"
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-platform-border text-xs sm:text-sm bg-platform-cardSubtle text-platform-muted cursor-not-allowed select-all font-mono"
                     />
-                    <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Lock className="w-4 h-4 text-platform-muted absolute left-3 top-1/2 -translate-y-1/2" />
                   </div>
                   <p className="text-[11px] text-platform-muted mt-1">
                     Email address is protected by Supabase Authentication. It cannot be altered arbitrarily in this field.
@@ -407,23 +407,23 @@ function SettingsContent() {
               </div>
 
               {/* Account Metadata Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-black/5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-platform-border text-xs">
                 {/* Account ID with copy */}
-                <div className="p-3.5 rounded-2xl bg-black/5 border border-black/5 flex items-center justify-between">
+                <div className="p-3.5 rounded-2xl bg-platform-cardSubtle border border-platform-border flex items-center justify-between">
                   <div className="min-w-0 flex-1 mr-2">
                     <span className="text-platform-muted block text-[10px] uppercase font-semibold">User Account ID</span>
-                    <code className="text-[11px] text-platform-dark font-mono truncate block">
+                    <code className="text-[11px] text-platform-text font-mono truncate block">
                       {profile?.id || '—'}
                     </code>
                   </div>
                   <button
                     type="button"
                     onClick={handleCopyId}
-                    className="p-1.5 rounded-lg hover:bg-black/10 text-platform-dark transition-colors cursor-pointer shrink-0"
+                    className="p-1.5 rounded-lg hover:bg-platform-hover text-platform-text transition-colors cursor-pointer shrink-0"
                     title="Copy Account ID"
                   >
                     {hasCopiedId ? (
-                      <Check className="w-4 h-4 text-emerald-600" />
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
                       <Copy className="w-4 h-4 text-platform-muted" />
                     )}
@@ -431,9 +431,9 @@ function SettingsContent() {
                 </div>
 
                 {/* Account Type Details */}
-                <div className="p-3.5 rounded-2xl bg-black/5 border border-black/5">
+                <div className="p-3.5 rounded-2xl bg-platform-cardSubtle border border-platform-border">
                   <span className="text-platform-muted block text-[10px] uppercase font-semibold">Account Authorization</span>
-                  <span className="text-xs font-semibold text-platform-dark block mt-0.5">
+                  <span className="text-xs font-semibold text-platform-text block mt-0.5">
                     {profile?.role === 'developer'
                       ? 'Platform Owner / Super Admin'
                       : 'Standard Gift Creator Studio'}
@@ -446,7 +446,7 @@ function SettingsContent() {
                 <button
                   type="submit"
                   disabled={isUpdatingName || isLoadingProfile}
-                  className="px-6 py-2.5 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all cursor-pointer shadow-xs flex items-center gap-2 disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl bg-platform-btnBg text-platform-btnText text-xs font-semibold hover:bg-platform-btnHover transition-all cursor-pointer shadow-xs flex items-center gap-2 disabled:opacity-50"
                 >
                   {isUpdatingName ? (
                     <>
@@ -483,11 +483,11 @@ function SettingsContent() {
           {/* Session Security & Sign Out Panel */}
           <div className="p-6 sm:p-8 rounded-3xl bg-platform-card border border-platform-border shadow-xs space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5 text-platform-dark font-semibold text-sm">
+              <div className="flex items-center gap-2.5 text-platform-text font-semibold text-sm">
                 <Clock className="w-5 h-5 text-platform-violet" />
                 <span>Active Session & Device Security</span>
               </div>
-              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200 dark:border-indigo-500/20">
                 14-Day Persistent Session Active
               </span>
             </div>
@@ -502,7 +502,7 @@ function SettingsContent() {
                 type="button"
                 onClick={() => handleLogout(false)}
                 disabled={isLoggingOut}
-                className="px-4 py-2 rounded-xl border border-black/10 bg-white hover:bg-black/5 text-xs font-semibold text-platform-dark transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl border border-platform-border bg-platform-cardSubtle hover:bg-platform-hover text-xs font-semibold text-platform-text transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>{isLoggingOut ? 'Signing out...' : 'Sign Out of this Account'}</span>
@@ -512,9 +512,9 @@ function SettingsContent() {
                 type="button"
                 onClick={() => handleLogout(true)}
                 disabled={isLoggingOut}
-                className="px-4 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-xs font-semibold text-rose-700 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-xs font-semibold text-rose-700 dark:text-rose-300 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                <ShieldCheck className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                 <span>Log Out from All Devices</span>
               </button>
             </div>
@@ -528,47 +528,47 @@ function SettingsContent() {
       {activeTab === 'platform' && (
         <div className="space-y-6">
           {/* Security & System Status */}
-          <div className="p-6 rounded-3xl bg-white border border-black/5 shadow-xs space-y-4">
-            <div className="flex items-center gap-2.5 text-platform-dark font-semibold text-sm">
+          <div className="p-6 rounded-3xl bg-platform-card border border-platform-border shadow-xs space-y-4">
+            <div className="flex items-center gap-2.5 text-platform-text font-semibold text-sm">
               <ShieldCheck className="w-5 h-5 text-emerald-600" />
               <span>Security & Cryptography Parameters</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
-              <div className="p-4 rounded-2xl bg-black/5 border border-black/5 flex items-start gap-3">
+              <div className="p-4 rounded-2xl bg-platform-cardSubtle border border-platform-border flex items-start gap-3">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
-                  <strong className="text-platform-dark block font-semibold">Password Cryptography</strong>
+                  <strong className="text-platform-text block font-semibold">Password Cryptography</strong>
                   <span className="text-platform-muted">
                     Bcrypt with 10 salt rounds enforced on all recipient passcodes.
                   </span>
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-black/5 border border-black/5 flex items-start gap-3">
+              <div className="p-4 rounded-2xl bg-platform-cardSubtle border border-platform-border flex items-start gap-3">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
-                  <strong className="text-platform-dark block font-semibold">Brute-Force Protection</strong>
+                  <strong className="text-platform-text block font-semibold">Brute-Force Protection</strong>
                   <span className="text-platform-muted">
                     10 attempts max per 15-minute sliding window with rotating encouragement.
                   </span>
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-black/5 border border-black/5 flex items-start gap-3">
+              <div className="p-4 rounded-2xl bg-platform-cardSubtle border border-platform-border flex items-start gap-3">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
-                  <strong className="text-platform-dark block font-semibold">Server-Enforced Expiry</strong>
+                  <strong className="text-platform-text block font-semibold">Server-Enforced Expiry</strong>
                   <span className="text-platform-muted">
                     Evaluated at UTC timestamp. Content strictly redacted post-expiration.
                   </span>
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-black/5 border border-black/5 flex items-start gap-3">
+              <div className="p-4 rounded-2xl bg-platform-cardSubtle border border-platform-border flex items-start gap-3">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
-                  <strong className="text-platform-dark block font-semibold">Session Tokens</strong>
+                  <strong className="text-platform-text block font-semibold">Session Tokens</strong>
                   <span className="text-platform-muted">
                     HMAC-SHA256 signed HttpOnly, Secure cookies issued on unlock.
                   </span>
@@ -578,33 +578,33 @@ function SettingsContent() {
           </div>
 
           {/* Database & Infrastructure Config */}
-          <div className="p-6 rounded-3xl bg-white border border-black/5 shadow-xs space-y-4">
-            <div className="flex items-center gap-2.5 text-platform-dark font-semibold text-sm">
+          <div className="p-6 rounded-3xl bg-platform-card border border-platform-border shadow-xs space-y-4">
+            <div className="flex items-center gap-2.5 text-platform-text font-semibold text-sm">
               <Database className="w-5 h-5 text-platform-violet" />
               <span>Supabase Infrastructure</span>
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-black/5 gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-platform-cardSubtle border border-platform-border gap-2">
                 <div>
-                  <span className="font-semibold text-platform-dark block">Supabase Client Setup</span>
+                  <span className="font-semibold text-platform-text block">Supabase Client Setup</span>
                   <span className="text-platform-muted">
                     Database migrations active in <code>supabase/migrations/</code>
                   </span>
                 </div>
-                <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 self-start sm:self-auto">
+                <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 self-start sm:self-auto">
                   Ready for Production
                 </span>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-black/5 gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-platform-cardSubtle border border-platform-border gap-2">
                 <div>
-                  <span className="font-semibold text-platform-dark block">Storage Bucket (gifts)</span>
+                  <span className="font-semibold text-platform-text block">Storage Bucket (gifts)</span>
                   <span className="text-platform-muted">
                     Private bucket with signed URL policies for covers, gallery & timeline.
                   </span>
                 </div>
-                <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 self-start sm:self-auto">
+                <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 self-start sm:self-auto">
                   Configured
                 </span>
               </div>
@@ -612,54 +612,54 @@ function SettingsContent() {
           </div>
 
           {/* General Preferences Form */}
-          <form onSubmit={handlePlatformSave} className="p-6 rounded-3xl bg-white border border-black/5 shadow-xs space-y-4">
-            <div className="flex items-center gap-2.5 text-platform-dark font-semibold text-sm">
+          <form onSubmit={handlePlatformSave} className="p-6 rounded-3xl bg-platform-card border border-platform-border shadow-xs space-y-4">
+            <div className="flex items-center gap-2.5 text-platform-text font-semibold text-sm">
               <Sparkles className="w-5 h-5 text-platform-violet" />
               <span>General Platform Preferences</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                <label className="block text-xs font-semibold text-platform-text mb-1.5">
                   Platform Name
                 </label>
                 <input
                   type="text"
                   value={platformName}
                   onChange={(e) => setPlatformName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-platform-text text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/20"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                <label className="block text-xs font-semibold text-platform-text mb-1.5">
                   Default Timezone
                 </label>
                 <input
                   type="text"
                   value={defaultTimezone}
                   onChange={(e) => setDefaultTimezone(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-platform-text text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/20"
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-platform-dark mb-1.5">
+                <label className="block text-xs font-semibold text-platform-text mb-1.5">
                   Brand Tagline
                 </label>
                 <input
                   type="text"
                   value={tagline}
                   onChange={(e) => setTagline(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-xs sm:text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-platform-text text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-platform-violet/20"
                 />
               </div>
             </div>
 
-            <div className="pt-4 flex items-center justify-between">
+            <div className="pt-4 flex items-center justify-between border-t border-platform-border">
               <button
                 type="submit"
-                className="px-6 py-2.5 rounded-xl bg-platform-dark text-white text-xs font-semibold hover:bg-black transition-all cursor-pointer shadow-xs"
+                className="px-6 py-2.5 rounded-xl bg-platform-btnBg text-platform-btnText text-xs font-semibold hover:bg-platform-btnHover transition-all cursor-pointer shadow-xs"
               >
                 Save Platform Preferences
               </button>

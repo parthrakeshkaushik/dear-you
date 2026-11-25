@@ -139,7 +139,7 @@ export function LimitedInput({
   return (
     <div className={`space-y-1.5 ${className}`}>
       <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-platform-dark">
+        <label className="text-xs font-semibold text-platform-text">
           {label} {required && <span className="text-rose-500">*</span>}
         </label>
         {enabled && (
@@ -154,7 +154,7 @@ export function LimitedInput({
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
-        className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 bg-white text-xs sm:text-sm text-platform-dark placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-platform-violet/20 focus:border-platform-violet transition-all"
+        className="w-full px-3.5 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-xs sm:text-sm text-platform-text placeholder:text-platform-placeholder focus:outline-none focus:ring-2 focus:ring-platform-violet/20 focus:border-platform-violet transition-all"
       />
 
       {helperText && (
@@ -210,7 +210,7 @@ export function LimitedTextarea({
   return (
     <div className={`space-y-1.5 ${className}`}>
       <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-platform-dark">
+        <label className="text-xs font-semibold text-platform-text">
           {label} {required && <span className="text-rose-500">*</span>}
         </label>
         {enabled && (
@@ -225,7 +225,7 @@ export function LimitedTextarea({
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
-        className="w-full px-3.5 py-2.5 rounded-xl border border-black/10 bg-white text-xs sm:text-sm text-platform-dark placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-platform-violet/20 focus:border-platform-violet transition-all resize-y"
+        className="w-full px-3.5 py-2.5 rounded-xl border border-platform-inputBorder bg-platform-inputBg text-xs sm:text-sm text-platform-text placeholder:text-platform-placeholder focus:outline-none focus:ring-2 focus:ring-platform-violet/20 focus:border-platform-violet transition-all resize-y"
       />
 
       {helperText && (
