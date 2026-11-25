@@ -70,13 +70,13 @@ export async function POST(request: NextRequest) {
         const isEligible = Boolean(dbUser?.id && dbUser?.status !== 'suspended');
 
         if (isEligible) {
-          // Direct users to the dedicated /reset-password route.
-          // Note: Supabase Project Auth whitelist explicitly matches 'https://dear-you-madhavas.vercel.app/reset-password'
-          // and wildcards. On localhost, use local origin; in production, use the verified allowed route.
+          // Direct users to the dedicated /reset-password route on the active domain
           const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
           const redirectUrl = isLocal
             ? `${origin}/reset-password`
-            : 'https://dear-you-madhavas.vercel.app/reset-password';
+            : origin.includes('dear-you')
+            ? `${origin}/reset-password`
+            : 'https://dear-you-wine.vercel.app/reset-password';
 
           const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
             redirectTo: redirectUrl,
