@@ -60,10 +60,12 @@ import {
   FrameSize,
   PasswordPageConfig,
   ExpiryPageConfig,
+  MusicSource,
 } from '@/types/gift';
 import { ThemeId, CustomThemeConfig } from '@/types/theme';
 import { THEME_PRESETS } from '@/config/themes';
 import { LivePreviewPane, PreviewStateMode } from '@/components/admin/LivePreviewPane';
+import { BackgroundMusicSelector } from '@/components/admin/BackgroundMusicSelector';
 import { PlatformThemeToggle } from '@/components/common/PlatformThemeToggle';
 
 interface WizardPageConfig {
@@ -243,6 +245,21 @@ function GiftBuilderInner() {
     music: true,
   });
 
+  // Dedicated Per-Gift Background Music State
+  const [musicSource, setMusicSource] = useState<MusicSource>('library');
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const [libraryTrackId, setLibraryTrackId] = useState<string>('lib-gentle-moments');
+  const [customAudioStoragePath, setCustomAudioStoragePath] = useState<string | undefined>();
+  const [customAudioFilename, setCustomAudioFilename] = useState<string | undefined>();
+  const [audioDuration, setAudioDuration] = useState<number | undefined>(184);
+  const [playbackStartTime, setPlaybackStartTime] = useState<number>(0);
+  const [playbackEndTime, setPlaybackEndTime] = useState<number | undefined>();
+  const [loopEnabled, setLoopEnabled] = useState(true);
+  const [musicUrl, setMusicUrl] = useState<string | undefined>('/audio/gentle-moments.mp3');
+  const [musicTitle, setMusicTitle] = useState<string | undefined>('Gentle Moments');
+  const [isAudioUploading, setIsAudioUploading] = useState(false);
+  const [hasAudioUploadError, setHasAudioUploadError] = useState(false);
+
   const [wishes, setWishes] = useState<string[]>([
     'May you keep chasing wonders with that fearless smile.',
     'Wishing you cozy rainy afternoons with your favourite books.',
@@ -390,6 +407,19 @@ function GiftBuilderInner() {
     setLetters([]);
     setPassword('');
     setPasswordHint('');
+    setMusicSource('library');
+    setMusicEnabled(true);
+    setLibraryTrackId('lib-gentle-moments');
+    setCustomAudioStoragePath(undefined);
+    setCustomAudioFilename(undefined);
+    setAudioDuration(184);
+    setPlaybackStartTime(0);
+    setPlaybackEndTime(undefined);
+    setLoopEnabled(true);
+    setMusicUrl('/audio/gentle-moments.mp3');
+    setMusicTitle('Gentle Moments');
+    setIsAudioUploading(false);
+    setHasAudioUploadError(false);
     setCurrentStep(1);
   };
 
@@ -550,8 +580,17 @@ function GiftBuilderInner() {
     expiry_timezone: expiryTimezone,
     expiry_heading: expiryHeading,
     expiry_message: expiryMessage,
-    music_url: enabledFeatures.music ? '/audio/gentle-moments.mp3' : undefined,
-    music_title: 'Gentle Moments',
+    music_enabled: musicEnabled && musicSource !== 'none',
+    music_source: musicSource,
+    library_track_id: libraryTrackId,
+    custom_audio_storage_path: customAudioStoragePath,
+    custom_audio_filename: customAudioFilename,
+    audio_duration: audioDuration,
+    playback_start_time: playbackStartTime,
+    playback_end_time: playbackEndTime,
+    loop_enabled: loopEnabled,
+    music_url: musicEnabled && musicSource !== 'none' ? musicUrl : undefined,
+    music_title: musicEnabled && musicSource !== 'none' ? musicTitle : undefined,
     memory_wall_config: {
       layout_mode: wallLayoutMode,
       enable_hanging_effect: true,
@@ -650,6 +689,24 @@ function GiftBuilderInner() {
               if (expCfg.create_button_text !== undefined) setExpiryCreateBtnText(expCfg.create_button_text);
             }
 
+            // Restore Personalized Background Music
+            if (g.music_source !== undefined) setMusicSource(g.music_source);
+            else if (g.music_url) setMusicSource('library');
+            else if (g.music_enabled === false) setMusicSource('none');
+
+            if (g.music_enabled !== undefined) setMusicEnabled(g.music_enabled);
+            else if (g.music_url) setMusicEnabled(true);
+
+            if (g.library_track_id) setLibraryTrackId(g.library_track_id);
+            if (g.custom_audio_storage_path) setCustomAudioStoragePath(g.custom_audio_storage_path);
+            if (g.custom_audio_filename) setCustomAudioFilename(g.custom_audio_filename);
+            if (g.audio_duration !== undefined) setAudioDuration(g.audio_duration);
+            if (g.playback_start_time !== undefined) setPlaybackStartTime(g.playback_start_time);
+            if (g.playback_end_time !== undefined) setPlaybackEndTime(g.playback_end_time);
+            if (g.loop_enabled !== undefined) setLoopEnabled(g.loop_enabled);
+            if (g.music_url) setMusicUrl(g.music_url);
+            if (g.music_title) setMusicTitle(g.music_title);
+
             setDraftId(g.id);
             setSaveStatus('saved');
           }
@@ -721,8 +778,17 @@ function GiftBuilderInner() {
           expiry_timezone: expiryTimezone,
           expiry_heading: expiryHeading,
           expiry_message: expiryMessage,
-          music_url: enabledFeatures.music ? '/audio/gentle-moments.mp3' : undefined,
-          music_title: 'Gentle Moments',
+          music_enabled: musicEnabled && musicSource !== 'none',
+          music_source: musicSource,
+          library_track_id: libraryTrackId,
+          custom_audio_storage_path: customAudioStoragePath,
+          custom_audio_filename: customAudioFilename,
+          audio_duration: audioDuration,
+          playback_start_time: playbackStartTime,
+          playback_end_time: playbackEndTime,
+          loop_enabled: loopEnabled,
+          music_url: musicEnabled && musicSource !== 'none' ? musicUrl : undefined,
+          music_title: musicEnabled && musicSource !== 'none' ? musicTitle : undefined,
           memory_wall_config: { layout_mode: wallLayoutMode, enable_hanging_effect: true },
           sections: [
             { id: '1', section_type: 'gift_box', display_order: 1, enabled: enabledFeatures.gift_box ?? true },
@@ -823,6 +889,17 @@ function GiftBuilderInner() {
       expiryHomeBtnText,
       expiryShowCreateBtn,
       expiryCreateBtnText,
+      musicEnabled,
+      musicSource,
+      libraryTrackId,
+      customAudioStoragePath,
+      customAudioFilename,
+      audioDuration,
+      playbackStartTime,
+      playbackEndTime,
+      loopEnabled,
+      musicUrl,
+      musicTitle,
     ]
   );
 
@@ -871,6 +948,17 @@ function GiftBuilderInner() {
     letters,
     wishes,
     enabledFeatures,
+    musicEnabled,
+    musicSource,
+    libraryTrackId,
+    customAudioStoragePath,
+    customAudioFilename,
+    audioDuration,
+    playbackStartTime,
+    playbackEndTime,
+    loopEnabled,
+    musicUrl,
+    musicTitle,
     saveDraft,
   ]);
 
@@ -945,6 +1033,16 @@ function GiftBuilderInner() {
 
     if (slugStatus === 'checking') {
       setPublishError('Please wait a moment while we verify URL slug availability.');
+      return;
+    }
+
+    if (isAudioUploading) {
+      setPublishError('Please wait for the audio upload to complete before publishing.');
+      return;
+    }
+
+    if (hasAudioUploadError) {
+      setPublishError('The uploaded audio file could not be processed. Please re-upload or select a library song before publishing.');
       return;
     }
 
@@ -2025,28 +2123,42 @@ function GiftBuilderInner() {
                 </div>
 
                 <div className="space-y-4">
-                  {/* Music Toggle */}
-                  <div className="p-4 rounded-xl border border-black/5 bg-purple-50/30 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Music className="w-5 h-5 text-platform-violet" />
-                      <div>
-                        <span className="text-xs font-semibold text-platform-text block">
-                          Background Audio Soundtrack
-                        </span>
-                        <span className="text-[11px] text-platform-muted">
-                          Plays softly when recipient clicks &quot;Start Your Journey&quot;
-                        </span>
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={enabledFeatures.music ?? true}
-                      onChange={(e) =>
-                        setEnabledFeatures({ ...enabledFeatures, music: e.target.checked })
-                      }
-                      className="w-4 h-4 accent-purple-600 rounded"
-                    />
-                  </div>
+                  {/* Dedicated Per-Gift Background Music Selector */}
+                  <BackgroundMusicSelector
+                    giftId={draftId || undefined}
+                    musicSource={musicSource}
+                    musicEnabled={musicEnabled}
+                    libraryTrackId={libraryTrackId}
+                    customAudioStoragePath={customAudioStoragePath}
+                    customAudioFilename={customAudioFilename}
+                    audioDuration={audioDuration}
+                    playbackStartTime={playbackStartTime}
+                    playbackEndTime={playbackEndTime}
+                    loopEnabled={loopEnabled}
+                    musicUrl={musicUrl}
+                    musicTitle={musicTitle}
+                    onChange={(config) => {
+                      setMusicEnabled(config.music_enabled);
+                      setMusicSource(config.music_source);
+                      setLibraryTrackId(config.library_track_id || 'lib-gentle-moments');
+                      setCustomAudioStoragePath(config.custom_audio_storage_path);
+                      setCustomAudioFilename(config.custom_audio_filename);
+                      setAudioDuration(config.audio_duration);
+                      setPlaybackStartTime(config.playback_start_time ?? 0);
+                      setPlaybackEndTime(config.playback_end_time);
+                      setLoopEnabled(config.loop_enabled);
+                      setMusicUrl(config.music_url);
+                      setMusicTitle(config.music_title);
+                      setEnabledFeatures((prev) => ({
+                        ...prev,
+                        music: config.music_enabled && config.music_source !== 'none',
+                      }));
+                    }}
+                    onUploadStateChange={(uploading, hasErr) => {
+                      setIsAudioUploading(uploading);
+                      setHasAudioUploadError(hasErr);
+                    }}
+                  />
 
                   {/* Cake & Wishes */}
                   <div>
@@ -2363,6 +2475,8 @@ function GiftBuilderInner() {
                       onClick={handlePublish}
                       disabled={
                         isPublishing ||
+                        isAudioUploading ||
+                        hasAudioUploadError ||
                         !recipientName ||
                         !title ||
                         !password ||
@@ -2374,7 +2488,13 @@ function GiftBuilderInner() {
                       className="w-full py-4 rounded-2xl bg-platform-btnBg text-platform-btnText text-sm font-semibold hover:bg-platform-btnHover transition-all shadow-md active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                     >
                       <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>{isPublishing ? 'Publishing Gift...' : 'Publish Gift Now'}</span>
+                      <span>
+                        {isPublishing
+                          ? 'Publishing Gift...'
+                          : isAudioUploading
+                          ? 'Uploading Audio...'
+                          : 'Publish Gift Now'}
+                      </span>
                     </button>
                   )}
                 </div>

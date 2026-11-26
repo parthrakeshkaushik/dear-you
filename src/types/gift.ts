@@ -142,6 +142,20 @@ export interface GiftSection {
   section_config?: Record<string, any>;
 }
 
+export type MusicSource = 'library' | 'upload' | 'none';
+
+export interface GiftMusicConfig {
+  music_enabled: boolean;
+  music_source: MusicSource;
+  library_track_id?: string;
+  custom_audio_storage_path?: string;
+  custom_audio_filename?: string;
+  audio_duration?: number;
+  playback_start_time?: number;
+  playback_end_time?: number;
+  loop_enabled: boolean;
+}
+
 export interface Gift {
   id: string;
   owner_id?: string;
@@ -190,6 +204,15 @@ export interface Gift {
   expiry_message?: string;
   
   // Music & Interactive configs
+  music_enabled?: boolean;
+  music_source?: MusicSource;
+  library_track_id?: string;
+  custom_audio_storage_path?: string;
+  custom_audio_filename?: string;
+  audio_duration?: number;
+  playback_start_time?: number;
+  playback_end_time?: number;
+  loop_enabled?: boolean;
   music_url?: string;
   music_title?: string;
   scratch_card_hidden_text?: string;

@@ -13,7 +13,8 @@ import {
   PlatformContentLimits,
 } from '@/lib/config/content-limits';
 import { validateSlugFormat, normalizeSlug } from '@/lib/gifts/slug-rules';
-import { Gift } from '@/types/gift';
+import { Gift, MusicSource } from '@/types/gift';
+import { getMusicTrackById, DEFAULT_LIBRARY_TRACK } from '@/config/music-library';
 
 const DEMO_CARD_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
 
@@ -312,6 +313,15 @@ export async function POST(request: NextRequest) {
       expiry_timezone = 'Asia/Kolkata',
       expiry_heading,
       expiry_message,
+      music_enabled,
+      music_source,
+      library_track_id,
+      custom_audio_storage_path,
+      custom_audio_filename,
+      audio_duration,
+      playback_start_time,
+      playback_end_time,
+      loop_enabled,
       music_url,
       music_title,
       memory_wall_config,
@@ -426,6 +436,73 @@ export async function POST(request: NextRequest) {
       ...(finalExpiryPageConfig ? { expiry_page: finalExpiryPageConfig } : {}),
     };
 
+    // Resolve Per-Gift Independent Background Music Configuration
+    let resolvedMusicSource: MusicSource =
+      music_source ||
+      existingGift?.music_source ||
+      (music_url ? 'library' : 'none');
+
+    let resolvedMusicEnabled =
+      typeof music_enabled === 'boolean'
+        ? music_enabled
+        : typeof existingGift?.music_enabled === 'boolean'
+        ? existingGift.music_enabled
+        : resolvedMusicSource !== 'none';
+
+    if (resolvedMusicSource === 'none') {
+      resolvedMusicEnabled = false;
+    }
+
+    let resolvedLibraryTrackId: string | undefined =
+      library_track_id || existingGift?.library_track_id;
+    let resolvedCustomStoragePath: string | undefined =
+      custom_audio_storage_path || existingGift?.custom_audio_storage_path;
+    let resolvedCustomFilename: string | undefined =
+      custom_audio_filename || existingGift?.custom_audio_filename;
+    let resolvedAudioDuration: number | undefined =
+      audio_duration || existingGift?.audio_duration;
+    let resolvedStartTime: number =
+      typeof playback_start_time === 'number'
+        ? playback_start_time
+        : existingGift?.playback_start_time || 0;
+    let resolvedEndTime: number | undefined =
+      typeof playback_end_time === 'number'
+        ? playback_end_time
+        : existingGift?.playback_end_time;
+    let resolvedLoopEnabled =
+      typeof loop_enabled === 'boolean'
+        ? loop_enabled
+        : existingGift?.loop_enabled ?? true;
+
+    let finalMusicUrl: string | undefined = undefined;
+    let finalMusicTitle: string | undefined = undefined;
+
+    if (resolvedMusicEnabled && resolvedMusicSource !== 'none') {
+      if (resolvedMusicSource === 'upload') {
+        finalMusicUrl =
+          music_url ||
+          (resolvedCustomStoragePath ? `/api/gifts/${finalSlug}/audio` : undefined);
+        finalMusicTitle =
+          resolvedCustomFilename || music_title || 'Personal Custom Audio';
+      } else {
+        // Library Track
+        resolvedMusicSource = 'library';
+        const libTrack =
+          getMusicTrackById(resolvedLibraryTrackId) || DEFAULT_LIBRARY_TRACK;
+        resolvedLibraryTrackId = libTrack.id;
+        finalMusicUrl = libTrack.audio_url || '/audio/gentle-moments.mp3';
+        finalMusicTitle = libTrack.title;
+        if (!resolvedAudioDuration) {
+          resolvedAudioDuration = libTrack.duration;
+        }
+      }
+    } else {
+      resolvedMusicSource = 'none';
+      resolvedMusicEnabled = false;
+      finalMusicUrl = undefined;
+      finalMusicTitle = undefined;
+    }
+
     const savedGift: Gift = {
       ...(existingGift || {}),
       id: finalId,
@@ -456,8 +533,17 @@ export async function POST(request: NextRequest) {
       expiry_timezone,
       expiry_heading,
       expiry_message,
-      music_url,
-      music_title,
+      music_enabled: resolvedMusicEnabled,
+      music_source: resolvedMusicSource,
+      library_track_id: resolvedLibraryTrackId,
+      custom_audio_storage_path: resolvedCustomStoragePath,
+      custom_audio_filename: resolvedCustomFilename,
+      audio_duration: resolvedAudioDuration,
+      playback_start_time: resolvedStartTime,
+      playback_end_time: resolvedEndTime,
+      loop_enabled: resolvedLoopEnabled,
+      music_url: finalMusicUrl,
+      music_title: finalMusicTitle,
       memory_wall_config,
       sections: sections || [],
       memories: memories || [],
@@ -504,6 +590,15 @@ export async function POST(request: NextRequest) {
         gift_box_message: savedGift.gift_box_message || null,
         cover_image: savedGift.cover_image || null,
         introduction: savedGift.introduction || null,
+        music_enabled: savedGift.music_enabled,
+        music_source: savedGift.music_source,
+        library_track_id: savedGift.library_track_id || null,
+        custom_audio_storage_path: savedGift.custom_audio_storage_path || null,
+        custom_audio_filename: savedGift.custom_audio_filename || null,
+        audio_duration: savedGift.audio_duration || null,
+        playback_start_time: savedGift.playback_start_time ?? 0,
+        playback_end_time: savedGift.playback_end_time || null,
+        loop_enabled: savedGift.loop_enabled ?? true,
         music_url: savedGift.music_url || null,
         music_title: savedGift.music_title || null,
         memory_wall_config: savedGift.memory_wall_config || null,

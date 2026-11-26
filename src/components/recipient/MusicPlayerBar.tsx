@@ -13,8 +13,10 @@ interface MusicPlayerBarProps {
   playbackStatus?: AudioPlaybackStatus;
   audioError?: string | null;
   hasStartedJourney?: boolean;
+  volume?: number;
   onTogglePlay: () => void;
   onToggleMute: () => void;
+  onVolumeChange?: (volume: number) => void;
 }
 
 export function MusicPlayerBar({
@@ -24,10 +26,13 @@ export function MusicPlayerBar({
   playbackStatus = 'idle',
   audioError,
   hasStartedJourney = true,
+  volume = 1.0,
   onTogglePlay,
   onToggleMute,
+  onVolumeChange,
 }: MusicPlayerBarProps) {
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
   const buttonLabel = isPlaying
     ? 'Pause Music'
@@ -126,26 +131,53 @@ export function MusicPlayerBar({
               </span>
             </div>
 
-            {/* Mute/Unmute Button */}
-            <button
-              onClick={onToggleMute}
-              className="p-1.5 text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors cursor-pointer rounded-full"
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? (
-                <VolumeX className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Volume2 className="w-4 h-4" />
+            {/* Volume Control / Mute Toggle */}
+            <div className="relative flex items-center">
+              <button
+                onClick={() => {
+                  if (onVolumeChange && !isMuted) {
+                    setShowVolumeSlider(!showVolumeSlider);
+                  } else {
+                    onToggleMute();
+                  }
+                }}
+                className="p-1.5 text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors cursor-pointer rounded-full"
+                aria-label={isMuted ? 'Unmute' : 'Mute or change volume'}
+                title={isMuted ? 'Unmute' : 'Volume / Mute'}
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
+                )}
+              </button>
+
+              {/* Expandable volume slider on desktop */}
+              {showVolumeSlider && !isMuted && onVolumeChange && (
+                <div className="absolute bottom-full right-0 mb-2 p-2 bg-[var(--theme-surface)]/95 border border-[var(--theme-border)] rounded-xl shadow-xl backdrop-blur-md flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={volume}
+                    onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+                    className="w-20 h-1.5 accent-[var(--theme-primary)] cursor-pointer"
+                    aria-label="Volume slider"
+                  />
+                  <span className="text-[10px] font-mono text-[var(--theme-muted)] min-w-[28px]">
+                    {Math.round(volume * 100)}%
+                  </span>
+                </div>
               )}
-            </button>
+            </div>
           </>
         ) : null}
 
         {/* Small Expand/Collapse Button */}
         <button
           onClick={() => setIsMinimized(!isMinimized)}
-          className="p-1 text-[var(--theme-muted)] hover:text-[var(--theme-text)] text-[10px] transition-colors rounded-full px-1.5"
+          className="p-1 text-[var(--theme-muted)] hover:text-[var(--theme-text)] text-[10px] transition-colors rounded-full px-1.5 cursor-pointer"
           title={isMinimized ? 'Expand music player' : 'Minimize player'}
         >
           {isMinimized ? <Music className="w-3.5 h-3.5" /> : '•'}

@@ -39,6 +39,11 @@ export function generateOfflineCardHtml(gift: Gift): string {
     themeConfig: gift.theme_config,
   });
 
+  const isMusicEnabled =
+    gift.music_enabled !== false &&
+    gift.music_source !== 'none' &&
+    Boolean(gift.music_url);
+
   // Pre-render memories
   const memories = gift.memories || [];
   const memoriesHtml = memories
@@ -747,11 +752,11 @@ export function generateOfflineCardHtml(gift: Gift): string {
         </div>
       ` : ''}
 
-      ${gift.music_url ? `
+      ${isMusicEnabled ? `
         <div class="offline-music-widget">
-          <audio id="offline-audio" loop src="${escapeHtml(gift.music_url)}"></audio>
+          <audio id="offline-audio" ${gift.loop_enabled !== false ? 'loop' : ''} src="${escapeHtml(gift.music_url || '')}"></audio>
           <button id="music-toggle-btn" class="music-toggle-btn" onclick="toggleOfflineMusic()">
-            <span id="music-icon">🎵</span> <span id="music-text">Play Background Music</span>
+            <span id="music-icon">🎵</span> <span id="music-text">Play "${escapeHtml(gift.music_title || 'Background Music')}"</span>
           </button>
         </div>
       ` : ''}
@@ -921,14 +926,33 @@ export function generateOfflineCardHtml(gift: Gift): string {
       document.getElementById('lightbox').classList.remove('active');
     }
 
+    var offlineStartTime = ${Number(gift.playback_start_time) || 0};
+    var offlineEndTime = ${Number(gift.playback_end_time) || 0};
+    var offlineAudio = document.getElementById('offline-audio');
+    if (offlineAudio) {
+      if (offlineStartTime > 0) {
+        offlineAudio.currentTime = offlineStartTime;
+      }
+      if (offlineEndTime > 0) {
+        offlineAudio.addEventListener('timeupdate', function() {
+          if (offlineAudio.currentTime >= offlineEndTime) {
+            offlineAudio.currentTime = offlineStartTime;
+          }
+        });
+      }
+    }
+
     function toggleOfflineMusic() {
-      const audio = document.getElementById('offline-audio');
-      const btn = document.getElementById('music-toggle-btn');
-      const icon = document.getElementById('music-icon');
-      const text = document.getElementById('music-text');
+      var audio = document.getElementById('offline-audio');
+      var btn = document.getElementById('music-toggle-btn');
+      var icon = document.getElementById('music-icon');
+      var text = document.getElementById('music-text');
       if (!audio) return;
 
       if (audio.paused) {
+        if (offlineStartTime > 0 && (audio.currentTime < offlineStartTime || (offlineEndTime > 0 && audio.currentTime >= offlineEndTime))) {
+          audio.currentTime = offlineStartTime;
+        }
         audio.play().then(function() {
           btn.classList.add('playing');
           if (icon) icon.innerText = '⏸';
@@ -940,7 +964,7 @@ export function generateOfflineCardHtml(gift: Gift): string {
         audio.pause();
         btn.classList.remove('playing');
         if (icon) icon.innerText = '🎵';
-        if (text) text.innerText = 'Play Background Music';
+        if (text) text.innerText = 'Play "${escapeHtml(gift.music_title || 'Background Music')}"';
       }
     }
   </script>

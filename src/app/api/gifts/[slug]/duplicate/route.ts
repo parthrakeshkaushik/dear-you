@@ -42,6 +42,24 @@ export async function POST(
 
     const nowIso = new Date().toISOString();
 
+    // Independent audio handling for duplicated gifts
+    let duplicateCustomAudioPath = sourceGift.custom_audio_storage_path;
+    if (sourceGift.custom_audio_storage_path && sourceGift.music_source === 'upload') {
+      try {
+        const supabaseAdmin = createAdminClient();
+        const ext = sourceGift.custom_audio_storage_path.split('.').pop() || 'mp3';
+        const newPath = `gift-audio/${newId}/copy-${Date.now()}.${ext}`;
+        const { error: copyErr } = await supabaseAdmin.storage
+          .from('gifts')
+          .copy(sourceGift.custom_audio_storage_path, newPath);
+        if (!copyErr) {
+          duplicateCustomAudioPath = newPath;
+        }
+      } catch (copyErr) {
+        console.warn('Storage copy note during duplication:', copyErr);
+      }
+    }
+
     // Deep clone arrays with new independent IDs
     const clonedMemories = sourceGift.memories
       ? sourceGift.memories.map((m) => ({
@@ -117,6 +135,17 @@ export async function POST(
       republished_at: undefined,
       expiry_enabled: Boolean(expiry_enabled),
       expires_at: expiry_enabled ? expires_at : null,
+      music_enabled: sourceGift.music_enabled ?? (sourceGift.music_source !== 'none'),
+      music_source: sourceGift.music_source || (sourceGift.music_url ? 'library' : 'none'),
+      library_track_id: sourceGift.library_track_id,
+      custom_audio_storage_path: duplicateCustomAudioPath,
+      custom_audio_filename: sourceGift.custom_audio_filename,
+      audio_duration: sourceGift.audio_duration,
+      playback_start_time: sourceGift.playback_start_time ?? 0,
+      playback_end_time: sourceGift.playback_end_time,
+      loop_enabled: sourceGift.loop_enabled ?? true,
+      music_url: sourceGift.music_source === 'none' ? undefined : (duplicateCustomAudioPath ? `/api/gifts/${generatedSlug}/audio` : sourceGift.music_url),
+      music_title: sourceGift.music_title,
       memories: clonedMemories,
       sections: clonedSections,
       timeline_entries: clonedTimeline,
@@ -154,8 +183,17 @@ export async function POST(
         gift_box_message: duplicatedGift.gift_box_message,
         scratch_card_hidden_text: duplicatedGift.scratch_card_hidden_text,
         closing_message: duplicatedGift.closing_message,
-        music_url: duplicatedGift.music_url,
-        music_title: duplicatedGift.music_title,
+        music_enabled: duplicatedGift.music_enabled,
+        music_source: duplicatedGift.music_source,
+        library_track_id: duplicatedGift.library_track_id || null,
+        custom_audio_storage_path: duplicatedGift.custom_audio_storage_path || null,
+        custom_audio_filename: duplicatedGift.custom_audio_filename || null,
+        audio_duration: duplicatedGift.audio_duration || null,
+        playback_start_time: duplicatedGift.playback_start_time ?? 0,
+        playback_end_time: duplicatedGift.playback_end_time || null,
+        loop_enabled: duplicatedGift.loop_enabled ?? true,
+        music_url: duplicatedGift.music_url || null,
+        music_title: duplicatedGift.music_title || null,
       });
 
       // Audit Log

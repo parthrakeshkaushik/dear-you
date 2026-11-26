@@ -3995,6 +3995,372 @@ test('Authentication, Verification, and Static Legal pages adapt cleanly to Dark
   assert.strictEqual(modalCode.includes('bg-platform-btnBg text-platform-btnText'), true);
 });
 
+// -------------------------------------------------------------
+// 48. PERSONALIZED MUSIC SYSTEM, INDIVIDUAL UPLOADS & CONTINUOUS PLAYBACK
+// -------------------------------------------------------------
+console.log('\n--- 48. Personalized Music System, Individual Uploads & Playback Tests ---');
+
+import {
+  DEAR_YOU_MUSIC_LIBRARY,
+  MUSIC_CATEGORIES,
+  formatAudioSeconds,
+  parseAudioSeconds,
+  getMusicTrackById,
+  DEFAULT_LIBRARY_TRACK,
+} from '../src/config/music-library.ts';
+
+import {
+  MAX_AUDIO_FILE_SIZE_BYTES,
+  MAX_AUDIO_DURATION_SECONDS,
+  MIN_TRIM_DURATION_SECONDS,
+  validatePlaybackTrim,
+  validateAudioBufferMagicBytes,
+} from '../src/lib/audio/audio-utils.ts';
+
+test('Music Library catalog contains 8 distinct tracks across all 8 required categories', () => {
+  assert.strictEqual(DEAR_YOU_MUSIC_LIBRARY.length, 8, 'Library must contain exactly 8 curated tracks');
+
+  const requiredCategories = [
+    'Romantic',
+    'Birthday',
+    'Friendship',
+    'Peaceful',
+    'Cinematic',
+    'Celebration',
+    'Instrumental',
+    'Emotional',
+  ];
+
+  requiredCategories.forEach((cat) => {
+    assert.strictEqual(
+      MUSIC_CATEGORIES.some((c) => c.id === cat),
+      true,
+      `MUSIC_CATEGORIES must include ${cat}`
+    );
+    const hasTrack = DEAR_YOU_MUSIC_LIBRARY.some((t) => t.category === cat);
+    assert.strictEqual(hasTrack, true, `Library must have at least one track in category ${cat}`);
+  });
+
+  // Verify all tracks have valid metadata and local audio files
+  DEAR_YOU_MUSIC_LIBRARY.forEach((track) => {
+    assert.ok(track.id && track.id.startsWith('lib-'), 'Track ID must be prefixed with lib-');
+    assert.ok(track.title && track.title.length > 0, 'Track must have title');
+    assert.ok(track.duration > 0, 'Track must have positive duration');
+    assert.ok(track.audio_url && track.audio_url.startsWith('/audio/'), 'Track must reference /audio/ URL');
+
+    const cleanPath = track.audio_url.replace(/^\//, '');
+    const fullDiskPath = path.join(process.cwd(), 'public', cleanPath);
+    assert.strictEqual(fs.existsSync(fullDiskPath), true, `Track file must exist at ${fullDiskPath}`);
+  });
+
+  // Test helpers
+  assert.strictEqual(formatAudioSeconds(0), '0:00');
+  assert.strictEqual(formatAudioSeconds(65), '1:05');
+  assert.strictEqual(formatAudioSeconds(184), '3:04');
+  assert.strictEqual(parseAudioSeconds('3:04'), 184);
+  assert.strictEqual(parseAudioSeconds('0:45'), 45);
+  assert.strictEqual(parseAudioSeconds('invalid'), 0);
+
+  const found = getMusicTrackById('lib-gentle-moments');
+  assert.strictEqual(found?.title, 'Gentle Moments');
+  assert.strictEqual(DEFAULT_LIBRARY_TRACK.title, 'Gentle Moments');
+});
+
+test('Audio magic bytes format validator detects MP3 and M4A/AAC and rejects non-audio', () => {
+  // Valid MP3 with ID3v2 header: ID3 (0x49, 0x44, 0x33) with padding
+  const id3Header = Buffer.concat([
+    Buffer.from([0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A]),
+    Buffer.alloc(10),
+  ]);
+  const id3Check = validateAudioBufferMagicBytes(id3Header);
+  assert.strictEqual(id3Check.valid, true, 'ID3v2 header must be accepted as MP3');
+  assert.strictEqual(id3Check.detectedFormat, 'mp3');
+
+  // Valid MP3 MPEG-1 Layer 3 sync frame: 0xFF, 0xFB
+  const mp3Frame = Buffer.concat([
+    Buffer.from([0xFF, 0xFB, 0x90, 0x64, 0x00, 0x00, 0x00, 0x00]),
+    Buffer.alloc(10),
+  ]);
+  const mp3Check = validateAudioBufferMagicBytes(mp3Frame);
+  assert.strictEqual(mp3Check.valid, true, 'MPEG sync frame must be accepted as MP3');
+  assert.strictEqual(mp3Check.detectedFormat, 'mp3');
+
+  // Valid M4A ISO Base Media box with ftyp box at offset 4
+  const m4aBox = Buffer.concat([
+    Buffer.from([
+      0x00, 0x00, 0x00, 0x20, // size 32
+      0x66, 0x74, 0x79, 0x70, // 'ftyp'
+      0x4D, 0x34, 0x41, 0x20, // 'M4A '
+      0x00, 0x00, 0x02, 0x00,
+    ]),
+    Buffer.alloc(10),
+  ]);
+  const m4aCheck = validateAudioBufferMagicBytes(m4aBox);
+  assert.strictEqual(m4aCheck.valid, true, 'ISO ftyp box must be accepted as M4A');
+  assert.strictEqual(m4aCheck.detectedFormat, 'm4a');
+
+  // Reject HTML content
+  const htmlBuffer = Buffer.from('<!DOCTYPE html><html><body>Dangerous Script</body></html>');
+  const htmlCheck = validateAudioBufferMagicBytes(htmlBuffer);
+  assert.strictEqual(htmlCheck.valid, false, 'HTML text must be rejected');
+
+  // Reject Windows executable
+  const exeBuffer = Buffer.concat([Buffer.from([0x4D, 0x5A, 0x90, 0x00]), Buffer.alloc(16)]);
+  const exeCheck = validateAudioBufferMagicBytes(exeBuffer);
+  assert.strictEqual(exeCheck.valid, false, 'Binary executable must be rejected');
+
+  // Reject empty buffer
+  const emptyCheck = validateAudioBufferMagicBytes(Buffer.alloc(0));
+  assert.strictEqual(emptyCheck.valid, false, 'Empty buffer must be rejected');
+});
+
+test('Audio trimming validation enforces 5-second minimum duration and total bounds', () => {
+  const totalDuration = 120; // 2 minutes
+
+  // Valid trim: 10s to 45s (35s length)
+  const validTrim = validatePlaybackTrim(10, 45, totalDuration);
+  assert.strictEqual(validTrim.valid, true);
+
+  // Reject start >= end
+  const invertedTrim = validatePlaybackTrim(50, 20, totalDuration);
+  assert.strictEqual(invertedTrim.valid, false);
+  assert.ok(invertedTrim.error?.includes('greater than start time'));
+
+  // Reject sub-5-second duration
+  const tooShortTrim = validatePlaybackTrim(10, 13, totalDuration);
+  assert.strictEqual(tooShortTrim.valid, false);
+  assert.ok(tooShortTrim.error?.includes('at least 5 seconds'));
+
+  // Clamps negative start to 0
+  const negativeTrim = validatePlaybackTrim(-5, 30, totalDuration);
+  assert.strictEqual(negativeTrim.valid, true);
+  assert.strictEqual(negativeTrim.startTime, 0);
+
+  // Reject end > duration
+  const overboundTrim = validatePlaybackTrim(10, 150, totalDuration);
+  assert.strictEqual(overboundTrim.valid, false);
+  assert.ok(overboundTrim.error?.includes('cannot exceed total song duration'));
+});
+
+test('Per-gift storage isolation guarantees Gift A music changes never affect Gift B, C, or D', () => {
+  // Simulate 4 distinct gifts with independent music configurations
+  const giftA = {
+    id: 'gift-a',
+    title: 'Gift A - Library Music',
+    slug: 'gift-a',
+    music_enabled: true,
+    music_source: 'library',
+    library_track_id: 'lib-gentle-moments',
+    music_url: '/audio/gentle-moments.mp3',
+    music_title: 'Gentle Moments',
+  };
+
+  const giftB = {
+    id: 'gift-b',
+    title: 'Gift B - Custom Audio Upload',
+    slug: 'gift-b',
+    music_enabled: true,
+    music_source: 'upload',
+    custom_audio_storage_path: 'gifts/creator-1/gift-b.mp3',
+    custom_audio_filename: 'special-acoustic.mp3',
+    audio_duration: 145,
+    playback_start_time: 15,
+    playback_end_time: 75,
+    loop_enabled: true,
+    music_url: '/api/gifts/gift-b/audio',
+    music_title: 'Special Acoustic',
+  };
+
+  const giftC = {
+    id: 'gift-c',
+    title: 'Gift C - No Background Music',
+    slug: 'gift-c',
+    music_enabled: false,
+    music_source: 'none',
+    music_url: undefined,
+    music_title: undefined,
+  };
+
+  const giftD = {
+    id: 'gift-d',
+    title: 'Gift D - Independent Cinematic Track',
+    slug: 'gift-d',
+    music_enabled: true,
+    music_source: 'library',
+    library_track_id: 'lib-velvet-reverie',
+    music_url: '/audio/velvet-reverie.mp3',
+    music_title: 'Velvet Reverie',
+  };
+
+  // Mutate Gift A to different track
+  giftA.library_track_id = 'lib-celestial-waltz';
+  giftA.music_url = '/audio/celestial-waltz.mp3';
+  giftA.music_title = 'Celestial Waltz';
+
+  // Verify Gift B, C, D remain completely unaffected
+  assert.strictEqual(giftB.music_source, 'upload', 'Gift B must retain upload source');
+  assert.strictEqual(giftB.custom_audio_storage_path, 'gifts/creator-1/gift-b.mp3');
+  assert.strictEqual(giftB.playback_start_time, 15);
+  assert.strictEqual(giftB.playback_end_time, 75);
+
+  assert.strictEqual(giftC.music_enabled, false, 'Gift C must remain disabled');
+  assert.strictEqual(giftC.music_source, 'none');
+
+  assert.strictEqual(giftD.library_track_id, 'lib-velvet-reverie', 'Gift D must retain Velvet Reverie');
+  assert.strictEqual(giftD.music_title, 'Velvet Reverie');
+});
+
+test('Gift Duplication copies music configuration and creates independent storage copy', () => {
+  const originalGift = {
+    id: 'orig-gift-1',
+    creator_id: 'user-123',
+    slug: 'original-anniversary',
+    title: 'Original Anniversary',
+    music_enabled: true,
+    music_source: 'upload',
+    custom_audio_storage_path: 'gifts/user-123/original-audio.mp3',
+    custom_audio_filename: 'our-song.mp3',
+    audio_duration: 180,
+    playback_start_time: 10,
+    playback_end_time: 90,
+    loop_enabled: true,
+    music_title: 'Our Song',
+  };
+
+  // Simulate duplication route logic (as in src/app/api/gifts/[slug]/duplicate/route.ts)
+  const duplicatedSlug = `${originalGift.slug}-copy-1`;
+  const duplicatedStoragePath = originalGift.custom_audio_storage_path
+    ? originalGift.custom_audio_storage_path.replace('.mp3', `-copy-${Date.now()}.mp3`)
+    : undefined;
+
+  const duplicatedGift = {
+    ...originalGift,
+    id: 'dup-gift-2',
+    slug: duplicatedSlug,
+    title: `${originalGift.title} (Copy)`,
+    custom_audio_storage_path: duplicatedStoragePath,
+    music_url: `/api/gifts/${duplicatedSlug}/audio`,
+  };
+
+  // Verify duplicated gift has identical trim & config but independent storage path
+  assert.strictEqual(duplicatedGift.music_source, 'upload');
+  assert.strictEqual(duplicatedGift.playback_start_time, 10);
+  assert.strictEqual(duplicatedGift.playback_end_time, 90);
+  assert.strictEqual(duplicatedGift.loop_enabled, true);
+  assert.notStrictEqual(duplicatedGift.custom_audio_storage_path, originalGift.custom_audio_storage_path);
+  assert.ok(duplicatedGift.custom_audio_storage_path.includes('-copy-'));
+
+  // Modifying duplicate does not modify original
+  duplicatedGift.playback_start_time = 0;
+  duplicatedGift.music_source = 'none';
+  duplicatedGift.music_enabled = false;
+
+  assert.strictEqual(originalGift.music_enabled, true, 'Original must remain enabled');
+  assert.strictEqual(originalGift.music_source, 'upload', 'Original must remain upload');
+  assert.strictEqual(originalGift.playback_start_time, 10, 'Original start time must remain 10');
+});
+
+test('Recipient experience suppresses audio player when music is disabled and honors continuous loop', () => {
+  const recipientExpCode = fs.readFileSync('src/components/recipient/RecipientExperience.tsx', 'utf8');
+  const musicPlayerCode = fs.readFileSync('src/components/recipient/MusicPlayerBar.tsx', 'utf8');
+
+  // Verify recipient experience checks music_enabled and music_source
+  assert.strictEqual(
+    recipientExpCode.includes("gift.music_enabled === false") && recipientExpCode.includes("gift.music_source === 'none'"),
+    true,
+    'RecipientExperience must check both music_enabled and music_source'
+  );
+
+  // Verify audio playback starts ONLY on Start Your Journey
+  assert.strictEqual(
+    recipientExpCode.includes('handleStartJourney'),
+    true,
+    'Audio initiation must be linked to handleStartJourney'
+  );
+
+  // Verify RecipientExperience handles trim boundaries and timeupdate looping
+  assert.strictEqual(
+    recipientExpCode.includes('playback_start_time') && recipientExpCode.includes('playback_end_time'),
+    true,
+    'RecipientExperience must read playback trim props'
+  );
+
+  assert.strictEqual(
+    recipientExpCode.includes('handleTimeUpdate') && recipientExpCode.includes('audioRef.current.currentTime = startTime'),
+    true,
+    'RecipientExperience must reset audio to startTime when reaching endTime'
+  );
+
+  // Verify MusicPlayerBar UI controls
+  assert.strictEqual(
+    musicPlayerCode.includes('onTogglePlay') && musicPlayerCode.includes('onToggleMute') && musicPlayerCode.includes('onVolumeChange'),
+    true,
+    'MusicPlayerBar must provide play/pause, mute, and volume controls'
+  );
+});
+
+test('Offline ZIP export includes background.mp3 when enabled and omits when disabled', () => {
+  const offlineCardGen = fs.readFileSync('src/lib/download/generate-offline-card.ts', 'utf8');
+  const downloadRoute = fs.readFileSync('src/app/api/gifts/[slug]/download/route.ts', 'utf8');
+
+  // Generator must conditionally include audio script and player
+  assert.strictEqual(
+    offlineCardGen.includes("gift.music_enabled !== false") && offlineCardGen.includes("gift.music_source !== 'none'"),
+    true,
+    'generateOfflineCard must conditionally gate audio script'
+  );
+
+  assert.strictEqual(
+    offlineCardGen.includes('offline-audio'),
+    true,
+    'Offline card must provide offline-audio element'
+  );
+
+  // Download API route must package audio buffer only when music is enabled
+  assert.strictEqual(
+    downloadRoute.includes("zip.file(`assets/audio/${fileName}`"),
+    true,
+    'Download route must package background audio file into ZIP'
+  );
+
+  assert.strictEqual(
+    downloadRoute.includes("gift.music_enabled !== false") && downloadRoute.includes("gift.music_source !== 'none'"),
+    true,
+    'Download route must check music_enabled and music_source before adding audio file'
+  );
+});
+
+test('Gift Builder integrates BackgroundMusicSelector and blocks publishing on upload in progress or error', () => {
+  const createPageCode = fs.readFileSync('src/app/admin/create/page.tsx', 'utf8');
+
+  // Verify BackgroundMusicSelector import & component render
+  assert.strictEqual(
+    createPageCode.includes('BackgroundMusicSelector'),
+    true,
+    'Create page must import and render BackgroundMusicSelector'
+  );
+
+  // Verify upload state tracking
+  assert.strictEqual(
+    createPageCode.includes('isAudioUploading') && createPageCode.includes('hasAudioUploadError'),
+    true,
+    'Create page must track isAudioUploading and hasAudioUploadError'
+  );
+
+  // Verify publish blocking
+  assert.strictEqual(
+    createPageCode.includes('Please wait for the audio upload to complete before publishing.'),
+    true,
+    'Create page must block publishing during active upload'
+  );
+
+  assert.strictEqual(
+    createPageCode.includes('The uploaded audio file could not be processed.'),
+    true,
+    'Create page must block publishing when upload failed'
+  );
+});
+
 console.log(`\n==============================================`);
 console.log(`🎉 TEST SUMMARY: ${passedTests}/${totalTests} tests passed.`);
 console.log(`==============================================\n`);

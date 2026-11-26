@@ -22,6 +22,7 @@ import { SectionNavigation } from './SectionNavigation';
 import { DownloadKeepsakeModal } from './DownloadKeepsakeModal';
 import { CreateYourOwnGiftSection } from './CreateYourOwnGiftSection';
 import { Download } from 'lucide-react';
+import { getMusicTrackById } from '@/config/music-library';
 
 interface RecipientExperienceProps {
   gift: Gift;
@@ -43,34 +44,86 @@ export function RecipientExperience({
 
   const isDemo = gift.is_demo === true || gift.slug === 'demo' || gift.slug === 'demo-gift';
 
-  // Audio state & persistence
+  // Audio state & per-gift music resolution
+  const isMusicEnabled = useMemo(() => {
+    if (gift.music_enabled === false) return false;
+    if (gift.music_source === 'none') return false;
+    return Boolean(gift.music_url || gift.library_track_id || gift.custom_audio_storage_path);
+  }, [gift.music_enabled, gift.music_source, gift.music_url, gift.library_track_id, gift.custom_audio_storage_path]);
+
+  const resolvedAudioSrc = useMemo(() => {
+    if (!isMusicEnabled) return null;
+    if (gift.music_url) return gift.music_url;
+    if (gift.library_track_id) {
+      const track = getMusicTrackById(gift.library_track_id);
+      return track?.audio_url || '/audio/gentle-moments.mp3';
+    }
+    if (gift.custom_audio_storage_path && gift.slug) {
+      return `/api/gifts/${gift.slug}/audio`;
+    }
+    return null;
+  }, [isMusicEnabled, gift.music_url, gift.library_track_id, gift.custom_audio_storage_path, gift.slug]);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [audioSrc, setAudioSrc] = useState<string | undefined>(
-    gift.music_url || '/audio/gentle-moments.mp3'
-  );
+  const [audioSrc, setAudioSrc] = useState<string | null>(resolvedAudioSrc);
   const [playbackStatus, setPlaybackStatus] = useState<AudioPlaybackStatus>('idle');
   const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [audioVolume, setAudioVolume] = useState<number>(1.0);
   const [audioError, setAudioError] = useState<string | null>(null);
   const hasUserInitiatedPlay = useRef(false);
 
+  // Playback trimming positions
+  const startTime = typeof gift.playback_start_time === 'number' ? gift.playback_start_time : 0;
+  const endTime = typeof gift.playback_end_time === 'number' ? gift.playback_end_time : undefined;
+
+  // Handle trim loop boundary
+  const handleTimeUpdate = useCallback(() => {
+    if (!audioRef.current) return;
+    const current = audioRef.current.currentTime;
+    if (endTime && endTime > startTime && current >= endTime) {
+      audioRef.current.currentTime = startTime;
+    }
+  }, [startTime, endTime]);
+
   // Synchronize audioSrc when creator/gift settings update
   useEffect(() => {
-    if (gift.music_url) {
-      setAudioSrc(gift.music_url);
+    setAudioSrc(resolvedAudioSrc);
+    if (!resolvedAudioSrc && audioRef.current) {
+      audioRef.current.pause();
+      setPlaybackStatus('idle');
     }
-  }, [gift.music_url]);
+  }, [resolvedAudioSrc]);
 
   // Graceful fallback to bundled high-fidelity audio asset if an external URL fails
   const handleAudioError = useCallback(() => {
+    if (!isMusicEnabled) {
+      setPlaybackStatus('idle');
+      return;
+    }
     const fallbackSrc = '/audio/gentle-moments.mp3';
-    if (audioSrc !== fallbackSrc) {
+    if (gift.music_source === 'library' && audioSrc !== fallbackSrc) {
       console.warn(`Primary audio src failed (${audioSrc}), automatically failing over to bundled audio asset (${fallbackSrc})`);
       setAudioSrc(fallbackSrc);
     } else {
       setPlaybackStatus('error');
       setAudioError('Unable to load audio. Tap to retry.');
     }
-  }, [audioSrc]);
+  }, [isMusicEnabled, gift.music_source, audioSrc]);
+
+  // Handle volume control
+  const handleVolumeChange = useCallback((newVol: number) => {
+    setAudioVolume(newVol);
+    if (audioRef.current) {
+      audioRef.current.volume = newVol;
+      if (newVol === 0) {
+        audioRef.current.muted = true;
+        setIsAudioMuted(true);
+      } else {
+        audioRef.current.muted = false;
+        setIsAudioMuted(false);
+      }
+    }
+  }, []);
 
   // If user has already initiated play and source changed (e.g. fallback triggered), resume playback seamlessly
   useEffect(() => {
@@ -171,13 +224,16 @@ export function RecipientExperience({
 
   // Play / Pause toggle
   const handleTogglePlay = useCallback(() => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !isMusicEnabled || !audioSrc) return;
     hasUserInitiatedPlay.current = true;
 
     if (!audioRef.current.paused && playbackStatus === 'playing') {
       audioRef.current.pause();
       setPlaybackStatus('paused');
     } else {
+      if (startTime > 0 && (audioRef.current.currentTime < startTime || (endTime && audioRef.current.currentTime >= endTime))) {
+        audioRef.current.currentTime = startTime;
+      }
       setAudioError(null);
       setPlaybackStatus('loading');
       const playPromise = audioRef.current.play();
@@ -193,18 +249,13 @@ export function RecipientExperience({
               setPlaybackStatus('blocked');
               setAudioError('Audio blocked by browser. Tap to listen.');
             } else {
-              const fallbackSrc = '/audio/gentle-moments.mp3';
-              if (audioSrc !== fallbackSrc) {
-                setAudioSrc(fallbackSrc);
-              } else {
-                setPlaybackStatus('error');
-                setAudioError('Could not start audio. Tap to retry.');
-              }
+              setPlaybackStatus('error');
+              setAudioError('Could not start audio. Tap to retry.');
             }
           });
       }
     }
-  }, [playbackStatus, audioSrc]);
+  }, [playbackStatus, isMusicEnabled, audioSrc, startTime, endTime]);
 
   // Mute / Unmute toggle
   const handleToggleMute = useCallback(() => {
@@ -220,8 +271,11 @@ export function RecipientExperience({
     setHasStartedExperience(true);
     hasUserInitiatedPlay.current = true;
 
-    // 1. Initiate music playback synchronously in this click handler
-    if (audioRef.current && (audioSrc || gift.music_url)) {
+    // 1. Initiate music playback synchronously in this click handler if music is configured
+    if (audioRef.current && audioSrc && isMusicEnabled) {
+      if (startTime > 0 && (audioRef.current.currentTime < startTime || (endTime && audioRef.current.currentTime >= endTime))) {
+        audioRef.current.currentTime = startTime;
+      }
       setAudioError(null);
       setPlaybackStatus('loading');
       const playPromise = audioRef.current.play();
@@ -237,13 +291,8 @@ export function RecipientExperience({
               setPlaybackStatus('blocked');
               setAudioError('Browser paused audio. Tap to listen.');
             } else {
-              const fallbackSrc = '/audio/gentle-moments.mp3';
-              if (audioSrc !== fallbackSrc) {
-                setAudioSrc(fallbackSrc);
-              } else {
-                setPlaybackStatus('error');
-                setAudioError('Audio blocked by browser. Tap to listen.');
-              }
+              setPlaybackStatus('error');
+              setAudioError('Could not start audio. Tap to retry.');
             }
           });
       }
@@ -255,7 +304,7 @@ export function RecipientExperience({
     if (firstSec) {
       firstSec.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [audioSrc, gift.music_url, enabledSections]);
+  }, [audioSrc, isMusicEnabled, startTime, endTime, enabledSections]);
 
   // Handle password verification with server endpoint
   const handleVerifyPassword = async (password: string) => {
@@ -335,12 +384,13 @@ export function RecipientExperience({
   return (
     <ThemeContainer themeId={gift.selected_theme} customConfig={gift.theme_config}>
       {/* Background HTML5 Audio Element (Continuous playback, never unmounts across sections) */}
-      {audioSrc && (
+      {isMusicEnabled && audioSrc && (
         <audio
           ref={audioRef}
           src={audioSrc}
-          loop
+          loop={gift.loop_enabled !== false}
           preload="auto"
+          onTimeUpdate={handleTimeUpdate}
           onPlay={() => {
             setPlaybackStatus('playing');
             setAudioError(null);
@@ -359,23 +409,30 @@ export function RecipientExperience({
             setPlaybackStatus((prev) => (prev === 'loading' ? 'paused' : prev));
           }}
           onEnded={() => {
-            setPlaybackStatus('paused');
+            if (gift.loop_enabled !== false && audioRef.current) {
+              if (startTime > 0) audioRef.current.currentTime = startTime;
+              audioRef.current.play().catch(() => {});
+            } else {
+              setPlaybackStatus('paused');
+            }
           }}
           onError={handleAudioError}
         />
       )}
 
       {/* Persistent Floating Music Control (Appears and reflects playback across the journey) */}
-      {audioSrc && (
+      {isMusicEnabled && audioSrc && (
         <MusicPlayerBar
           isPlaying={playbackStatus === 'playing'}
           playbackStatus={playbackStatus}
           isMuted={isAudioMuted}
-          trackTitle={gift.music_title || 'Gentle Moments'}
+          volume={audioVolume}
+          trackTitle={gift.music_title || (gift.music_source === 'upload' ? (gift.custom_audio_filename || 'Custom Song') : 'Gentle Moments')}
           audioError={audioError}
           hasStartedJourney={hasStartedExperience}
           onTogglePlay={handleTogglePlay}
           onToggleMute={handleToggleMute}
+          onVolumeChange={handleVolumeChange}
         />
       )}
 
@@ -401,8 +458,8 @@ export function RecipientExperience({
             message={gift.welcome_message}
             buttonText={gift.welcome_button_text}
             coverImage={gift.cover_image}
-            hasMusic={Boolean(audioSrc)}
-            musicTitle={gift.music_title || 'Gentle Moments'}
+            hasMusic={Boolean(isMusicEnabled && audioSrc)}
+            musicTitle={gift.music_title || (gift.music_source === 'upload' ? (gift.custom_audio_filename || 'Custom Song') : 'Gentle Moments')}
             onProceed={handleStartJourney}
           />
         </div>

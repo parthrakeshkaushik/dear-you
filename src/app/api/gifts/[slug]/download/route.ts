@@ -7,6 +7,10 @@ import { isAuthorizedPreviewUser } from '@/lib/auth/roles';
 import { generateOfflineCardHtml } from '@/lib/download/generate-offline-card';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Gift } from '@/types/gift';
+import { getMusicTrackById, DEFAULT_LIBRARY_TRACK } from '@/config/music-library';
+import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+import path from 'node:path';
 
 /**
  * Robust asset fetcher: handles base64 data URIs, local files in public/, and remote URLs.
@@ -237,15 +241,64 @@ export async function GET(
       }
     }
 
-    // C. Package Background Audio (if present)
-    const audioUrl = gift.music_url || (gift.theme_config as any)?.music_url;
-    if (audioUrl) {
-      const audioAsset = await fetchAssetBuffer(audioUrl, baseOrigin);
-      if (audioAsset) {
-        const ext = getExtFromContentTypeOrUrl(audioAsset.contentType, audioUrl);
-        const fileName = `background.${ext === 'wav' ? 'wav' : 'mp3'}`;
-        zip.file(`assets/audio/${fileName}`, audioAsset.buffer);
+    // C. Package Background Audio (strictly independent per gift)
+    const isMusicEnabled =
+      gift.music_enabled !== false &&
+      gift.music_source !== 'none' &&
+      (Boolean(gift.music_url) || Boolean(gift.library_track_id) || Boolean(gift.custom_audio_storage_path));
+
+    if (!isMusicEnabled) {
+      packagedGift.music_url = undefined;
+      packagedGift.music_enabled = false;
+      packagedGift.music_source = 'none';
+    } else {
+      let audioBuffer: Buffer | null = null;
+      let audioExt = 'mp3';
+
+      // 1. Uploaded Custom Audio: Fetch from Supabase Storage or local fallback directory
+      if (gift.music_source === 'upload' && gift.custom_audio_storage_path) {
+        if (gift.custom_audio_storage_path.endsWith('.m4a')) audioExt = 'm4a';
+
+        try {
+          const supabaseAdmin = createAdminClient();
+          const { data: blob } = await supabaseAdmin.storage
+            .from('gifts')
+            .download(gift.custom_audio_storage_path);
+          if (blob) {
+            audioBuffer = Buffer.from(await blob.arrayBuffer());
+          }
+        } catch (storageDlErr) {
+          console.warn('Storage download note during ZIP packaging:', storageDlErr);
+        }
+
+        if (!audioBuffer) {
+          const relPath = gift.custom_audio_storage_path.replace('gift-audio/', '');
+          const localUpload = path.join(process.cwd(), 'public', 'uploads', 'audio', relPath);
+          if (fsSync.existsSync(localUpload)) {
+            audioBuffer = fsSync.readFileSync(localUpload);
+          }
+        }
+      }
+
+      // 2. Library Track or URL fallback
+      if (!audioBuffer) {
+        const track = getMusicTrackById(gift.library_track_id) || DEFAULT_LIBRARY_TRACK;
+        const targetUrl = track?.audio_url || gift.music_url || '/audio/gentle-moments.mp3';
+        const audioAsset = await fetchAssetBuffer(targetUrl, baseOrigin);
+        if (audioAsset) {
+          audioBuffer = audioAsset.buffer;
+          const ext = getExtFromContentTypeOrUrl(audioAsset.contentType, targetUrl);
+          audioExt = ext === 'm4a' ? 'm4a' : 'mp3';
+        }
+      }
+
+      if (audioBuffer) {
+        const fileName = `background.${audioExt}`;
+        zip.file(`assets/audio/${fileName}`, audioBuffer);
         packagedGift.music_url = `./assets/audio/${fileName}`;
+        packagedGift.music_enabled = true;
+      } else {
+        packagedGift.music_url = undefined;
       }
     }
 
@@ -266,6 +319,13 @@ export async function GET(
       gift_box_message: gift.gift_box_message,
       scratch_card_hidden_text: gift.scratch_card_hidden_text,
       closing_message: gift.closing_message,
+      music_enabled: packagedGift.music_enabled,
+      music_source: packagedGift.music_source,
+      music_url: packagedGift.music_url,
+      music_title: packagedGift.music_title,
+      playback_start_time: packagedGift.playback_start_time,
+      playback_end_time: packagedGift.playback_end_time,
+      loop_enabled: packagedGift.loop_enabled,
       memories: packagedGift.memories || [],
       timeline_entries: gift.timeline_entries || [],
       quiz_questions: gift.quiz_questions || [],
