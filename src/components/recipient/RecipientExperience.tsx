@@ -53,16 +53,28 @@ export function RecipientExperience({
 
   const resolvedAudioSrc = useMemo(() => {
     if (!isMusicEnabled) return null;
-    if (gift.music_url) return gift.music_url;
-    if (gift.library_track_id) {
+    // 1. If library track selected or music_source is library, resolve from pre-listed library
+    if (gift.music_source === 'library' || gift.library_track_id) {
       const track = getMusicTrackById(gift.library_track_id);
-      return track?.audio_url || '/audio/gentle-moments.mp3';
+      if (track?.audio_url) return track.audio_url;
+      if (gift.music_url && gift.music_url.startsWith('/audio/')) return gift.music_url;
+      return '/audio/gentle-moments.mp3';
     }
+    // 2. Custom song upload
+    if (gift.music_url) return gift.music_url;
     if (gift.custom_audio_storage_path && gift.slug) {
       return `/api/gifts/${gift.slug}/audio`;
     }
     return null;
-  }, [isMusicEnabled, gift.music_url, gift.library_track_id, gift.custom_audio_storage_path, gift.slug]);
+  }, [isMusicEnabled, gift.music_source, gift.music_url, gift.library_track_id, gift.custom_audio_storage_path, gift.slug]);
+
+  const resolvedTrackTitle = useMemo(() => {
+    if (gift.music_source === 'library' || gift.library_track_id) {
+      const track = getMusicTrackById(gift.library_track_id);
+      return track?.title || gift.music_title || 'Gentle Moments';
+    }
+    return gift.music_title || (gift.music_source === 'upload' ? (gift.custom_audio_filename || 'Custom Song') : 'Gentle Moments');
+  }, [gift.music_source, gift.library_track_id, gift.music_title, gift.custom_audio_filename]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(resolvedAudioSrc);
@@ -427,7 +439,7 @@ export function RecipientExperience({
           playbackStatus={playbackStatus}
           isMuted={isAudioMuted}
           volume={audioVolume}
-          trackTitle={gift.music_title || (gift.music_source === 'upload' ? (gift.custom_audio_filename || 'Custom Song') : 'Gentle Moments')}
+          trackTitle={resolvedTrackTitle}
           audioError={audioError}
           hasStartedJourney={hasStartedExperience}
           onTogglePlay={handleTogglePlay}
@@ -459,7 +471,7 @@ export function RecipientExperience({
             buttonText={gift.welcome_button_text}
             coverImage={gift.cover_image}
             hasMusic={Boolean(isMusicEnabled && audioSrc)}
-            musicTitle={gift.music_title || (gift.music_source === 'upload' ? (gift.custom_audio_filename || 'Custom Song') : 'Gentle Moments')}
+            musicTitle={resolvedTrackTitle}
             onProceed={handleStartJourney}
           />
         </div>

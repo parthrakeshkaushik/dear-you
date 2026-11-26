@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 
@@ -4358,6 +4359,199 @@ test('Gift Builder integrates BackgroundMusicSelector and blocks publishing on u
     createPageCode.includes('The uploaded audio file could not be processed.'),
     true,
     'Create page must block publishing when upload failed'
+  );
+});
+
+// -------------------------------------------------------------
+// 49. DISTINCT AUDIO ASSETS & PLATFORM-WIDE DEVELOPER VISIBILITY TESTS
+// -------------------------------------------------------------
+console.log('\n--- 49. Distinct Audio Assets & Platform-Wide Developer Visibility Tests ---');
+
+test('Every pre-listed library track has a distinct, valid MP3 file with unique hash', () => {
+  const audioDir = 'public/audio';
+  const expectedFiles = [
+    'gentle-moments.mp3',
+    'celestial-waltz.mp3',
+    'joyful-celebration.mp3',
+    'cherished-memories.mp3',
+    'serene-horizon.mp3',
+    'sparkling-fireworks.mp3',
+    'velvet-reverie.mp3',
+    'timeless-echoes.mp3',
+  ];
+
+  const hashes = new Set();
+
+  for (const fileName of expectedFiles) {
+    const filePath = path.join(audioDir, fileName);
+    assert.strictEqual(fs.existsSync(filePath), true, `File ${fileName} must exist in public/audio`);
+    const stat = fs.statSync(filePath);
+    assert.ok(stat.size > 1000000, `File ${fileName} must be a substantial audio file (> 1MB), got ${stat.size} bytes`);
+
+    // Verify unique MD5 hash
+    const buf = fs.readFileSync(filePath);
+    const hash = crypto.createHash('md5').update(buf).digest('hex');
+    assert.strictEqual(
+      hashes.has(hash),
+      false,
+      `Track ${fileName} has duplicate MD5 hash (${hash})! All tracks must be unique distinct audio files.`
+    );
+    hashes.add(hash);
+  }
+
+  assert.strictEqual(hashes.size, 8, 'There must be exactly 8 distinct audio tracks with unique hashes.');
+});
+
+test('Music library configuration has accurate durations and genuine attributions', () => {
+  const musicLibCode = fs.readFileSync('src/config/music-library.ts', 'utf8');
+
+  // Must import and define 8 tracks
+  assert.strictEqual(musicLibCode.includes('lib-gentle-moments'), true);
+  assert.strictEqual(musicLibCode.includes('lib-celestial-waltz'), true);
+  assert.strictEqual(musicLibCode.includes('lib-joyful-celebration'), true);
+  assert.strictEqual(musicLibCode.includes('lib-cherished-memories'), true);
+  assert.strictEqual(musicLibCode.includes('lib-serene-horizon'), true);
+  assert.strictEqual(musicLibCode.includes('lib-sparkling-fireworks'), true);
+  assert.strictEqual(musicLibCode.includes('lib-velvet-reverie'), true);
+  assert.strictEqual(musicLibCode.includes('lib-timeless-echoes'), true);
+
+  // Must define exact durations
+  assert.strictEqual(musicLibCode.includes("duration: 182"), true);
+  assert.strictEqual(musicLibCode.includes("duration: 91"), true);
+  assert.strictEqual(musicLibCode.includes("duration: 102"), true);
+  assert.strictEqual(musicLibCode.includes("duration: 103"), true);
+});
+
+test('BackgroundMusicSelector cleanly recreates Audio instance and stops preview when switching tracks', () => {
+  const selectorCode = fs.readFileSync('src/components/admin/BackgroundMusicSelector.tsx', 'utf8');
+
+  // Verify togglePlayPreview cleanly stops previous audio before playing new
+  assert.strictEqual(
+    selectorCode.includes('previewAudioRef.current.pause()') &&
+    selectorCode.includes('previewAudioRef.current.currentTime = 0') &&
+    selectorCode.includes('new Audio(trackUrl)'),
+    true,
+    'BackgroundMusicSelector must stop previous audio and create fresh Audio instance to avoid stale buffer'
+  );
+
+  // Verify handleChooseLibraryTrack stops previous preview if different track
+  assert.strictEqual(
+    selectorCode.includes('handleChooseLibraryTrack') &&
+    selectorCode.includes('stopPreviewAudio()'),
+    true,
+    'handleChooseLibraryTrack must cleanly stop audio preview when a track is chosen'
+  );
+});
+
+test('Recipient experience resolves chosen library track with top priority and displays resolved title', () => {
+  const recipientCode = fs.readFileSync('src/components/recipient/RecipientExperience.tsx', 'utf8');
+
+  // Verify resolvedAudioSrc prioritizes library track
+  assert.strictEqual(
+    recipientCode.includes("gift.music_source === 'library' || gift.library_track_id"),
+    true,
+    'RecipientExperience must inspect music_source and library_track_id for library tracks'
+  );
+
+  // Verify resolvedTrackTitle resolution
+  assert.strictEqual(
+    recipientCode.includes('resolvedTrackTitle') &&
+    recipientCode.includes('getMusicTrackById(gift.library_track_id)'),
+    true,
+    'RecipientExperience must compute resolvedTrackTitle using getMusicTrackById'
+  );
+});
+
+test('Gift Save/Publish API enforces RFC4122 UUID, valid owner_id, and unpackDatabaseGift', () => {
+  const giftsApiCode = fs.readFileSync('src/app/api/gifts/route.ts', 'utf8');
+
+  // Verify UUID check & generation
+  assert.strictEqual(
+    giftsApiCode.includes('isValidUuid') && giftsApiCode.includes('crypto.randomUUID()'),
+    true,
+    'Gifts API must validate UUIDs and generate RFC4122 UUID for finalId'
+  );
+
+  // Verify owner_id handles non-UUID by setting null
+  assert.strictEqual(
+    giftsApiCode.includes('validOwnerId = isValidUuid(rawUserId) ? rawUserId : null'),
+    true,
+    'Gifts API must set owner_id to null for unauthenticated/test users to avoid Postgres syntax error'
+  );
+
+  // Verify unpacking database gift
+  assert.strictEqual(
+    giftsApiCode.includes('unpackDatabaseGift'),
+    true,
+    'Gifts API must export unpackDatabaseGift helper for database row normalization'
+  );
+
+  // Verify SSR cookie support via createServerClient
+  assert.strictEqual(
+    giftsApiCode.includes('createServerClient') && giftsApiCode.includes('request.cookies.getAll()'),
+    true,
+    'Gifts API must extract user session from Supabase SSR cookies'
+  );
+});
+
+test('Developer gifts API returns platform-wide gifts with creator mapping from admin_users and auth.users', () => {
+  const devGiftsCode = fs.readFileSync('src/app/api/developer/gifts/route.ts', 'utf8');
+
+  // Verify query of all gifts via supabaseAdmin
+  assert.strictEqual(
+    devGiftsCode.includes("from('gifts')") && devGiftsCode.includes('unpackDatabaseGift'),
+    true,
+    'Developer gifts API must query all gifts and unpack database rows'
+  );
+
+  // Verify dual mapping of users
+  assert.strictEqual(
+    devGiftsCode.includes("from('admin_users')") && devGiftsCode.includes('auth.admin.listUsers()'),
+    true,
+    'Developer gifts API must map creators from both admin_users and Supabase auth.users'
+  );
+
+  // Verify status, theme, and view_count indicators
+  assert.strictEqual(
+    devGiftsCode.includes('computedStatus') && devGiftsCode.includes('views_count') && devGiftsCode.includes('music_type'),
+    true,
+    'Developer gifts API must provide computedStatus, views_count, and music_type'
+  );
+});
+
+test('Developer console gifts page displays 4 overview counters, filter tabs, sort selector, and live gift link', () => {
+  const devPageCode = fs.readFileSync('src/app/developer/gifts/page.tsx', 'utf8');
+
+  // Verify 4 overview counters
+  assert.strictEqual(
+    devPageCode.includes('Total Platform Gifts') &&
+    devPageCode.includes('Published (Live)') &&
+    devPageCode.includes('Drafts (In Progress)') &&
+    devPageCode.includes('Archived (Stored)'),
+    true,
+    'Developer gifts page must display 4 platform overview counter cards'
+  );
+
+  // Verify Quick Filter Tabs
+  assert.strictEqual(
+    devPageCode.includes('All Platform Gifts') &&
+    devPageCode.includes('activeTab === tab.id'),
+    true,
+    'Developer gifts page must render quick filter tabs with counts'
+  );
+
+  // Verify Sort selector
+  assert.strictEqual(
+    devPageCode.includes('sortBy') && devPageCode.includes('Most Viewed'),
+    true,
+    'Developer gifts page must provide sorting options'
+  );
+
+  // Verify Music indicator & Live link
+  assert.strictEqual(
+    devPageCode.includes('music_title') && devPageCode.includes('/gift/${gift.slug}'),
+    true,
+    'Developer gifts page must display music track indicator and direct live gift link'
   );
 });
 

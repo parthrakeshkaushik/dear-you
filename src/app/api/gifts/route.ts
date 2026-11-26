@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 import { MOCK_GIFTS } from '@/lib/mock-data';
 import { hashPassword } from '@/lib/auth/password';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -145,32 +146,97 @@ function validateGiftContentLimits(
 }
 
 /**
- * Extracts authenticated user ID from request session cookies or headers.
+ * Validates whether a string is a standard RFC4122 UUID
+ */
+export function isValidUuid(val?: string | null): boolean {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val.trim());
+}
+
+/**
+ * Unpacks and parses raw database rows into fully typed Gift objects.
+ * Accurately extracts JSONB theme_config, per-gift background music properties,
+ * sections, and interactive keepsake modules.
+ */
+export function unpackDatabaseGift(row: any): Gift {
+  if (!row) return row;
+  const themeConfig = (row.theme_config && typeof row.theme_config === 'object') ? row.theme_config : {};
+  const musicConfig = (themeConfig.music && typeof themeConfig.music === 'object') ? themeConfig.music : {};
+
+  return {
+    ...row,
+    music_enabled: typeof musicConfig.enabled === 'boolean'
+      ? musicConfig.enabled
+      : Boolean(row.music_url),
+    music_source: (musicConfig.source as MusicSource) || (row.music_url ? 'library' : 'none'),
+    library_track_id: musicConfig.library_track_id,
+    custom_audio_storage_path: musicConfig.custom_audio_storage_path,
+    custom_audio_filename: musicConfig.custom_audio_filename,
+    audio_duration: musicConfig.duration,
+    playback_start_time: musicConfig.start_time ?? 0,
+    playback_end_time: musicConfig.end_time,
+    loop_enabled: musicConfig.loop ?? true,
+    music_url: row.music_url || musicConfig.url,
+    music_title: row.music_title || musicConfig.title,
+    sections: themeConfig.sections || row.sections || [],
+    memories: themeConfig.memories || row.memories || [],
+    timeline_entries: themeConfig.timeline_entries || row.timeline_entries || [],
+    quiz_questions: themeConfig.quiz_questions || row.quiz_questions || [],
+    secret_messages: themeConfig.secret_messages || row.secret_messages || [],
+    letters: themeConfig.letters || row.letters || [],
+    wishes: themeConfig.wishes || row.wishes || [],
+    password_page_config: row.password_page_config || themeConfig.password_page,
+    expiry_page_config: row.expiry_page_config || themeConfig.expiry_page,
+  };
+}
+
+/**
+ * Extracts authenticated user ID from request session cookies, Supabase SSR cookies, or headers.
  */
 async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
   // 1. Check custom persistent session cookie
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (sessionCookie) {
-    const sessionCheck = await verifySessionExpiryToken(sessionCookie);
-    if (sessionCheck.valid && sessionCheck.userId) {
-      return sessionCheck.userId;
-    }
+    try {
+      const sessionCheck = await verifySessionExpiryToken(sessionCookie);
+      if (sessionCheck.valid && sessionCheck.userId) {
+        return sessionCheck.userId;
+      }
+    } catch {}
   }
 
-  // 2. Check Supabase auth cookie / header
+  // 2. Check Supabase SSR session cookies via createServerClient
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+      },
+    });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user?.id) return user.id;
+  } catch {}
+
+  // 3. Check Supabase auth cookie / header
   try {
     const supabaseAdmin = createAdminClient();
     const authHeader = request.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '');
+      const token = authHeader.replace('Bearer ', '').trim();
       const {
         data: { user },
       } = await supabaseAdmin.auth.getUser(token);
       if (user?.id) return user.id;
     }
-  } catch {
-    // Non-blocking fallback
-  }
+  } catch {}
 
   return null;
 }
@@ -218,15 +284,15 @@ export async function GET(request: NextRequest) {
 
       if (!dbErr && dbCards && dbCards.length > 0) {
         // Filter out any demo card or deleted card
-        for (const card of dbCards) {
+        for (const rawCard of dbCards) {
           if (
-            card.id !== DEMO_CARD_ID &&
-            card.slug !== 'demo' &&
-            card.slug !== 'demo-gift' &&
-            card.is_demo !== true &&
-            card.moderation_status !== 'deleted'
+            rawCard.id !== DEMO_CARD_ID &&
+            rawCard.slug !== 'demo' &&
+            rawCard.slug !== 'demo-gift' &&
+            rawCard.is_demo !== true &&
+            rawCard.moderation_status !== 'deleted'
           ) {
-            userCards.push(card as Gift);
+            userCards.push(unpackDatabaseGift(rawCard));
           }
         }
       }
@@ -287,7 +353,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = (await getAuthenticatedUserId(request)) || 'anonymous-creator';
+    const rawUserId = await getAuthenticatedUserId(request);
+    const userId = rawUserId || 'anonymous-creator';
+    const validOwnerId = isValidUuid(rawUserId) ? rawUserId : null;
     const body = await request.json();
     const {
       draft_id,
@@ -344,17 +412,17 @@ export async function POST(request: NextRequest) {
     let existingGift: Gift | undefined = undefined;
     if (targetId) {
       existingGift = Object.values(MOCK_GIFTS).find(
-        (g) => g.id === targetId && (g.owner_id === userId || userId === 'anonymous-creator')
+        (g) => g.id === targetId && (validOwnerId ? g.owner_id === validOwnerId : true)
       );
-      if (!existingGift) {
+      if (!existingGift && isValidUuid(targetId)) {
         try {
           const { data: dbExisting } = await supabaseAdmin
             .from('gifts')
             .select('*')
             .eq('id', targetId)
             .maybeSingle();
-          if (dbExisting && (dbExisting.owner_id === userId || userId === 'anonymous-creator')) {
-            existingGift = dbExisting as Gift;
+          if (dbExisting && (validOwnerId ? dbExisting.owner_id === validOwnerId : true)) {
+            existingGift = unpackDatabaseGift(dbExisting);
           }
         } catch (dbLookupErr) {
           console.warn('Lookup existing gift warning:', dbLookupErr);
@@ -412,8 +480,8 @@ export async function POST(request: NextRequest) {
       console.warn('Slug collision check warning:', colErr);
     }
 
-    // Generate fresh UUID if new card
-    const finalId = targetId || `gift-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    // Generate fresh RFC4122 UUID if not provided or if legacy non-UUID format
+    const finalId = targetId && isValidUuid(targetId) ? targetId : crypto.randomUUID();
 
     // Hash password if set and updated
     let passwordHash: string | undefined = existingGift?.password_hash;
@@ -430,11 +498,6 @@ export async function POST(request: NextRequest) {
       password_page_config || theme_config?.password_page || existingGift?.password_page_config;
     const finalExpiryPageConfig =
       expiry_page_config || theme_config?.expiry_page || existingGift?.expiry_page_config;
-    const finalThemeConfig = {
-      ...(theme_config || existingGift?.theme_config || {}),
-      ...(finalPasswordPageConfig ? { password_page: finalPasswordPageConfig } : {}),
-      ...(finalExpiryPageConfig ? { expiry_page: finalExpiryPageConfig } : {}),
-    };
 
     // Resolve Per-Gift Independent Background Music Configuration
     let resolvedMusicSource: MusicSource =
@@ -503,6 +566,32 @@ export async function POST(request: NextRequest) {
       finalMusicTitle = undefined;
     }
 
+    const finalThemeConfig = {
+      ...(theme_config || existingGift?.theme_config || {}),
+      ...(finalPasswordPageConfig ? { password_page: finalPasswordPageConfig } : {}),
+      ...(finalExpiryPageConfig ? { expiry_page: finalExpiryPageConfig } : {}),
+      music: {
+        enabled: resolvedMusicEnabled,
+        source: resolvedMusicSource,
+        library_track_id: resolvedLibraryTrackId,
+        custom_audio_storage_path: resolvedCustomStoragePath,
+        custom_audio_filename: resolvedCustomFilename,
+        duration: resolvedAudioDuration,
+        start_time: resolvedStartTime,
+        end_time: resolvedEndTime,
+        loop: resolvedLoopEnabled,
+        url: finalMusicUrl,
+        title: finalMusicTitle,
+      },
+      sections: sections || existingGift?.sections || [],
+      memories: memories || existingGift?.memories || [],
+      timeline_entries: timeline_entries || existingGift?.timeline_entries || [],
+      quiz_questions: quiz_questions || existingGift?.quiz_questions || [],
+      secret_messages: secret_messages || existingGift?.secret_messages || [],
+      letters: letters || existingGift?.letters || [],
+      wishes: wishes || existingGift?.wishes || [],
+    };
+
     const savedGift: Gift = {
       ...(existingGift || {}),
       id: finalId,
@@ -545,13 +634,13 @@ export async function POST(request: NextRequest) {
       music_url: finalMusicUrl,
       music_title: finalMusicTitle,
       memory_wall_config,
-      sections: sections || [],
-      memories: memories || [],
-      timeline_entries: timeline_entries || [],
-      quiz_questions: quiz_questions || [],
-      secret_messages: secret_messages || [],
-      letters: letters || [],
-      wishes: wishes || [],
+      sections: sections || existingGift?.sections || [],
+      memories: memories || existingGift?.memories || [],
+      timeline_entries: timeline_entries || existingGift?.timeline_entries || [],
+      quiz_questions: quiz_questions || existingGift?.quiz_questions || [],
+      secret_messages: secret_messages || existingGift?.secret_messages || [],
+      letters: letters || existingGift?.letters || [],
+      wishes: wishes || existingGift?.wishes || [],
       created_at: existingGift?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
       published_at:
@@ -568,18 +657,18 @@ export async function POST(request: NextRequest) {
     // Store in memory repository
     MOCK_GIFTS[finalSlug] = savedGift;
 
-    // Persist to Supabase
+    // Persist to Supabase Database
     try {
       const payload: Record<string, any> = {
         id: finalId,
-        owner_id: userId,
+        owner_id: validOwnerId,
         recipient_name: savedGift.recipient_name,
         title: savedGift.title,
         slug: savedGift.slug,
         event_type: savedGift.event_type,
         event_date: savedGift.event_date || null,
-        selected_theme: savedGift.selected_theme,
-        theme_config: savedGift.theme_config || null,
+        selected_theme: savedGift.selected_theme || 'dreamy',
+        theme_config: finalThemeConfig,
         welcome_heading: savedGift.welcome_heading || null,
         welcome_message: savedGift.welcome_message || null,
         welcome_button_text: savedGift.welcome_button_text || null,
@@ -590,35 +679,45 @@ export async function POST(request: NextRequest) {
         gift_box_message: savedGift.gift_box_message || null,
         cover_image: savedGift.cover_image || null,
         introduction: savedGift.introduction || null,
-        music_enabled: savedGift.music_enabled,
-        music_source: savedGift.music_source,
-        library_track_id: savedGift.library_track_id || null,
-        custom_audio_storage_path: savedGift.custom_audio_storage_path || null,
-        custom_audio_filename: savedGift.custom_audio_filename || null,
-        audio_duration: savedGift.audio_duration || null,
-        playback_start_time: savedGift.playback_start_time ?? 0,
-        playback_end_time: savedGift.playback_end_time || null,
-        loop_enabled: savedGift.loop_enabled ?? true,
         music_url: savedGift.music_url || null,
         music_title: savedGift.music_title || null,
         memory_wall_config: savedGift.memory_wall_config || null,
-        status: savedGift.status,
-        password_hash: savedGift.password_hash,
-        password_hint: savedGift.password_hint,
-        password_version: savedGift.password_version,
-        expiry_enabled: savedGift.expiry_enabled,
-        expires_at: savedGift.expires_at || null,
-        expiry_timezone: savedGift.expiry_timezone,
-        published_at: savedGift.published_at,
-        updated_at: savedGift.updated_at,
+        status: savedGift.status || 'draft',
+        password_hash: savedGift.password_hash || null,
+        password_hint: savedGift.password_hint || null,
+        password_version: savedGift.password_version || 1,
+        expiry_enabled: !!savedGift.expiry_enabled,
+        expires_at: savedGift.expiry_enabled ? savedGift.expires_at : null,
+        expiry_timezone: savedGift.expiry_timezone || 'Asia/Kolkata',
+        published_at: savedGift.published_at || null,
+        created_at: savedGift.created_at || new Date().toISOString(),
+        updated_at: savedGift.updated_at || new Date().toISOString(),
       };
 
-      if (existingGift) {
-        const { error: updateError } = await supabaseAdmin
+      // Check whether this card already exists in Supabase
+      let isExistingInDb = false;
+      if (isValidUuid(finalId)) {
+        const { data: checkRow } = await supabaseAdmin
+          .from('gifts')
+          .select('id')
+          .eq('id', finalId)
+          .maybeSingle();
+        if (checkRow?.id) {
+          isExistingInDb = true;
+        }
+      }
+
+      if (isExistingInDb) {
+        let updateQuery = supabaseAdmin
           .from('gifts')
           .update(payload)
-          .eq('id', finalId)
-          .eq('owner_id', userId);
+          .eq('id', finalId);
+
+        if (validOwnerId) {
+          updateQuery = updateQuery.eq('owner_id', validOwnerId);
+        }
+
+        const { error: updateError } = await updateQuery;
 
         if (updateError) {
           if (updateError.code === '23505') {

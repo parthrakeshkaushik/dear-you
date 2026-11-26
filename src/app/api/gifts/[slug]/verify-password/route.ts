@@ -4,6 +4,8 @@ import { verifyPassword } from '@/lib/auth/password';
 import { createRecipientToken, getRecipientCookieName } from '@/lib/auth/recipient-session';
 import { checkGiftExpiry } from '@/lib/expiry';
 import { MOCK_GIFTS } from '@/lib/mock-data';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { unpackDatabaseGift } from '@/app/api/gifts/route';
 
 const FRIENDLY_PASSWORD_MESSAGES = [
   "That was a good try! But I think there's another little secret to discover. Try again!",
@@ -54,7 +56,25 @@ export async function POST(
     }
 
     // Retrieve gift
-    const gift = MOCK_GIFTS[slug];
+    let gift = MOCK_GIFTS[slug];
+
+    if (!gift) {
+      try {
+        const supabaseAdmin = createAdminClient();
+        const { data: dbGift } = await supabaseAdmin
+          .from('gifts')
+          .select('*')
+          .eq('slug', slug)
+          .maybeSingle();
+
+        if (dbGift) {
+          gift = unpackDatabaseGift(dbGift);
+          MOCK_GIFTS[slug] = gift;
+        }
+      } catch (dbErr) {
+        console.warn('Verify password gift db fallback note:', dbErr);
+      }
+    }
 
     if (!gift) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });

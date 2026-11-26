@@ -3,6 +3,8 @@ import { verifyRecipientToken, getRecipientCookieName } from '@/lib/auth/recipie
 import { isAuthorizedPreviewUser } from '@/lib/auth/roles';
 import { checkGiftExpiry } from '@/lib/expiry';
 import { MOCK_GIFTS, MOCK_USERS } from '@/lib/mock-data';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { unpackDatabaseGift } from '@/app/api/gifts/route';
 
 export async function GET(
   request: NextRequest,
@@ -10,7 +12,25 @@ export async function GET(
 ) {
   try {
     const { slug } = params;
-    const gift = MOCK_GIFTS[slug];
+    let gift = MOCK_GIFTS[slug];
+
+    if (!gift) {
+      try {
+        const supabaseAdmin = createAdminClient();
+        const { data: dbGift } = await supabaseAdmin
+          .from('gifts')
+          .select('*')
+          .eq('slug', slug)
+          .maybeSingle();
+
+        if (dbGift) {
+          gift = unpackDatabaseGift(dbGift);
+          MOCK_GIFTS[slug] = gift;
+        }
+      } catch (dbErr) {
+        console.warn('Content gift db fallback note:', dbErr);
+      }
+    }
 
     if (!gift) {
       return NextResponse.json({ error: 'Gift not found' }, { status: 404 });

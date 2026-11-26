@@ -136,37 +136,39 @@ export function BackgroundMusicSelector({
       }
       setIsPreviewPlaying(false);
     } else {
-      // Play new or resume
-      if (!previewAudioRef.current) {
-        previewAudioRef.current = new Audio(trackUrl);
-      } else {
-        previewAudioRef.current.src = trackUrl;
+      // Cleanly stop any existing playing audio to avoid overlap or stale buffers
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current.currentTime = 0;
+        previewAudioRef.current.ontimeupdate = null;
+        previewAudioRef.current.onended = null;
       }
 
-      previewAudioRef.current.currentTime = startSec || 0;
+      // Create new Audio instance to guarantee fresh media loading without stale cached buffer
+      const audio = new Audio(trackUrl);
+      previewAudioRef.current = audio;
+      audio.currentTime = startSec || 0;
       setCurrentlyPreviewingUrl(trackUrl);
       setIsPreviewPlaying(true);
 
       // Trimming listener for segment preview
       if (endSec && endSec > startSec) {
-        const checkTrimLimit = () => {
-          if (previewAudioRef.current && previewAudioRef.current.currentTime >= endSec) {
-            previewAudioRef.current.currentTime = startSec;
+        audio.ontimeupdate = () => {
+          if (audio.currentTime >= endSec) {
+            audio.currentTime = startSec;
           }
         };
-        previewAudioRef.current.ontimeupdate = checkTrimLimit;
       } else {
-        if (previewAudioRef.current) {
-          previewAudioRef.current.ontimeupdate = null;
-          previewAudioRef.current.loop = true;
-        }
+        audio.ontimeupdate = null;
+        audio.loop = true;
       }
 
-      previewAudioRef.current.onended = () => {
+      audio.onended = () => {
         setIsPreviewPlaying(false);
+        setCurrentlyPreviewingUrl(null);
       };
 
-      previewAudioRef.current.play().catch((err) => {
+      audio.play().catch((err) => {
         console.warn('Preview playback prevented:', err);
         setIsPreviewPlaying(false);
       });
@@ -233,6 +235,9 @@ export function BackgroundMusicSelector({
 
   // Select a track from the library
   const handleChooseLibraryTrack = (track: MusicTrack) => {
+    if (currentlyPreviewingUrl && currentlyPreviewingUrl !== track.audio_url) {
+      stopPreviewAudio();
+    }
     onChange({
       music_enabled: true,
       music_source: 'library',

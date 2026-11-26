@@ -25,6 +25,10 @@ import {
   Table as TableIcon,
   Check,
   X,
+  Music,
+  FileText,
+  Archive,
+  ArrowUpDown,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { THEME_PRESETS } from '@/config/themes';
@@ -34,6 +38,8 @@ export default function DeveloperGiftsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [themeFilter, setThemeFilter] = useState('all');
   const [pubStatusFilter, setPubStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'published' | 'draft' | 'archived'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'views' | 'recipient' | 'title'>('newest');
   const [moderationFilter, setModerationFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
@@ -154,26 +160,50 @@ export default function DeveloperGiftsPage() {
     setTimeout(() => setActionNotice(null), 4000);
   };
 
-  // Filter gifts
-  const filteredGifts = gifts.filter((gift: any) => {
-    const ownerEmail = gift.owner_email || '';
-    const ownerName = gift.owner_name || '';
-    const matchesSearch =
-      gift.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      gift.recipient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      gift.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      gift.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ownerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ownerName.toLowerCase().includes(searchQuery.toLowerCase());
+  // Overview metrics across platform gifts
+  const totalCount = gifts.length;
+  const publishedCount = gifts.filter((g: any) => g.status === 'published' || g.raw_status === 'published').length;
+  const draftCount = gifts.filter((g: any) => g.status === 'draft' || g.raw_status === 'draft').length;
+  const archivedCount = gifts.filter((g: any) => g.status === 'archived' || g.raw_status === 'archived').length;
 
-    const matchesTheme = themeFilter === 'all' || gift.selected_theme === themeFilter;
-    const matchesPub = pubStatusFilter === 'all' || gift.status === pubStatusFilter;
+  // Filter & Sort gifts
+  const filteredGifts = gifts
+    .filter((gift: any) => {
+      const ownerEmail = gift.owner_email || '';
+      const ownerName = gift.owner_name || '';
+      const matchesSearch =
+        gift.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        gift.recipient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        gift.slug?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        gift.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ownerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ownerName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const giftMod = gift.moderation_status || 'active';
-    const matchesMod = moderationFilter === 'all' || giftMod === moderationFilter;
+      const matchesTheme = themeFilter === 'all' || gift.selected_theme === themeFilter;
+      const matchesPub =
+        pubStatusFilter === 'all' ||
+        gift.status === pubStatusFilter ||
+        gift.raw_status === pubStatusFilter;
 
-    return matchesSearch && matchesTheme && matchesPub && matchesMod;
-  });
+      const giftMod = gift.moderation_status || 'active';
+      const matchesMod = moderationFilter === 'all' || giftMod === moderationFilter;
+
+      return matchesSearch && matchesTheme && matchesPub && matchesMod;
+    })
+    .sort((a: any, b: any) => {
+      if (sortBy === 'views') {
+        const vA = a.views_count ?? a.download_count ?? 0;
+        const vB = b.views_count ?? b.download_count ?? 0;
+        return vB - vA;
+      }
+      if (sortBy === 'recipient') {
+        return (a.recipient_name || '').localeCompare(b.recipient_name || '');
+      }
+      if (sortBy === 'title') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
 
   return (
     <div className="space-y-6">
@@ -222,6 +252,86 @@ export default function DeveloperGiftsPage() {
         </div>
       )}
 
+      {/* 4 Platform Overview Counter Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Total Gifts */}
+        <div className="p-4 rounded-2xl bg-[#0F172A] border border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-mono text-stone-400">Total Platform Gifts</p>
+            <p className="text-2xl font-semibold text-white mt-1 font-mono">{totalCount}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+            <Gift className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Published */}
+        <div className="p-4 rounded-2xl bg-[#0F172A] border border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-mono text-stone-400">Published (Live)</p>
+            <p className="text-2xl font-semibold text-emerald-400 mt-1 font-mono">{publishedCount}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Drafts */}
+        <div className="p-4 rounded-2xl bg-[#0F172A] border border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-mono text-stone-400">Drafts (In Progress)</p>
+            <p className="text-2xl font-semibold text-amber-400 mt-1 font-mono">{draftCount}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+            <FileText className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Archived */}
+        <div className="p-4 rounded-2xl bg-[#0F172A] border border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-mono text-stone-400">Archived (Stored)</p>
+            <p className="text-2xl font-semibold text-stone-300 mt-1 font-mono">{archivedCount}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-stone-500/10 border border-stone-500/20 text-stone-400 flex items-center justify-center">
+            <Archive className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Filter Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-white/10">
+        {[
+          { id: 'all', label: 'All Platform Gifts', count: totalCount },
+          { id: 'published', label: 'Published', count: publishedCount },
+          { id: 'draft', label: 'Drafts', count: draftCount },
+          { id: 'archived', label: 'Archived', count: archivedCount },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              setActiveTab(tab.id as any);
+              setPubStatusFilter(tab.id);
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-mono font-medium transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === tab.id
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-stone-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === tab.id ? 'bg-indigo-700 text-white' : 'bg-white/10 text-stone-400'
+              }`}
+            >
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Filter and Search Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-[#0F172A] p-4 rounded-2xl border border-white/10">
         <div className="relative w-full md:w-80">
@@ -236,6 +346,21 @@ export default function DeveloperGiftsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Sort Selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-stone-400 font-mono text-[11px]">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono text-[11px]"
+            >
+              <option value="newest">Newest First</option>
+              <option value="views">Most Viewed</option>
+              <option value="recipient">Recipient Name</option>
+              <option value="title">Card Title</option>
+            </select>
+          </div>
+
           {/* Moderation Status Filter */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-stone-400 font-mono text-[11px]">Moderation:</span>
@@ -257,7 +382,12 @@ export default function DeveloperGiftsPage() {
             <span className="text-xs text-stone-400 font-mono text-[11px]">Status:</span>
             <select
               value={pubStatusFilter}
-              onChange={(e) => setPubStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setPubStatusFilter(e.target.value);
+                if (['all', 'published', 'draft', 'archived'].includes(e.target.value)) {
+                  setActiveTab(e.target.value as any);
+                }
+              }}
               className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono text-[11px]"
             >
               <option value="all">All Statuses</option>
@@ -410,37 +540,52 @@ export default function DeveloperGiftsPage() {
 
                       {/* Theme & Category */}
                       <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-purple-900/30 text-purple-300 border border-purple-500/20 block w-fit mb-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-purple-900/30 text-purple-300 border border-purple-500/20 block w-fit mb-1 font-mono">
                           {gift.event_type}
                         </span>
-                        <span className="text-[10px] text-indigo-300">
-                          {gift.selected_theme} • {gift.memories?.length || 0} photos
+                        <span className="text-[10px] text-indigo-300 block">
+                          Theme: {gift.selected_theme} • {gift.memories?.length || 0} photos
                         </span>
+                        <div className="flex items-center gap-1 mt-1 text-[10px] text-stone-400 truncate max-w-[150px]" title={gift.music_title || 'No Music'}>
+                          <Music className="w-3 h-3 text-indigo-400 shrink-0" />
+                          <span className="truncate">{gift.music_title || 'No Music'}</span>
+                        </div>
                       </td>
 
                       {/* Status & Moderation */}
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col gap-1 w-fit">
-                          {/* Moderation Badge */}
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                              modStatus === 'active'
-                                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
-                                : modStatus === 'paused'
-                                ? 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
-                                : modStatus === 'unpublished'
-                                ? 'bg-blue-950/60 text-blue-400 border border-blue-500/30'
-                                : 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
-                            }`}
-                          >
-                            Mod: {modStatus}
-                          </span>
-
-                          {/* Publication & Expiry Badges */}
-                          <div className="flex items-center gap-1 text-[9px] text-stone-400">
-                            <span>{gift.status.toUpperCase()}</span>
-                            {isExpired && <span className="text-rose-400 font-semibold">• EXPIRED</span>}
+                          {/* Status Badge */}
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                isExpired
+                                  ? 'bg-rose-950/80 text-rose-300 border border-rose-500/30'
+                                  : gift.status === 'published'
+                                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
+                                  : gift.status === 'draft'
+                                  ? 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
+                                  : 'bg-slate-800 text-slate-300 border border-slate-600/30'
+                              }`}
+                            >
+                              {isExpired ? 'EXPIRED' : gift.status.toUpperCase()}
+                            </span>
                           </div>
+
+                          {/* Moderation Badge */}
+                          {modStatus !== 'active' && (
+                            <span
+                              className={`text-[9px] font-semibold px-1.5 py-0.2 rounded uppercase ${
+                                modStatus === 'paused'
+                                  ? 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
+                                  : modStatus === 'unpublished'
+                                  ? 'bg-blue-950/60 text-blue-400 border border-blue-500/30'
+                                  : 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
+                              }`}
+                            >
+                              Mod: {modStatus}
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -454,9 +599,20 @@ export default function DeveloperGiftsPage() {
                         </div>
                       </td>
 
-                      {/* Moderation Actions */}
+                      {/* Moderation & Quick Actions */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Live Recipient Link (New Tab) */}
+                          <a
+                            href={`/gift/${gift.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-black/40 text-stone-300 border border-white/10 hover:border-indigo-400 hover:text-indigo-300 transition-all shadow-sm"
+                            title="Open Live Public Keepsake in New Tab"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+
                           {/* Pause / Resume */}
                           <button
                             onClick={() => handleTogglePause(gift)}
@@ -613,6 +769,10 @@ export default function DeveloperGiftsPage() {
                     <p>
                       Photos: <span className="text-stone-200">{gift.memories?.length || 0} items</span>
                     </p>
+                    <p className="flex items-center gap-1.5">
+                      <Music className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span className="truncate">Music: {gift.music_title || 'No Music'}</span>
+                    </p>
                     <p>
                       URL: <code className="text-stone-300">/g/{gift.slug}</code>
                     </p>
@@ -621,6 +781,16 @@ export default function DeveloperGiftsPage() {
 
                 <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
+                    {/* Live Recipient Link (New Tab) */}
+                    <a
+                      href={`/gift/${gift.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg border border-white/10 hover:border-indigo-400 text-stone-300 hover:text-indigo-300 transition-all shadow-sm"
+                      title="Open Live Recipient View in New Tab"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
                     <button
                       onClick={() => handleTogglePause(gift)}
                       className="p-1.5 rounded-lg border border-white/10 hover:border-amber-400 text-stone-300 hover:text-amber-300"

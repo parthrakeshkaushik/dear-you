@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedDeveloper } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { unpackDatabaseGift } from '@/app/api/gifts/route';
+import { MOCK_GIFTS } from '@/lib/mock-data';
 
 export async function GET(request: NextRequest) {
   const authCheck = await getAuthenticatedDeveloper(request);
@@ -14,14 +16,39 @@ export async function GET(request: NextRequest) {
   try {
     const supabaseAdmin = createAdminClient();
 
-    // 1. Fetch live users from admin_users
-    const { data: usersData } = await supabaseAdmin
-      .from('admin_users')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // 1. Fetch live users from both admin_users and auth.users
+    const usersMap = new Map<string, any>();
 
-    // 2. Fetch live gifts
-    const { data: giftsData } = await supabaseAdmin
+    try {
+      const { data: usersData } = await supabaseAdmin
+        .from('admin_users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (usersData) {
+        usersData.forEach((u: any) => usersMap.set(u.id, u));
+      }
+    } catch {}
+
+    try {
+      const { data: authUsersRes } = await supabaseAdmin.auth.admin.listUsers();
+      if (authUsersRes?.users) {
+        authUsersRes.users.forEach((u: any) => {
+          if (!usersMap.has(u.id)) {
+            usersMap.set(u.id, {
+              id: u.id,
+              email: u.email,
+              display_name: u.user_metadata?.display_name || u.email?.split('@')[0],
+              account_status: 'active',
+              created_at: u.created_at,
+            });
+          }
+        });
+      }
+    } catch {}
+
+    // 2. Fetch live gifts from Supabase database
+    const { data: dbGiftsData } = await supabaseAdmin
       .from('gifts')
       .select('*')
       .order('created_at', { ascending: false });
@@ -33,19 +60,32 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    const users = usersData || [];
-    const gifts = giftsData || [];
     const auditLogs = auditData || [];
 
-    const usersMap = new Map<string, any>();
-    users.forEach((u: any) => usersMap.set(u.id, u));
+    // Merge database and memory gifts
+    const giftsMap = new Map<string, any>();
+    if (dbGiftsData) {
+      dbGiftsData.forEach((row: any) => {
+        const unpacked = unpackDatabaseGift(row);
+        giftsMap.set(unpacked.id, unpacked);
+      });
+    }
+
+    for (const memGift of Object.values(MOCK_GIFTS)) {
+      if (!giftsMap.has(memGift.id)) {
+        giftsMap.set(memGift.id, memGift);
+      }
+    }
+
+    const gifts = Array.from(giftsMap.values());
+    const users = Array.from(usersMap.values());
 
     const enhancedGifts = gifts.map((g: any) => {
-      const owner = usersMap.get(g.owner_id);
+      const owner = g.owner_id ? usersMap.get(g.owner_id) : undefined;
       return {
         ...g,
-        owner_name: owner?.display_name || 'Creator',
-        owner_email: owner?.email || '',
+        owner_name: owner?.display_name || (g.owner_id ? 'Creator' : 'Anonymous Creator'),
+        owner_email: owner?.email || (g.owner_id ? 'creator@dearyou.com' : ''),
       };
     });
 
@@ -54,6 +94,7 @@ export async function GET(request: NextRequest) {
     const totalGifts = gifts.length;
     const publishedGifts = gifts.filter((g: any) => g.status === 'published').length;
     const draftGifts = gifts.filter((g: any) => g.status === 'draft').length;
+    const archivedGifts = gifts.filter((g: any) => g.status === 'archived').length;
     const expiredGifts = gifts.filter((g: any) => {
       return g.expiry_enabled && g.expires_at && Date.now() > new Date(g.expires_at).getTime();
     }).length;
@@ -71,6 +112,7 @@ export async function GET(request: NextRequest) {
         totalGifts,
         publishedGifts,
         draftGifts,
+        archivedGifts,
         expiredGifts,
         themeCounts,
       },
